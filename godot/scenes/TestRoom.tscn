@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[node name="TestRoom" type="Node2D"]
+
+[node name="Label2D" type="Label2D" parent="."]
+position = Vector2(34, 42)
+text = "Test Room Placeholder"

@@ -1,0 +1,22 @@
+; Engine configuration file.
+; Edited for Deduction Delve prototype.
+
+config_version=5
+
+[application]
+config/name="DeductionDelve"
+run/main_scene="res://scenes/Lobby.tscn"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[autoload]
+NetworkManager="*res://src/net/network_manager.gd"
+RunState="*res://src/run/run_state.gd"
+EventLog="*res://src/run/event_log.gd"
+
+[rendering]
+renderer/rendering_method="mobile"

@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/entities/evidence.gd" id="1_mnshj"]
+
+[node name="Evidence" type="Node2D"]
+script = ExtResource("1_mnshj")
+
+[node name="Core" type="Polygon2D" parent="."]
+color = Color(0.67, 0.9, 0.72, 1)
+polygon = PackedVector2Array(-10, -10, 10, -10, 10, 10, -10, 10)
+
+[node name="Label" type="Label2D" parent="."]
+position = Vector2(-20, -20)
+text = "E0"
+font_size = 14

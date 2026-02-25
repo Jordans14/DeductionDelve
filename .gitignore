@@ -1,0 +1,10 @@
+.godot_user/
+godot/.godot/
+godot/.import/
+godot/.mono/
+
+.vscode/
+*.tmp
+*.log
+Thumbs.db
+Desktop.ini
