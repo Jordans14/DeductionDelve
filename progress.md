@@ -462,3 +462,53 @@ Implementation scripts and runnable scenes are being added next in this iteratio
 
 ### Known remaining risks
 - End condition is intentionally minimal (tick-limit) and should be replaced/augmented by gameplay objective condition in later milestone.
+
+## 2026-02-25 - Iteration 8 (Repo Hygiene + Objective End v0)
+
+### What changed
+- Repo hygiene:
+  - Confirmed valid git repository at `D:\DeductionDelve` with `.git/` present.
+  - Added/updated `.gitignore` for Godot cache paths + Windows/VSCode noise while keeping source/docs/scripts tracked.
+  - Created baseline tracking commit:
+    - `Baseline import (tracked project on D drive)`.
+- Test runner cleanup:
+  - Explicitly freed off-tree `NetworkManager` nodes in headless tests, removing shutdown leak warnings in current run.
+- Gameplay milestone (Option 1 implemented):
+  - Added deterministic objective-based run end on host:
+    - `extraction_objective` triggers when any artifact carrier reaches extraction slot (last room slot).
+    - tick-limit remains deterministic fallback (`tick_limit`).
+  - End reason remains host authoritative and is included in existing end payload.
+  - Role secrecy boundary unchanged (role map still end-only payload).
+
+### Why
+- Git tracking was required for safe iterative diffs and review.
+- Objective-based end makes runs feel complete through player action instead of waiting for timer.
+- Kept deterministic and secrecy constraints unchanged.
+
+### Files changed
+- `.gitignore`
+- `godot/src/net/network_manager.gd`
+- `godot/src/tests/test_runner.gd`
+- `docs/CORE_LOOPS.md`
+- `docs/NETWORKING.md`
+- `docs/UX_UI.md`
+- `docs/TESTING.md`
+- `progress.md`
+
+### Tests added/updated
+- Added extraction objective determinism test:
+  - `compute_end_reason_for_tick(...)` returns `extraction_objective` when carrier is in extraction slot.
+  - verifies objective reason precedence over tick-limit when both are true.
+- Existing role secrecy/end payload tests retained.
+
+### Run / test commands
+1. Baseline test:
+   - `.\scripts\run_tests.ps1`
+2. Host + clients:
+   - `.\scripts\run_host.ps1`
+   - `.\scripts\run_client.ps1 -Count 2`
+3. Objective playtest:
+   - pick up any artifact, move carrier to final room slot, verify run ends with reason `extraction_objective`.
+
+### Known remaining risks
+- Objective is intentionally simple (single extraction-slot check) and may need balancing constraints in later milestones (for example, minimum progress gating).

@@ -45,5 +45,5 @@
 - "What was known vs guessed" recap cues.
 - Current v0 implementation:
   - hidden during run, shown after host-authoritative end trigger.
-  - displays `RUN COMPLETE`, run seed, end reason, role reveal list, and per-player evidence summary.
+  - displays `RUN COMPLETE`, run seed, end reason (`extraction_objective` or `tick_limit`), role reveal list, and per-player evidence summary.
   - compact timeline shown with a simple "show more/less" toggle via `TAB`.

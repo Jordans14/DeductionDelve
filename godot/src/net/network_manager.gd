@@ -36,6 +36,7 @@ var next_event_id: int = 1
 var check_counter_by_peer: Dictionary = {}
 var local_sabotage_cooldown_until_tick: int = 0
 var run_active: bool = false
+var extraction_room_slot: int = -1
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -90,6 +91,7 @@ func disconnect_peer() -> void:
 	next_event_id = 1
 	local_sabotage_cooldown_until_tick = 0
 	run_active = false
+	extraction_room_slot = -1
 	is_host = false
 	var run_state := _run_state()
 	if run_state != null:
@@ -129,6 +131,7 @@ func start_run(seed_override: int = 0, room_count: int = 8) -> void:
 	next_event_id = 1
 	local_sabotage_cooldown_until_tick = 0
 	run_active = true
+	extraction_room_slot = maxi(chain.size() - 1, 0)
 
 	var event_log := _event_log()
 	if event_log != null:
@@ -155,8 +158,10 @@ func broadcast_state(snapshot: Dictionary, tick: int) -> void:
 		return
 	current_server_tick = tick
 	host_push_state.rpc(snapshot, tick)
-	if run_active and should_end_run_for_tick(current_server_tick):
-		_host_end_run("tick_limit")
+	if run_active:
+		var reason := compute_end_reason_for_tick(current_server_tick)
+		if reason != "":
+			_host_end_run(reason)
 
 func all_ready() -> bool:
 	if players.is_empty():
@@ -298,6 +303,26 @@ func is_run_active() -> bool:
 
 func should_end_run_for_tick(tick: int) -> bool:
 	return tick >= RUN_TICK_LIMIT
+
+func should_end_run_for_extraction() -> bool:
+	if extraction_room_slot < 0:
+		return false
+	for artifact_id in artifacts_by_id.keys():
+		var artifact: Dictionary = artifacts_by_id[artifact_id]
+		var owner_peer_id := int(artifact.get("owner_peer_id", 0))
+		if owner_peer_id == 0:
+			continue
+		var owner_slot := int(player_room_by_peer.get(owner_peer_id, -1))
+		if owner_slot == extraction_room_slot:
+			return true
+	return false
+
+func compute_end_reason_for_tick(tick: int) -> String:
+	if should_end_run_for_extraction():
+		return "extraction_objective"
+	if should_end_run_for_tick(tick):
+		return "tick_limit"
+	return ""
 
 func build_run_start_payload(seed_value: int, room_chain: Array, peer_ids: Array) -> Dictionary:
 	return {

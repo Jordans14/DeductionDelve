@@ -23,6 +23,7 @@ func _init() -> void:
 	_test_steal_denied_cross_room(failures)
 	_test_room_builder_indicator_visual_only(failures)
 	_test_run_end_tick_determinism(failures)
+	_test_extraction_objective_end_reason(failures)
 	_test_role_reveal_secrecy_until_end(failures)
 	_test_end_payload_contract(failures)
 
@@ -249,6 +250,22 @@ func _test_run_end_tick_determinism(failures: Array[String]) -> void:
 			break
 	if trigger_a != 1800 or trigger_b != 1800:
 		failures.append("run end should deterministically trigger at tick limit")
+	manager.free()
+
+func _test_extraction_objective_end_reason(failures: Array[String]) -> void:
+	var manager = NETWORK_MANAGER_SCRIPT.new()
+	manager.extraction_room_slot = 7
+	manager.player_room_by_peer = {2: 7}
+	manager.artifacts_by_id = {
+		1: {"artifact_id": 1, "owner_peer_id": 2, "room_slot": 4},
+		2: {"artifact_id": 2, "owner_peer_id": 0, "room_slot": 7}
+	}
+	var reason := manager.compute_end_reason_for_tick(120)
+	if reason != "extraction_objective":
+		failures.append("objective end should trigger when carrier reaches extraction room slot")
+	if manager.compute_end_reason_for_tick(1800) != "extraction_objective":
+		failures.append("objective end should take precedence over tick-limit when both true")
+	manager.free()
 
 func _test_role_reveal_secrecy_until_end(failures: Array[String]) -> void:
 	var manager = NETWORK_MANAGER_SCRIPT.new()
@@ -265,6 +282,7 @@ func _test_role_reveal_secrecy_until_end(failures: Array[String]) -> void:
 	var roles_reveal: Dictionary = end_payload.get("roles_reveal", {})
 	if roles_reveal.is_empty():
 		failures.append("run end role reveal map should not be empty")
+	manager.free()
 
 func _test_end_payload_contract(failures: Array[String]) -> void:
 	var manager = NETWORK_MANAGER_SCRIPT.new()
@@ -281,3 +299,4 @@ func _test_end_payload_contract(failures: Array[String]) -> void:
 	var public_meta := helpers.public_meta_allowlist("run_ended", contaminated)
 	if not public_meta.is_empty():
 		failures.append("run_ended public meta should be empty by allowlist")
+	manager.free()

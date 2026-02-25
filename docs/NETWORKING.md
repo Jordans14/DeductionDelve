@@ -76,7 +76,9 @@
 - Compress repeated identifiers (integer IDs).
 
 ## Run Lifecycle v0
-- End condition: host ends run when `tick >= RUN_TICK_LIMIT`.
+- End condition priority (host authoritative, deterministic):
+  1. `extraction_objective`: any artifact carrier reaches extraction room slot (`last room slot`).
+  2. fallback `tick_limit`: `tick >= RUN_TICK_LIMIT`.
 - Role-map reveal is transmitted only in end payload, never in run-start payload.
 - End payload includes:
   - `seed`

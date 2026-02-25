@@ -18,7 +18,7 @@
 2. Team traverses generated room chain, collecting items and evidence.
 3. Suspicion rises as deaths/resource losses occur with plausible deniability.
 4. Build synergies unlock new deception/investigation methods.
-5. Deterministic run-end trigger fires on host (current v0: tick limit).
+5. Deterministic run-end trigger fires on host (v0: extraction objective; fallback tick limit).
 6. End screen reveals roles and summary metrics with timeline recap.
 
 ## Meta Loop

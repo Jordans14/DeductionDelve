@@ -22,8 +22,9 @@
 15. Cross-room steal denial test.
 16. RoomBuilder visual-only indicator guard test.
 17. Run end tick determinism test.
-18. Role reveal secrecy-until-end test.
-19. End payload data-contract test.
+18. Extraction objective end-reason determinism test.
+19. Role reveal secrecy-until-end test.
+20. End payload data-contract test.
 
 ## Manual Runbook: Lobby + Spawn Smoke
 1. Run `scripts/run_host.ps1`.
@@ -69,8 +70,9 @@
 17. Press any invalid interaction (wrong role/no target/wrong room) and verify temporary status text `Denied: ...` appears for about 1.2s.
 18. Trigger hazard pulse and verify `!` indicator flashes and then decays without affecting run state.
 19. Continue run until host tick limit is reached and verify end screen appears on all clients.
-20. Verify end screen shows seed, role reveals, and evidence summary rows.
-21. Verify role map is not visible before run end.
+20. While carrying an artifact, reach the last room slot and verify run ends with reason `extraction_objective`.
+21. Verify end screen shows seed, role reveals, and evidence summary rows.
+22. Verify role map is not visible before run end.
 
 ## Script Entry Points
 - `scripts/run_host.ps1` launches game as host.
