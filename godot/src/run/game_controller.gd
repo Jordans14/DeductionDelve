@@ -7,6 +7,12 @@ const WARDEN_CHECK_RANGE := 96.0
 const NOTEBOOK_RECENT_LIMIT := 8
 const NOTEBOOK_MAX_LEN := 120
 const NOTEBOOK_INSPECTION_AUTONOTE_TICKS := 30
+const NOTEBOOK_FILTER_ALL := "ALL"
+const NOTEBOOK_FILTER_PINNED := "PINNED"
+const NOTEBOOK_FILTER_EVIDENCE := "EVIDENCE"
+const NOTEBOOK_FILTER_SUSPECT := "SUSPECT"
+const NOTEBOOK_FILTER_ALIBI := "ALIBI"
+const NOTEBOOK_FILTER_OTHER := "OTHER"
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EVIDENCE_SERVICE_SCRIPT = preload("res://src/run/evidence_service.gd")
 const ITEM_PICKUP_SCENE = preload("res://scenes/Item.tscn")
@@ -394,17 +400,7 @@ func _refresh_notebook_panel() -> void:
 	if notebook_notes_label == null:
 		return
 	var local_id := _local_peer_id()
-	var notes := _collect_notebook_notes(EventLog, local_id, NOTEBOOK_RECENT_LIMIT)
-	var lines: Array[String] = []
-	for note_raw in notes:
-		var note: Dictionary = note_raw
-		var tick := int(note.get("tick", -1))
-		var text := str(note.get("text", ""))
-		var tag := str(note.get("tag", ""))
-		var prefix := "[PIN] " if bool(note.get("pinned", false)) else ""
-		if not tag.is_empty():
-			text = "%s: %s" % [tag, text]
-		lines.append("%st%04d: %s" % [prefix, tick, text] if tick >= 0 else "%s%s" % [prefix, text])
+	var lines := _build_private_notes_sections(EventLog, local_id, NOTEBOOK_RECENT_LIMIT, NOTEBOOK_FILTER_ALL)
 	if lines.is_empty():
 		notebook_notes_label.text = "No notes yet"
 	else:
@@ -470,7 +466,11 @@ func _normalize_notebook_note(text: String) -> Dictionary:
 		if not prefix.is_empty() and prefix.length() <= 16 and prefix.find(" ") == -1:
 			tag = prefix
 			cleaned = _sanitize_notebook_text(parts[1])
-	if tag.is_empty() and (upper.begins_with("CHECKED E") or upper.begins_with("E") and cleaned.length() > 1 and cleaned[1].is_valid_int()):
+	if tag.is_empty() and (upper.begins_with("ALIBI:") or upper.find("ALIBI") != -1):
+		tag = NOTEBOOK_FILTER_ALIBI
+	elif tag.is_empty() and (upper.begins_with("SUSPECT:") or upper.find("SUSPECT") != -1):
+		tag = NOTEBOOK_FILTER_SUSPECT
+	elif tag.is_empty() and (upper.begins_with("CHECKED E") or upper.begins_with("E") and cleaned.length() > 1 and cleaned[1].is_valid_int()):
 		tag = "EVIDENCE"
 	return {"text": cleaned, "tag": tag}
 
@@ -538,6 +538,70 @@ func _refresh_timeline() -> void:
 		_join_or_placeholder(fact_lines, "No facts yet"),
 		_join_or_placeholder(note_lines, "No notes yet")
 	]
+
+func _normalize_notebook_filter_mode(filter_mode: String) -> String:
+	var mode := filter_mode.to_upper().strip_edges()
+	if mode in [
+		NOTEBOOK_FILTER_ALL,
+		NOTEBOOK_FILTER_PINNED,
+		NOTEBOOK_FILTER_EVIDENCE,
+		NOTEBOOK_FILTER_SUSPECT,
+		NOTEBOOK_FILTER_ALIBI,
+		NOTEBOOK_FILTER_OTHER
+	]:
+		return mode
+	return NOTEBOOK_FILTER_ALL
+
+func _effective_notebook_tag(tag: String) -> String:
+	var normalized := tag.to_upper().strip_edges()
+	return NOTEBOOK_FILTER_OTHER if normalized.is_empty() else normalized
+
+func _note_matches_filter(note: Dictionary, filter_mode: String) -> bool:
+	var mode := _normalize_notebook_filter_mode(filter_mode)
+	if mode == NOTEBOOK_FILTER_ALL:
+		return true
+	if mode == NOTEBOOK_FILTER_PINNED:
+		return bool(note.get("pinned", false))
+	return _effective_notebook_tag(str(note.get("tag", ""))) == mode
+
+func _render_notebook_note_line(note: Dictionary) -> String:
+	var prefix := "[PIN] " if bool(note.get("pinned", false)) else ""
+	var tick := int(note.get("tick", -1))
+	var text := str(note.get("text", ""))
+	var tag := str(note.get("tag", ""))
+	var effective_tag := _effective_notebook_tag(tag)
+	if effective_tag != NOTEBOOK_FILTER_OTHER:
+		text = "%s: %s" % [effective_tag, text]
+	return "%st%04d: %s" % [prefix, tick, text] if tick >= 0 else "%s%s" % [prefix, text]
+
+func _build_private_notes_sections(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> Array[String]:
+	var lines: Array[String] = []
+	var filtered_notes := _collect_notebook_notes(event_log, local_peer_id, limit, filter_mode)
+	var pinned_notes: Array = []
+	var other_notes: Array = []
+	for note_raw in filtered_notes:
+		var note: Dictionary = note_raw
+		if bool(note.get("pinned", false)):
+			pinned_notes.append(note)
+		else:
+			other_notes.append(note)
+	if not pinned_notes.is_empty():
+		lines.append("PINNED NOTES")
+		for note_raw in pinned_notes:
+			lines.append(_render_notebook_note_line(note_raw))
+	if not other_notes.is_empty():
+		if not lines.is_empty():
+			lines.append("")
+		lines.append("OTHER NOTES")
+		for note_raw in other_notes:
+			lines.append(_render_notebook_note_line(note_raw))
+	return lines
+
+func _build_notebook_copy_text(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> String:
+	return "\n".join(_build_private_notes_sections(event_log, local_peer_id, limit, filter_mode))
+
+func _private_toast(_msg: String) -> void:
+	pass
 
 func _format_timeline_grouped(events: Array, private_feed: bool = false) -> Array[String]:
 	var lines: Array[String] = []
@@ -1042,7 +1106,7 @@ func _on_pin_latest_note_pressed() -> void:
 	_refresh_notebook_panel()
 	_refresh_timeline()
 
-func _collect_notebook_notes(event_log: Node, local_peer_id: int, limit: int = NOTEBOOK_RECENT_LIMIT) -> Array:
+func _collect_notebook_notes(event_log: Node, local_peer_id: int, limit: int = NOTEBOOK_RECENT_LIMIT, filter_mode: String = NOTEBOOK_FILTER_ALL) -> Array:
 	var notes_by_id: Dictionary = {}
 	var pin_state_by_id: Dictionary = {}
 	if event_log == null:
@@ -1068,7 +1132,8 @@ func _collect_notebook_notes(event_log: Node, local_peer_id: int, limit: int = N
 	for note_id in notes_by_id.keys():
 		var note: Dictionary = notes_by_id[note_id]
 		note["pinned"] = bool(pin_state_by_id.get(note_id, false))
-		notes.append(note)
+		if _note_matches_filter(note, filter_mode):
+			notes.append(note)
 	notes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if bool(a.get("pinned", false)) != bool(b.get("pinned", false)):
 			return bool(a.get("pinned", false))
@@ -1112,18 +1177,9 @@ func _latest_notebook_note(event_log: Node, local_peer_id: int) -> Dictionary:
 
 func _build_private_notes_feed_lines(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
 	var lines: Array[String] = []
-	var notebook_notes := _collect_notebook_notes(event_log, local_peer_id, limit)
-	if not notebook_notes.is_empty():
-		lines.append("YOUR NOTES")
-		for note_raw in notebook_notes:
-			var note: Dictionary = note_raw
-			var prefix := "[PIN] " if bool(note.get("pinned", false)) else ""
-			var tick := int(note.get("tick", -1))
-			var text := str(note.get("text", ""))
-			var tag := str(note.get("tag", ""))
-			if not tag.is_empty():
-				text = "%s: %s" % [tag, text]
-			lines.append("%st%04d: %s" % [prefix, tick, text])
+	var notebook_lines := _build_private_notes_sections(event_log, local_peer_id, limit, NOTEBOOK_FILTER_ALL)
+	if not notebook_lines.is_empty():
+		lines.append_array(notebook_lines)
 	var other_private: Array = []
 	if event_log == null:
 		return lines
@@ -1147,6 +1203,12 @@ func get_notebook_notes_for_test(event_log: Node, local_peer_id: int, limit: int
 
 func build_private_notes_feed_lines_for_test(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
 	return _build_private_notes_feed_lines(event_log, local_peer_id, limit)
+
+func build_private_notes_sections_for_test(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> Array[String]:
+	return _build_private_notes_sections(event_log, local_peer_id, limit, filter_mode)
+
+func build_notebook_copy_text_for_test(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> String:
+	return _build_notebook_copy_text(event_log, local_peer_id, limit, filter_mode)
 
 func _apply_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():
