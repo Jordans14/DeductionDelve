@@ -29,6 +29,7 @@ func _init() -> void:
 	_test_end_payload_contract(failures)
 	_test_inspection_autonote_private_and_throttled(failures)
 	_test_notebook_pin_private_and_export_ordering(failures)
+	_test_notebook_filters_copy_and_sections(failures)
 
 	if failures.is_empty():
 		print("[PASS] Milestone tests passed.")
@@ -421,5 +422,61 @@ func _test_notebook_pin_private_and_export_ordering(failures: Array[String]) -> 
 		failures.append("private notes export/order should render pinned evidence notes first")
 	if joined.find("SUSPECT: player lingered") == -1:
 		failures.append("private notes export/order should still include unpinned notes")
+	controller.free()
+	event_log.free()
+
+func _test_notebook_filters_copy_and_sections(failures: Array[String]) -> void:
+	var controller_script = load("res://src/run/game_controller.gd")
+	if controller_script == null:
+		failures.append("game_controller script should load for notebook filter/copy test")
+		return
+	var controller = controller_script.new()
+	var event_log = EVENT_LOG_SCRIPT.new()
+	event_log.add_event(controller._build_notebook_note_event("Checked E4 in room 3", 2, 10, 1, 3))
+	event_log.add_event(controller._build_notebook_note_event("SUSPECT: player lingered", 2, 20, 2, 3))
+	event_log.add_event(controller._build_notebook_note_event("ALIBI: stayed in room 1", 2, 30, 3, 1))
+	event_log.add_event(controller._build_notebook_note_event("plain observation", 2, 40, 4, 2))
+	event_log.add_event({
+		"event_id": 5,
+		"tick": 41,
+		"room_slot": 2,
+		"actor_peer_id": 2,
+		"event_type": "notebook_note_pin_toggled",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"note_event_id": 1, "pinned": true}
+	})
+	if not event_log.get_recent_public(8).is_empty():
+		failures.append("notebook filter/copy data should never appear in the public event feed")
+	if controller.get_notebook_notes_filtered_for_test(event_log, 2, 8, "ALL").size() != 4:
+		failures.append("ALL notebook filter should return all local notes")
+	var pinned_notes: Array = controller.get_notebook_notes_filtered_for_test(event_log, 2, 8, "PINNED")
+	if pinned_notes.size() != 1 or int(Dictionary(pinned_notes[0]).get("note_event_id", -1)) != 1:
+		failures.append("PINNED notebook filter should return only the pinned evidence note")
+	var evidence_notes: Array = controller.get_notebook_notes_filtered_for_test(event_log, 2, 8, "EVIDENCE")
+	if evidence_notes.size() != 1 or not bool(Dictionary(evidence_notes[0]).get("pinned", false)):
+		failures.append("EVIDENCE notebook filter should return the pinned evidence note")
+	var suspect_notes: Array = controller.get_notebook_notes_filtered_for_test(event_log, 2, 8, "SUSPECT")
+	if suspect_notes.size() != 1 or str(Dictionary(suspect_notes[0]).get("tag", "")) != "SUSPECT":
+		failures.append("SUSPECT notebook filter should return the suspect-tagged note")
+	var alibi_notes: Array = controller.get_notebook_notes_filtered_for_test(event_log, 2, 8, "ALIBI")
+	if alibi_notes.size() != 1 or str(Dictionary(alibi_notes[0]).get("tag", "")) != "ALIBI":
+		failures.append("ALIBI notebook filter should return the alibi-tagged note")
+	var other_notes: Array = controller.get_notebook_notes_filtered_for_test(event_log, 2, 8, "OTHER")
+	if other_notes.size() != 1 or controller._effective_notebook_tag(str(Dictionary(other_notes[0]).get("tag", ""))) != "OTHER":
+		failures.append("OTHER notebook filter should return only untagged notes")
+	var section_lines: Array[String] = controller.build_private_notes_sections_for_test(event_log, 2, 8, "ALL")
+	var section_text := "\n".join(section_lines)
+	if section_text.find("PINNED NOTES") == -1 or section_text.find("OTHER NOTES") == -1:
+		failures.append("private notebook sections should include pinned and other section headers")
+	var pinned_index := section_text.find("[PIN] t0010: EVIDENCE: Checked E4 in room 3")
+	var suspect_index := section_text.find("t0020: SUSPECT: player lingered")
+	if pinned_index == -1 or suspect_index == -1 or pinned_index > suspect_index:
+		failures.append("private notebook sections should render the pinned evidence note before other notes")
+	var copy_text: String = controller.build_notebook_copy_text_for_test(event_log, 2, 8, "ALL")
+	if copy_text.find("PINNED NOTES") == -1 or copy_text.find("OTHER NOTES") == -1:
+		failures.append("notebook copy payload should contain the same section headers as the private notes view")
+	if copy_text.find("[PIN] t0010: EVIDENCE: Checked E4 in room 3") == -1:
+		failures.append("notebook copy payload should include the pinned evidence note")
 	controller.free()
 	event_log.free()

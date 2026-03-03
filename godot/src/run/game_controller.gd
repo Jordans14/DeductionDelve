@@ -45,7 +45,10 @@ var RunState: Node:
 @onready var notebook_panel: Control = get_node_or_null("CanvasLayer/NotebookPanel") as Control
 @onready var notebook_hint_label: Label = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Hint") as Label
 @onready var notebook_input: LineEdit = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Input") as LineEdit
+@onready var notebook_filter_option: OptionButton = get_node_or_null("CanvasLayer/NotebookPanel/VBox/FilterOption") as OptionButton
 @onready var notebook_pin_button: Button = get_node_or_null("CanvasLayer/NotebookPanel/VBox/PinLatestButton") as Button
+@onready var notebook_copy_button: Button = get_node_or_null("CanvasLayer/NotebookPanel/VBox/CopyNotesButton") as Button
+@onready var notebook_toast_label: Label = get_node_or_null("CanvasLayer/NotebookPanel/VBox/ToastLabel") as Label
 @onready var notebook_notes_label: Label = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Notes") as Label
 @onready var end_screen: PanelContainer = get_node_or_null("CanvasLayer/EndScreen") as PanelContainer
 @onready var end_seed_label: Label = get_node_or_null("CanvasLayer/EndScreen/VBox/Seed") as Label
@@ -72,6 +75,8 @@ var end_timeline_limit: int = 8
 var end_payload: Dictionary = {}
 var notebook_open: bool = false
 var notebook_last_autonote_tick_by_key: Dictionary = {}
+var notebook_filter_mode: String = NOTEBOOK_FILTER_ALL
+var notebook_toast_expires_tick: int = -1
 var cli_auto_pickup: bool = false
 var cli_auto_pickup_done: bool = false
 var cli_auto_role_action: bool = false
@@ -98,8 +103,13 @@ func _ready() -> void:
 		EventLog.timeline_event_added.connect(_on_timeline_event_added)
 	if return_lobby_button:
 		return_lobby_button.pressed.connect(_on_return_lobby_pressed)
+	if notebook_filter_option:
+		_populate_notebook_filter_options()
+		notebook_filter_option.item_selected.connect(_on_notebook_filter_selected)
 	if notebook_pin_button:
 		notebook_pin_button.pressed.connect(_on_pin_latest_note_pressed)
+	if notebook_copy_button:
+		notebook_copy_button.pressed.connect(_on_copy_notes_pressed)
 	_apply_cli_args()
 	_spawn_players()
 	_build_rooms()
@@ -114,6 +124,8 @@ func _ready() -> void:
 		notebook_panel.visible = false
 	if notebook_hint_label:
 		notebook_hint_label.text = "Enter to save, Esc to close"
+	if notebook_toast_label:
+		notebook_toast_label.text = ""
 	print("run_started_transition")
 	print("GAME_READY pid=%d" % OS.get_process_id())
 
@@ -133,6 +145,10 @@ func _physics_process(delta: float) -> void:
 		feedback_left = maxf(feedback_left - delta, 0.0)
 		if feedback_left <= 0.0:
 			feedback_text = ""
+	if notebook_toast_expires_tick >= 0 and tick_counter >= notebook_toast_expires_tick:
+		notebook_toast_expires_tick = -1
+		if notebook_toast_label:
+			notebook_toast_label.text = ""
 	if run_ended and _pressed_once(KEY_TAB):
 		end_timeline_limit = 20 if end_timeline_limit == 8 else 8
 		_refresh_end_timeline()
@@ -391,6 +407,8 @@ func _toggle_notebook(force_open: Variant = null) -> void:
 		_refresh_notebook_panel()
 		if notebook_hint_label:
 			notebook_hint_label.text = "Enter to save, Esc to close"
+		if notebook_filter_option:
+			notebook_filter_option.select(_notebook_filter_index(notebook_filter_mode))
 		if notebook_input:
 			notebook_input.grab_focus()
 	elif notebook_input:
@@ -400,7 +418,7 @@ func _refresh_notebook_panel() -> void:
 	if notebook_notes_label == null:
 		return
 	var local_id := _local_peer_id()
-	var lines := _build_private_notes_sections(EventLog, local_id, NOTEBOOK_RECENT_LIMIT, NOTEBOOK_FILTER_ALL)
+	var lines := _build_private_notes_sections(EventLog, local_id, NOTEBOOK_RECENT_LIMIT, notebook_filter_mode)
 	if lines.is_empty():
 		notebook_notes_label.text = "No notes yet"
 	else:
@@ -413,6 +431,8 @@ func _refresh_notebook_panel() -> void:
 			notebook_pin_button.text = "Unpin latest note" if bool(latest_note.get("pinned", false)) else "Pin latest note"
 		else:
 			notebook_pin_button.text = "Pin latest note"
+	if notebook_toast_label and notebook_toast_expires_tick < 0:
+		notebook_toast_label.text = ""
 
 func _submit_notebook_note() -> void:
 	if notebook_input == null:
@@ -601,7 +621,10 @@ func _build_notebook_copy_text(event_log: Node, local_peer_id: int, limit: int, 
 	return "\n".join(_build_private_notes_sections(event_log, local_peer_id, limit, filter_mode))
 
 func _private_toast(_msg: String) -> void:
-	pass
+	if notebook_toast_label == null:
+		return
+	notebook_toast_label.text = _msg
+	notebook_toast_expires_tick = tick_counter + 90
 
 func _format_timeline_grouped(events: Array, private_feed: bool = false) -> Array[String]:
 	var lines: Array[String] = []
@@ -1209,6 +1232,46 @@ func build_private_notes_sections_for_test(event_log: Node, local_peer_id: int, 
 
 func build_notebook_copy_text_for_test(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> String:
 	return _build_notebook_copy_text(event_log, local_peer_id, limit, filter_mode)
+
+func get_notebook_notes_filtered_for_test(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> Array:
+	return _collect_notebook_notes(event_log, local_peer_id, limit, filter_mode)
+
+func _populate_notebook_filter_options() -> void:
+	if notebook_filter_option == null:
+		return
+	notebook_filter_option.clear()
+	for mode in _notebook_filter_modes():
+		notebook_filter_option.add_item(mode)
+
+func _notebook_filter_modes() -> Array[String]:
+	return [
+		NOTEBOOK_FILTER_ALL,
+		NOTEBOOK_FILTER_PINNED,
+		NOTEBOOK_FILTER_EVIDENCE,
+		NOTEBOOK_FILTER_SUSPECT,
+		NOTEBOOK_FILTER_ALIBI,
+		NOTEBOOK_FILTER_OTHER
+	]
+
+func _notebook_filter_index(filter_mode: String) -> int:
+	return maxi(_notebook_filter_modes().find(_normalize_notebook_filter_mode(filter_mode)), 0)
+
+func _on_notebook_filter_selected(index: int) -> void:
+	var modes := _notebook_filter_modes()
+	if index < 0 or index >= modes.size():
+		notebook_filter_mode = NOTEBOOK_FILTER_ALL
+	else:
+		notebook_filter_mode = modes[index]
+	_refresh_notebook_panel()
+
+func _on_copy_notes_pressed() -> void:
+	var local_id := _local_peer_id()
+	var payload := _build_notebook_copy_text(EventLog, local_id, NOTEBOOK_RECENT_LIMIT, notebook_filter_mode)
+	if payload.is_empty():
+		_private_toast("No notes to copy")
+		return
+	DisplayServer.clipboard_set(payload)
+	_private_toast("Notes copied")
 
 func _apply_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():
