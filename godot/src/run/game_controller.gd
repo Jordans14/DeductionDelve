@@ -39,6 +39,7 @@ var RunState: Node:
 @onready var notebook_panel: Control = get_node_or_null("CanvasLayer/NotebookPanel") as Control
 @onready var notebook_hint_label: Label = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Hint") as Label
 @onready var notebook_input: LineEdit = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Input") as LineEdit
+@onready var notebook_pin_button: Button = get_node_or_null("CanvasLayer/NotebookPanel/VBox/PinLatestButton") as Button
 @onready var notebook_notes_label: Label = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Notes") as Label
 @onready var end_screen: PanelContainer = get_node_or_null("CanvasLayer/EndScreen") as PanelContainer
 @onready var end_seed_label: Label = get_node_or_null("CanvasLayer/EndScreen/VBox/Seed") as Label
@@ -91,6 +92,8 @@ func _ready() -> void:
 		EventLog.timeline_event_added.connect(_on_timeline_event_added)
 	if return_lobby_button:
 		return_lobby_button.pressed.connect(_on_return_lobby_pressed)
+	if notebook_pin_button:
+		notebook_pin_button.pressed.connect(_on_pin_latest_note_pressed)
 	_apply_cli_args()
 	_spawn_players()
 	_build_rooms()
@@ -390,22 +393,30 @@ func _toggle_notebook(force_open: Variant = null) -> void:
 func _refresh_notebook_panel() -> void:
 	if notebook_notes_label == null:
 		return
-	var lines: Array[String] = []
 	var local_id := _local_peer_id()
-	for event_raw in EventLog.get_recent_private_for(local_id, NOTEBOOK_RECENT_LIMIT):
-		var event: Dictionary = event_raw
-		if str(event.get("event_type", "")) != "notebook_note_added":
-			continue
-		var meta: Dictionary = event.get("meta", {})
-		var text := str(meta.get("text", "")).strip_edges()
-		var tick := int(event.get("tick", -1))
-		if text.is_empty():
-			continue
-		lines.push_front("t%04d: %s" % [tick, text] if tick >= 0 else text)
+	var notes := _collect_notebook_notes(EventLog, local_id, NOTEBOOK_RECENT_LIMIT)
+	var lines: Array[String] = []
+	for note_raw in notes:
+		var note: Dictionary = note_raw
+		var tick := int(note.get("tick", -1))
+		var text := str(note.get("text", ""))
+		var tag := str(note.get("tag", ""))
+		var prefix := "[PIN] " if bool(note.get("pinned", false)) else ""
+		if not tag.is_empty():
+			text = "%s: %s" % [tag, text]
+		lines.append("%st%04d: %s" % [prefix, tick, text] if tick >= 0 else "%s%s" % [prefix, text])
 	if lines.is_empty():
 		notebook_notes_label.text = "No notes yet"
 	else:
-		notebook_notes_label.text = "\n".join(lines.slice(0, mini(lines.size(), NOTEBOOK_RECENT_LIMIT)))
+		notebook_notes_label.text = "\n".join(lines)
+	if notebook_pin_button:
+		var latest_note := _latest_notebook_note(EventLog, local_id)
+		var has_note := not latest_note.is_empty()
+		notebook_pin_button.disabled = not has_note
+		if has_note:
+			notebook_pin_button.text = "Unpin latest note" if bool(latest_note.get("pinned", false)) else "Pin latest note"
+		else:
+			notebook_pin_button.text = "Pin latest note"
 
 func _submit_notebook_note() -> void:
 	if notebook_input == null:
@@ -431,6 +442,7 @@ func _add_notebook_note(text: String, local_peer_id: int, note_tick: int, room_s
 	el.add_event(_build_notebook_note_event(note_text, local_peer_id, note_tick, _next_local_event_id(el), room_slot))
 
 func _build_notebook_note_event(text: String, local_peer_id: int, note_tick: int, event_id: int, room_slot: int) -> Dictionary:
+	var normalized := _normalize_notebook_note(text)
 	return {
 		"event_id": event_id,
 		"tick": note_tick,
@@ -439,11 +451,40 @@ func _build_notebook_note_event(text: String, local_peer_id: int, note_tick: int
 		"event_type": "notebook_note_added",
 		"visibility": "private",
 		"target_peer_id": local_peer_id,
-		"meta": {"text": _sanitize_notebook_text(text)}
+		"meta": {
+			"text": str(normalized.get("text", "")),
+			"tag": str(normalized.get("tag", ""))
+		}
 	}
 
 func _sanitize_notebook_text(text: String) -> String:
 	return text.replace("\n", " ").replace("\r", " ").strip_edges().left(NOTEBOOK_MAX_LEN)
+
+func _normalize_notebook_note(text: String) -> Dictionary:
+	var cleaned := _sanitize_notebook_text(text)
+	var upper := cleaned.to_upper()
+	var tag := ""
+	var parts := cleaned.split(":", false, 1)
+	if parts.size() == 2:
+		var prefix := _sanitize_notebook_text(parts[0]).to_upper()
+		if not prefix.is_empty() and prefix.length() <= 16 and prefix.find(" ") == -1:
+			tag = prefix
+			cleaned = _sanitize_notebook_text(parts[1])
+	if tag.is_empty() and (upper.begins_with("CHECKED E") or upper.begins_with("E") and cleaned.length() > 1 and cleaned[1].is_valid_int()):
+		tag = "EVIDENCE"
+	return {"text": cleaned, "tag": tag}
+
+func _build_notebook_pin_event(note_event_id: int, pinned: bool, local_peer_id: int, note_tick: int) -> Dictionary:
+	return {
+		"event_id": _next_local_event_id(EventLog),
+		"tick": note_tick,
+		"room_slot": _room_slot_for_local_peer(local_peer_id),
+		"actor_peer_id": local_peer_id,
+		"event_type": "notebook_note_pin_toggled",
+		"visibility": "private",
+		"target_peer_id": local_peer_id,
+		"meta": {"note_event_id": note_event_id, "pinned": pinned}
+	}
 
 func _next_local_event_id(event_log: Node) -> int:
 	var max_id := 0
@@ -492,7 +533,7 @@ func _refresh_timeline() -> void:
 		return
 	var local_id := _local_peer_id()
 	var fact_lines := _format_timeline_grouped(EventLog.get_recent_public(6))
-	var note_lines := _format_timeline_grouped(EventLog.get_recent_private_for(local_id, 4), true)
+	var note_lines := _build_private_notes_feed_lines(EventLog, local_id, 4)
 	timeline_label.text = "Facts\n%s\n\nYour Notes\n%s" % [
 		_join_or_placeholder(fact_lines, "No facts yet"),
 		_join_or_placeholder(note_lines, "No notes yet")
@@ -560,6 +601,8 @@ func _event_chapter(event_type: String, private_feed: bool = false) -> String:
 			return "RUN END"
 		"notebook_note_added":
 			return "YOUR NOTES" if private_feed else "OTHER"
+		"notebook_note_pin_toggled":
+			return "YOUR NOTES" if private_feed else "OTHER"
 		_:
 			return "OTHER"
 
@@ -625,6 +668,8 @@ func _event_summary(event: Dictionary, private_feed: bool = false) -> String:
 			return "%s completed extraction with E%d" % [actor_text, int(meta.get("artifact_id", 0))]
 		"notebook_note_added":
 			return str(meta.get("text", "")) if private_feed else "Notebook note"
+		"notebook_note_pin_toggled":
+			return "Notebook pin updated"
 		_:
 			return event_type
 
@@ -800,7 +845,7 @@ func _refresh_end_timeline() -> void:
 		return
 	var local_id := _local_peer_id()
 	var fact_lines := _format_timeline_grouped(EventLog.get_recent_public(end_timeline_limit))
-	var note_lines := _format_timeline_grouped(EventLog.get_recent_private_for(local_id, end_timeline_limit), true)
+	var note_lines := _build_private_notes_feed_lines(EventLog, local_id, end_timeline_limit)
 	end_timeline_label.text = "FACTS\n%s\n\nYOUR NOTES (private)\n%s" % [
 		_join_or_placeholder(fact_lines, "No facts recorded"),
 		_join_or_placeholder(note_lines, "No private notes")
@@ -857,7 +902,7 @@ func _write_run_report() -> String:
 	var end_reason := str(end_payload.get("reason", "unknown"))
 	var run_counter := int(RunState.run_counter)
 	var fact_lines := _format_timeline_grouped(EventLog.get_recent_public(9999))
-	var note_lines := _format_timeline_grouped(EventLog.get_recent_private_for(local_id, 9999), true)
+	var note_lines := _build_private_notes_feed_lines(EventLog, local_id, 9999)
 	var lines := _build_run_report_lines(seed_value, end_reason, local_id, run_counter, fact_lines, note_lines)
 	DirAccess.make_dir_recursive_absolute("user://reports")
 	var user_path := _build_run_report_user_path(seed_value, end_reason, local_id, run_counter)
@@ -982,6 +1027,126 @@ func _join_or_placeholder(lines: Array[String], placeholder: String) -> String:
 func _on_return_lobby_pressed() -> void:
 	NetworkManager.reset_to_lobby("return_lobby")
 	get_tree().change_scene_to_file("res://scenes/Lobby.tscn")
+
+func _on_pin_latest_note_pressed() -> void:
+	var local_id := _local_peer_id()
+	var latest_note := _latest_notebook_note(EventLog, local_id)
+	if latest_note.is_empty():
+		return
+	EventLog.add_event(_build_notebook_pin_event(
+		int(latest_note.get("note_event_id", -1)),
+		not bool(latest_note.get("pinned", false)),
+		local_id,
+		tick_counter
+	))
+	_refresh_notebook_panel()
+	_refresh_timeline()
+
+func _collect_notebook_notes(event_log: Node, local_peer_id: int, limit: int = NOTEBOOK_RECENT_LIMIT) -> Array:
+	var notes_by_id: Dictionary = {}
+	var pin_state_by_id: Dictionary = {}
+	if event_log == null:
+		return []
+	for event_raw in event_log.get_recent_private_for(local_peer_id, 9999):
+		var event: Dictionary = event_raw
+		var event_type := str(event.get("event_type", ""))
+		if event_type == "notebook_note_added":
+			var meta: Dictionary = event.get("meta", {})
+			notes_by_id[int(event.get("event_id", -1))] = {
+				"note_event_id": int(event.get("event_id", -1)),
+				"tick": int(event.get("tick", -1)),
+				"text": str(meta.get("text", "")),
+				"tag": str(meta.get("tag", "")),
+				"pinned": false
+			}
+		elif event_type == "notebook_note_pin_toggled":
+			var meta: Dictionary = event.get("meta", {})
+			var note_event_id := int(meta.get("note_event_id", -1))
+			if note_event_id >= 0:
+				pin_state_by_id[note_event_id] = bool(meta.get("pinned", false))
+	var notes: Array = []
+	for note_id in notes_by_id.keys():
+		var note: Dictionary = notes_by_id[note_id]
+		note["pinned"] = bool(pin_state_by_id.get(note_id, false))
+		notes.append(note)
+	notes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if bool(a.get("pinned", false)) != bool(b.get("pinned", false)):
+			return bool(a.get("pinned", false))
+		var a_tick := int(a.get("tick", -1))
+		var b_tick := int(b.get("tick", -1))
+		if a_tick != b_tick:
+			return a_tick > b_tick
+		return int(a.get("note_event_id", -1)) > int(b.get("note_event_id", -1))
+	)
+	if limit > 0 and notes.size() > limit:
+		return notes.slice(0, limit)
+	return notes
+
+func _latest_notebook_note(event_log: Node, local_peer_id: int) -> Dictionary:
+	if event_log == null:
+		return {}
+	var latest: Dictionary = {}
+	for event_raw in event_log.get_recent_private_for(local_peer_id, 9999):
+		var event: Dictionary = event_raw
+		if str(event.get("event_type", "")) != "notebook_note_added":
+			continue
+		if latest.is_empty() or int(event.get("tick", -1)) > int(latest.get("tick", -1)) or (int(event.get("tick", -1)) == int(latest.get("tick", -1)) and int(event.get("event_id", -1)) > int(latest.get("note_event_id", -1))):
+			var meta: Dictionary = event.get("meta", {})
+			latest = {
+				"note_event_id": int(event.get("event_id", -1)),
+				"tick": int(event.get("tick", -1)),
+				"text": str(meta.get("text", "")),
+				"tag": str(meta.get("tag", "")),
+				"pinned": false
+			}
+	if latest.is_empty():
+		return {}
+	for event_raw in event_log.get_recent_private_for(local_peer_id, 9999):
+		var event: Dictionary = event_raw
+		if str(event.get("event_type", "")) != "notebook_note_pin_toggled":
+			continue
+		var meta: Dictionary = event.get("meta", {})
+		if int(meta.get("note_event_id", -1)) == int(latest.get("note_event_id", -2)):
+			latest["pinned"] = bool(meta.get("pinned", false))
+	return latest
+
+func _build_private_notes_feed_lines(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
+	var lines: Array[String] = []
+	var notebook_notes := _collect_notebook_notes(event_log, local_peer_id, limit)
+	if not notebook_notes.is_empty():
+		lines.append("YOUR NOTES")
+		for note_raw in notebook_notes:
+			var note: Dictionary = note_raw
+			var prefix := "[PIN] " if bool(note.get("pinned", false)) else ""
+			var tick := int(note.get("tick", -1))
+			var text := str(note.get("text", ""))
+			var tag := str(note.get("tag", ""))
+			if not tag.is_empty():
+				text = "%s: %s" % [tag, text]
+			lines.append("%st%04d: %s" % [prefix, tick, text])
+	var other_private: Array = []
+	if event_log == null:
+		return lines
+	for event_raw in event_log.get_recent_private_for(local_peer_id, 9999):
+		var event: Dictionary = event_raw
+		var event_type := str(event.get("event_type", ""))
+		if event_type in ["notebook_note_added", "notebook_note_pin_toggled"]:
+			continue
+		other_private.append(event)
+	if limit > 0 and other_private.size() > limit:
+		other_private = other_private.slice(other_private.size() - limit, other_private.size())
+	var timeline_lines := _format_timeline_grouped(other_private, true)
+	if not timeline_lines.is_empty():
+		if not lines.is_empty():
+			lines.append("")
+		lines.append_array(timeline_lines)
+	return lines
+
+func get_notebook_notes_for_test(event_log: Node, local_peer_id: int, limit: int = NOTEBOOK_RECENT_LIMIT) -> Array:
+	return _collect_notebook_notes(event_log, local_peer_id, limit)
+
+func build_private_notes_feed_lines_for_test(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
+	return _build_private_notes_feed_lines(event_log, local_peer_id, limit)
 
 func _apply_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():

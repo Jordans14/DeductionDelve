@@ -28,6 +28,7 @@ func _init() -> void:
 	_test_role_reveal_secrecy_until_end(failures)
 	_test_end_payload_contract(failures)
 	_test_inspection_autonote_private_and_throttled(failures)
+	_test_notebook_pin_private_and_export_ordering(failures)
 
 	if failures.is_empty():
 		print("[PASS] Milestone tests passed.")
@@ -362,5 +363,63 @@ func _test_inspection_autonote_private_and_throttled(failures: Array[String]) ->
 	controller.apply_autonote_for_test(event_log, inspected_event, 2, 80)
 	if event_log.get_recent_private_for(2, 8).size() != 2:
 		failures.append("inspection autonote should create a second note after the deterministic throttle window expires")
+	controller.free()
+	event_log.free()
+
+func _test_notebook_pin_private_and_export_ordering(failures: Array[String]) -> void:
+	var controller_script = load("res://src/run/game_controller.gd")
+	if controller_script == null:
+		failures.append("game_controller script should load for notebook pin test")
+		return
+	var controller = controller_script.new()
+	var event_log = EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"event_id": 1,
+		"tick": 10,
+		"room_slot": 1,
+		"actor_peer_id": 2,
+		"event_type": "notebook_note_added",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"text": "Checked E4 in room 3", "tag": "EVIDENCE"}
+	})
+	event_log.add_event({
+		"event_id": 2,
+		"tick": 20,
+		"room_slot": 1,
+		"actor_peer_id": 2,
+		"event_type": "notebook_note_added",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"text": "SUSPECT: player lingered", "tag": "SUSPECT"}
+	})
+	event_log.add_event({
+		"event_id": 3,
+		"tick": 21,
+		"room_slot": 1,
+		"actor_peer_id": 2,
+		"event_type": "notebook_note_pin_toggled",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"note_event_id": 1, "pinned": true}
+	})
+	if not event_log.get_recent_public(8).is_empty():
+		failures.append("notebook pin events should not appear in the public event feed")
+	var notes: Array = controller.get_notebook_notes_for_test(event_log, 2, 8)
+	if notes.size() != 2:
+		failures.append("notebook note collection should return both local private notes")
+	else:
+		var first: Dictionary = notes[0]
+		var second: Dictionary = notes[1]
+		if int(first.get("note_event_id", -1)) != 1 or not bool(first.get("pinned", false)):
+			failures.append("pinned notebook note should sort first in private notebook ordering")
+		if int(second.get("note_event_id", -1)) != 2:
+			failures.append("unpinned notebook notes should follow pinned notes by time")
+	var note_lines: Array[String] = controller.build_private_notes_feed_lines_for_test(event_log, 2, 8)
+	var joined := "\n".join(note_lines)
+	if joined.find("[PIN] t0010: EVIDENCE: Checked E4 in room 3") == -1:
+		failures.append("private notes export/order should render pinned evidence notes first")
+	if joined.find("SUSPECT: player lingered") == -1:
+		failures.append("private notes export/order should still include unpinned notes")
 	controller.free()
 	event_log.free()

@@ -90,6 +90,10 @@ layout_mode = 2
 placeholder_text = "Type note and press Enter"
 max_length = 120
 
+[node name="PinLatestButton" type="Button" parent="CanvasLayer/NotebookPanel/VBox"]
+layout_mode = 2
+text = "Pin latest note"
+
 [node name="Notes" type="Label" parent="CanvasLayer/NotebookPanel/VBox"]
 layout_mode = 2
 text = "No notes yet"
