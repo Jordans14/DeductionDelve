@@ -7,6 +7,7 @@ const WARDEN_CHECK_RANGE := 96.0
 const NOTEBOOK_RECENT_LIMIT := 8
 const NOTEBOOK_MAX_LEN := 120
 const NOTEBOOK_INSPECTION_AUTONOTE_TICKS := 30
+const ACTION_SUMMARY_MAX_LINE_LEN := 60
 const NOTEBOOK_FILTER_ALL := "ALL"
 const NOTEBOOK_FILTER_PINNED := "PINNED"
 const NOTEBOOK_FILTER_EVIDENCE := "EVIDENCE"
@@ -77,6 +78,9 @@ var notebook_open: bool = false
 var notebook_last_autonote_tick_by_key: Dictionary = {}
 var notebook_filter_mode: String = NOTEBOOK_FILTER_ALL
 var notebook_toast_expires_tick: int = -1
+var hint_last_text: String = ""
+var hint_last_tick: int = -999999
+var next_step_hint_text: String = ""
 var cli_auto_pickup: bool = false
 var cli_auto_pickup_done: bool = false
 var cli_auto_role_action: bool = false
@@ -948,11 +952,16 @@ func _refresh_end_timeline() -> void:
 
 func _build_run_report_lines(seed_value: int, end_reason: String, local_peer_id: int, run_counter: int, fact_lines: Array[String], note_lines: Array[String]) -> Array[String]:
 	var lines: Array[String] = []
+	var duration_ticks := _report_duration_ticks(EventLog)
 	lines.append("DeductionDelve Run Report")
 	lines.append("Seed: %d" % seed_value)
 	lines.append("Local Peer: P%d" % local_peer_id)
+	if RunState != null and str(RunState.local_role) != "" and str(RunState.local_role) != "Unknown":
+		lines.append("Role: %s" % str(RunState.local_role))
+	lines.append("End Reason: %s" % end_reason)
+	lines.append("Duration: %s" % _format_report_duration(duration_ticks))
 	lines.append("Run Counter: %d" % run_counter)
-	lines.append("Outcome: RUN COMPLETE (%s)" % end_reason)
+	lines.append("Outcome: RUN COMPLETE")
 	lines.append("")
 	lines.append("Role Reveal")
 	var roles: Dictionary = end_payload.get("roles_reveal", {})
@@ -977,6 +986,14 @@ func _build_run_report_lines(seed_value: int, end_reason: String, local_peer_id:
 	lines.append("")
 	lines.append("YOUR NOTES (private)")
 	for line in note_lines:
+		lines.append(line)
+	lines.append("")
+	lines.append("STATS")
+	for line in _build_run_stats_lines(_build_run_stats(EventLog, local_peer_id)):
+		lines.append(line)
+	lines.append("")
+	lines.append("ACTION SUMMARY")
+	for line in _build_action_summary_lines(EventLog, local_peer_id, 12):
 		lines.append(line)
 	return lines
 
@@ -1236,6 +1253,21 @@ func build_notebook_copy_text_for_test(event_log: Node, local_peer_id: int, limi
 func get_notebook_notes_filtered_for_test(event_log: Node, local_peer_id: int, limit: int, filter_mode: String) -> Array:
 	return _collect_notebook_notes(event_log, local_peer_id, limit, filter_mode)
 
+func build_action_summary_lines_for_test(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
+	return _build_action_summary_lines(event_log, local_peer_id, limit)
+
+func build_run_stats_lines_for_test(event_log: Node, local_peer_id: int) -> Array[String]:
+	return _build_run_stats_lines(_build_run_stats(event_log, local_peer_id))
+
+func compute_next_step_hint_for_test(event_log: Node, local_peer_id: int) -> String:
+	return _compute_next_step_hint_with_state(event_log, local_peer_id, NetworkManager.get_local_carried_artifact_id() > 0 if NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") else false, _extraction_room_slot())
+
+func compute_next_step_hint_for_test_with_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int) -> String:
+	return _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot)
+
+func apply_quick_tag_shortcuts_for_test(current_text: String, shortcut: String) -> String:
+	return _apply_quick_tag_shortcuts(current_text, shortcut)
+
 func _populate_notebook_filter_options() -> void:
 	if notebook_filter_option == null:
 		return
@@ -1272,6 +1304,175 @@ func _on_copy_notes_pressed() -> void:
 		return
 	DisplayServer.clipboard_set(payload)
 	_private_toast("Notes copied")
+
+func _build_action_summary_lines(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
+	var lines: Array[String] = []
+	if event_log == null:
+		return lines
+	var last_inspection_tick_by_artifact: Dictionary = {}
+	for event_raw in event_log.events:
+		var event: Dictionary = event_raw
+		var visibility := str(event.get("visibility", "public"))
+		if visibility == "private" and int(event.get("target_peer_id", -1)) != local_peer_id:
+			continue
+		var event_type := str(event.get("event_type", ""))
+		var meta: Dictionary = event.get("meta", {})
+		var line := ""
+		match event_type:
+			"notebook_note_added":
+				var tag := _effective_notebook_tag(str(meta.get("tag", "")))
+				var text := str(meta.get("text", ""))
+				var prefix := "Note"
+				if tag != NOTEBOOK_FILTER_OTHER:
+					prefix += ": %s" % tag
+				line = "%s: %s" % [prefix, text]
+			"notebook_note_pin_toggled":
+				line = "Pinned a note" if bool(meta.get("pinned", false)) else "Unpinned a note"
+			"warden_check_result":
+				var artifact_id := int(meta.get("artifact_id", 0))
+				if artifact_id <= 0:
+					continue
+				var tick := int(event.get("tick", -1))
+				var last_tick := int(last_inspection_tick_by_artifact.get(artifact_id, -999999))
+				if tick - last_tick < NOTEBOOK_INSPECTION_AUTONOTE_TICKS:
+					continue
+				last_inspection_tick_by_artifact[artifact_id] = tick
+				line = "Inspected E%d (room %d)" % [artifact_id, int(event.get("room_slot", -1))]
+			"item_note":
+				line = str(meta.get("label", ""))
+			"artifact_picked":
+				if int(event.get("actor_peer_id", -1)) == local_peer_id:
+					line = "Picked up E%d" % int(meta.get("artifact_id", 0))
+			"extraction_window_started":
+				line = "Extraction window started"
+			"extraction_completed":
+				line = "Extraction completed"
+			"run_ended":
+				line = "Run ended"
+		if line.is_empty():
+			continue
+		lines.append(_truncate_summary_line(line))
+	if limit > 0 and lines.size() > limit:
+		return lines.slice(maxi(lines.size() - limit, 0), lines.size())
+	return lines
+
+func _build_run_stats(event_log: Node, local_peer_id: int) -> Dictionary:
+	var stats := {
+		"notes_count": 0,
+		"pinned_count": 0,
+		"inspections_count": 0,
+		"distinct_artifacts_inspected": 0,
+		"extraction_started": false,
+		"extraction_completed": false
+	}
+	if event_log == null:
+		return stats
+	var pinned_state_by_note: Dictionary = {}
+	var inspected_artifacts: Dictionary = {}
+	for event_raw in event_log.events:
+		var event: Dictionary = event_raw
+		var event_type := str(event.get("event_type", ""))
+		if str(event.get("visibility", "public")) == "private" and int(event.get("target_peer_id", -1)) != local_peer_id:
+			continue
+		var meta: Dictionary = event.get("meta", {})
+		match event_type:
+			"notebook_note_added":
+				stats["notes_count"] = int(stats["notes_count"]) + 1
+			"notebook_note_pin_toggled":
+				pinned_state_by_note[int(meta.get("note_event_id", -1))] = bool(meta.get("pinned", false))
+			"warden_check_result":
+				stats["inspections_count"] = int(stats.get("inspections_count", 0)) + 1
+				var artifact_id := int(meta.get("artifact_id", 0))
+				if artifact_id > 0:
+					inspected_artifacts[artifact_id] = true
+			"extraction_window_started":
+				stats["extraction_started"] = true
+			"extraction_completed":
+				stats["extraction_completed"] = true
+	stats["pinned_count"] = _count_true_values(pinned_state_by_note)
+	stats["distinct_artifacts_inspected"] = inspected_artifacts.size()
+	return stats
+
+func _build_run_stats_lines(stats: Dictionary) -> Array[String]:
+	var lines: Array[String] = []
+	lines.append("Notes: %d (Pinned: %d)" % [int(stats.get("notes_count", 0)), int(stats.get("pinned_count", 0))])
+	lines.append("Inspections: %d (E:%d)" % [int(stats.get("inspections_count", 0)), int(stats.get("distinct_artifacts_inspected", 0))])
+	var extraction_text := "Completed" if bool(stats.get("extraction_completed", false)) else "Started" if bool(stats.get("extraction_started", false)) else "-"
+	lines.append("Extraction: %s" % extraction_text)
+	return lines
+
+func _compute_next_step_hint(event_log: Node, local_peer_id: int) -> String:
+	var carrying := NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") and int(NetworkManager.get_local_carried_artifact_id()) > 0
+	return _compute_next_step_hint_with_state(event_log, local_peer_id, carrying, _extraction_room_slot())
+
+func _compute_next_step_hint_with_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int) -> String:
+	var notes_count := 0
+	var inspections_count := 0
+	if event_log != null:
+		for event_raw in event_log.get_recent_private_for(local_peer_id, 9999):
+			var event: Dictionary = event_raw
+			match str(event.get("event_type", "")):
+				"notebook_note_added":
+					notes_count += 1
+				"warden_check_result":
+					inspections_count += 1
+	if notes_count == 0:
+		return "Tip: TAB -> notebook. Write SUSPECT:/ALIBI: notes."
+	if inspections_count == 0:
+		return "Tip: Hold T near evidence to inspect."
+	if has_carrying:
+		return "Tip: Bring evidence to Extraction room %d." % extraction_slot
+	return "Tip: Pin key notes, then seek more evidence."
+
+func _update_next_step_hint_state(event_log: Node, local_peer_id: int, now_tick: int) -> String:
+	var next_text := _compute_next_step_hint(event_log, local_peer_id)
+	if next_text == hint_last_text:
+		if now_tick - hint_last_tick >= 180:
+			hint_last_tick = now_tick
+			next_step_hint_text = next_text
+		return next_step_hint_text
+	if now_tick - hint_last_tick >= 30:
+		hint_last_text = next_text
+		hint_last_tick = now_tick
+		next_step_hint_text = next_text
+	return next_step_hint_text
+
+func _apply_quick_tag_shortcuts(current_text: String, shortcut: String) -> String:
+	var normalized_shortcut := _sanitize_notebook_text(shortcut).to_upper()
+	if normalized_shortcut.is_empty():
+		return _sanitize_notebook_text(current_text)
+	var current := _sanitize_notebook_text(current_text)
+	if current.to_upper().begins_with("%s:" % normalized_shortcut):
+		return current
+	if current.is_empty():
+		return "%s: " % normalized_shortcut
+	return "%s: %s" % [normalized_shortcut, current]
+
+func _truncate_summary_line(text: String, max_len: int = ACTION_SUMMARY_MAX_LINE_LEN) -> String:
+	var clean := _sanitize_notebook_text(text)
+	if clean.length() <= max_len:
+		return clean
+	return clean.left(max_len - 1) + "..."
+
+func _report_duration_ticks(event_log: Node) -> int:
+	if event_log == null:
+		return 0
+	var max_tick := 0
+	for event_raw in event_log.events:
+		var event: Dictionary = event_raw
+		max_tick = maxi(max_tick, int(event.get("tick", 0)))
+	return max_tick
+
+func _format_report_duration(duration_ticks: int) -> String:
+	var total_seconds := float(duration_ticks) / 60.0
+	return "%dt (~%.1fs)" % [duration_ticks, total_seconds]
+
+func _count_true_values(values: Dictionary) -> int:
+	var count := 0
+	for value in values.values():
+		if bool(value):
+			count += 1
+	return count
 
 func _apply_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():
