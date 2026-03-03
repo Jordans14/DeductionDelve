@@ -9,13 +9,45 @@ extends Control
 @onready var start_button: Button = $Panel/VBox/Buttons/StartButton
 
 var local_ready: bool = false
+var cli_mode: String = ""
+var cli_auto_ready: bool = false
+var cli_auto_ready_done: bool = false
+var cli_auto_start: bool = false
+var cli_auto_start_done: bool = false
 
 func _ready() -> void:
 	NetworkManager.connection_changed.connect(_on_connection_changed)
 	NetworkManager.lobby_updated.connect(_on_lobby_updated)
 	NetworkManager.run_started.connect(_on_run_started)
 	_apply_cli_args()
+	set_process(true)
 	_refresh_buttons()
+
+func _process(_delta: float) -> void:
+	if cli_mode == "host":
+		cli_mode = ""
+		_on_host_button_pressed()
+	elif cli_mode == "client":
+		cli_mode = ""
+		_on_join_button_pressed()
+
+	var connected := multiplayer.multiplayer_peer != null
+	if cli_auto_ready and not cli_auto_ready_done and connected:
+		var local_id := multiplayer.get_unique_id()
+		var can_ready := NetworkManager.is_host or (NetworkManager.connected_peers.has(local_id) and NetworkManager.connected_peers.has(1) and NetworkManager.connected_peers.size() >= 2)
+		if can_ready and not bool(NetworkManager.ready_by_id.get(local_id, false)):
+			_on_ready_button_pressed()
+		cli_auto_ready_done = can_ready and bool(NetworkManager.ready_by_id.get(local_id, local_ready))
+
+	if cli_auto_start and not cli_auto_start_done and connected and NetworkManager.is_host:
+		var gate: Dictionary = NetworkManager.can_host_start_run(NetworkManager.connected_peers, NetworkManager.ready_by_id, true, NetworkManager.is_run_active())
+		print("START_GATE allowed=%s reason=%s" % [
+			str(bool(gate.get("allowed", false))).to_lower(),
+			str(gate.get("reason", ""))
+		])
+		if bool(gate.get("allowed", false)):
+			_on_start_button_pressed()
+			cli_auto_start_done = true
 
 func _on_host_button_pressed() -> void:
 	var port := int(port_edit.text)
@@ -57,7 +89,10 @@ func _on_lobby_updated(players: Array, ready_state: Dictionary, host_flag: bool)
 	players_label.text = "\n".join(lines)
 	start_button.visible = host_flag
 	start_button.disabled = not NetworkManager.all_ready()
-	local_ready = bool(ready_state.get(multiplayer.get_unique_id(), false))
+	var local_id := -1
+	if multiplayer.multiplayer_peer != null:
+		local_id = multiplayer.get_unique_id()
+	local_ready = local_id > 0 and bool(ready_state.get(local_id, false))
 	ready_button.text = "Ready: %s" % ["YES" if local_ready else "NO"]
 
 func _on_run_started(_seed: int, _chain: Array) -> void:
@@ -72,7 +107,7 @@ func _refresh_buttons() -> void:
 func _apply_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--mode=host":
-			_on_host_button_pressed()
+			cli_mode = "host"
 		elif arg.begins_with("--address="):
 			address_edit.text = arg.trim_prefix("--address=")
 		elif arg.begins_with("--port="):
@@ -80,4 +115,8 @@ func _apply_cli_args() -> void:
 		elif arg.begins_with("--seed="):
 			seed_edit.text = arg.trim_prefix("--seed=")
 		elif arg == "--mode=client":
-			_on_join_button_pressed()
+			cli_mode = "client"
+		elif arg == "--auto-ready":
+			cli_auto_ready = true
+		elif arg == "--auto-start":
+			cli_auto_start = true

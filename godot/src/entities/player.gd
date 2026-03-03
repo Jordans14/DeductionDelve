@@ -7,10 +7,11 @@ const JUMP_VELOCITY := -430.0
 const GRAVITY := 1100.0
 
 @onready var body_poly: Polygon2D = $Body
-@onready var name_label: Label2D = $Name
-@onready var carry_label: Label2D = $Carry
+@onready var name_label: Label = $Name
+@onready var carry_label: Label = $Carry
 
 var peer_id: int = 0
+var carrying_artifact: bool = false
 
 func configure_for_peer(id_value: int) -> void:
 	peer_id = id_value
@@ -36,4 +37,8 @@ func apply_snapshot(pos: Vector2, vel: Vector2, alpha: float = 0.35) -> void:
 	velocity = velocity.lerp(vel, alpha)
 
 func set_carrying_artifact(carrying: bool) -> void:
+	carrying_artifact = carrying
 	carry_label.visible = carrying
+
+func is_carrying_artifact() -> bool:
+	return carrying_artifact

@@ -17,14 +17,30 @@ func public_meta_allowlist(event_type: String, meta: Dictionary) -> Dictionary:
 			return _pick_meta_fields(meta, ["artifact_id", "from_peer"])
 		"hazard_state_changed":
 			return {}
+		"sabotage_accident":
+			return _pick_meta_fields(meta, ["label"])
+		"sabotage_camera_jam":
+			return _pick_meta_fields(meta, ["label"])
 		"run_started":
 			return _pick_meta_fields(meta, ["seed"])
 		"evidence_checked":
 			return {}
+		"extraction_window_started":
+			return _pick_meta_fields(meta, ["duration_ticks"])
+		"extraction_window_aborted":
+			return {}
+		"item_picked":
+			return _pick_meta_fields(meta, ["item_id"])
+		"item_used":
+			return _pick_meta_fields(meta, ["label"])
+		"noise_trace":
+			return {}
+		"extraction_completed":
+			return _pick_meta_fields(meta, ["artifact_id"])
 		_:
 			return {}
 
-func build_event_for_test(event_type: String, tick: int, event_id: int, room_slot: int, actor_peer_id: int, visibility: String, meta: Dictionary) -> Dictionary:
+func build_event_for_test(event_type: String, tick: int, event_id: int, room_slot: int, actor_peer_id: int, visibility: String, meta: Dictionary, target_peer_id: int = -1) -> Dictionary:
 	return {
 		"event_id": event_id,
 		"tick": tick,
@@ -32,7 +48,8 @@ func build_event_for_test(event_type: String, tick: int, event_id: int, room_slo
 		"actor_peer_id": actor_peer_id,
 		"event_type": event_type,
 		"visibility": visibility,
-		"meta": meta
+		"meta": meta,
+		"target_peer_id": target_peer_id
 	}
 
 func compute_warden_score_for_test(run_seed: int, artifact: Dictionary, check_counter: int) -> int:

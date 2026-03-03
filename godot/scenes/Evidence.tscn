@@ -9,7 +9,7 @@ script = ExtResource("1_mnshj")
 color = Color(0.67, 0.9, 0.72, 1)
 polygon = PackedVector2Array(-10, -10, 10, -10, 10, 10, -10, 10)
 
-[node name="Label" type="Label2D" parent="."]
+[node name="Label" type="Label" parent="."]
 position = Vector2(-20, -20)
 text = "E0"
 font_size = 14

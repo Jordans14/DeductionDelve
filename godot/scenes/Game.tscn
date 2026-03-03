@@ -17,6 +17,8 @@ position = Vector2(20, 610)
 
 [node name="Evidence" type="Node2D" parent="."]
 
+[node name="Items" type="Node2D" parent="."]
+
 [node name="Ground" type="StaticBody2D" parent="."]
 position = Vector2(3100, 650)
 
@@ -64,6 +66,35 @@ offset_bottom = 300.0
 text = "Timeline"
 autowrap_mode = 2
 
+[node name="NotebookPanel" type="PanelContainer" parent="CanvasLayer"]
+visible = false
+offset_left = 700.0
+offset_top = 16.0
+offset_right = 1130.0
+offset_bottom = 250.0
+
+[node name="VBox" type="VBoxContainer" parent="CanvasLayer/NotebookPanel"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="CanvasLayer/NotebookPanel/VBox"]
+layout_mode = 2
+text = "Suspicion Notebook"
+
+[node name="Hint" type="Label" parent="CanvasLayer/NotebookPanel/VBox"]
+layout_mode = 2
+text = "Enter to save, Esc to close"
+
+[node name="Input" type="LineEdit" parent="CanvasLayer/NotebookPanel/VBox"]
+layout_mode = 2
+placeholder_text = "Type note and press Enter"
+max_length = 120
+
+[node name="Notes" type="Label" parent="CanvasLayer/NotebookPanel/VBox"]
+layout_mode = 2
+text = "No notes yet"
+autowrap_mode = 2
+
 [node name="EndScreen" type="PanelContainer" parent="CanvasLayer"]
 visible = false
 offset_left = 160.0
@@ -106,3 +137,7 @@ autowrap_mode = 2
 [node name="More" type="Label" parent="CanvasLayer/EndScreen/VBox"]
 layout_mode = 2
 text = "TAB: show more timeline"
+
+[node name="ReturnLobbyButton" type="Button" parent="CanvasLayer/EndScreen/VBox"]
+layout_mode = 2
+text = "Return To Lobby"

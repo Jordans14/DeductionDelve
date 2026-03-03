@@ -1,0 +1,8 @@
+{
+  "default_port": 2456,
+  "default_bind_address": "0.0.0.0",
+  "default_join_address": "127.0.0.1",
+  "max_peers": 8,
+  "host_port_fallback_attempts": 10,
+  "min_players_to_start": 2
+}

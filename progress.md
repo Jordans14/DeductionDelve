@@ -512,3 +512,82 @@ Implementation scripts and runnable scenes are being added next in this iteratio
 
 ### Known remaining risks
 - Objective is intentionally simple (single extraction-slot check) and may need balancing constraints in later milestones (for example, minimum progress gating).
+
+## 2026-03-02 - Iteration 32 (Scope Lock + Extraction Readiness Window)
+
+### Why
+- Extraction needed a deterministic public timing anchor without expanding UI or leaking blame.
+- The working tree also needed to be cut back to just the extraction-window slice and proof hardening.
+
+### What changed
+- `godot/src/net/network_manager.gd`
+  - added host-side `extraction_window_started` / `extraction_window_aborted` public events before `extraction_completed`
+  - kept public meta restricted to `duration_ticks` for start and empty meta for abort
+- `godot/src/run/game_controller.gd`
+  - kept the core HUD status line visible and appends `Extraction stabilizing...` during the hold
+  - routes extraction-window events into the existing grouped timeline/export formatting
+  - removed proof-only actor teleports from automation
+- `godot/src/tests/net_manager_test_helpers.gd`
+  - extended public allowlist coverage for extraction window events
+- `godot/src/tests/test_runner.gd`
+  - added deterministic extraction-window gating/meta/formatting coverage
+  - kept proof-script marker assertions for both `sabotage_camera_jam` and `extraction_window_started`
+- `scripts/run_headless_proof.ps1`
+  - now uses a fixed fallback seed list and stops at the first seed that emits both required public facts
+
+### Validation
+- `.\scripts\run_tests.ps1` -> `[PASS]`
+- `.\scripts\run_headless_proof.ps1` -> `=== HEADLESS PROOF PASS ===`
+- Key proof lines:
+  - `TIMELINE_EVENT tick=5 event_id=7 type=extraction_window_started room_slot=7 actor=-1 visibility=public`
+  - `TIMELINE_EVENT tick=5 event_id=11 type=sabotage_camera_jam room_slot=0 actor=-1 visibility=public`
+  - `RUN_VERIFY ok=true checks=5 failures=0`
+  - `REPORT_DIFF ok=true mismatches=0`
+
+### Risks / Next
+- Risks:
+  - proof now depends on a committed deterministic fallback seed list rather than one hardcoded seed
+  - extraction timing remains public-only; avoid attaching actor metadata or private hints
+- Next:
+  - if extraction needs more pressure later, keep adding neutral public anchors rather than new UI systems
+
+## 2026-03-02 - Iteration 33 (Extraction Window Lifecycle Fix + Suspicion Notebook)
+
+### Why
+- The extraction readiness window could restart too aggressively after an abort, which made the public timing anchor noisier than intended.
+- The next Milestone 5 step was a strictly local suspicion notebook that affects reconstruction readability without touching simulation or privacy boundaries.
+
+### What changed
+- `godot/src/net/network_manager.gd`
+  - disallows same-tick extraction window restart after an abort
+  - keeps `extraction_window_started` single-emission per active lifecycle until abort/completion/reset
+- `godot/src/tests/test_runner.gd`
+  - added deterministic lifecycle coverage for single start, single abort, and next-tick restart
+  - added local notebook private/export scope coverage
+- `godot/scenes/Game.tscn`
+  - added a minimal hidden notebook panel with text input and recent-note list
+- `godot/src/run/game_controller.gd`
+  - adds local-only `notebook_note_added` private events through the existing private feed/export path
+  - adds `N` toggle and `Enter` submit for the notebook panel
+- `docs/UX_UI.md`
+  - documents the local notebook toggle
+- `docs/TESTING.md`
+  - adds one manual notebook privacy check
+
+### Validation
+- `.\scripts\run_tests.ps1` -> `[PASS]`
+- `.\scripts\run_headless_proof.ps1` -> `=== HEADLESS PROOF PASS ===`
+- Key proof lines:
+  - `TIMELINE_EVENT tick=0 event_id=4 type=sabotage_camera_jam room_slot=0 actor=-1 visibility=public`
+  - `TIMELINE_EVENT tick=975 event_id=61 type=extraction_window_started room_slot=7 actor=-1 visibility=public`
+  - `TIMELINE_EVENT tick=985 event_id=62 type=extraction_window_aborted room_slot=7 actor=-1 visibility=public`
+  - `TIMELINE_EVENT tick=990 event_id=64 type=extraction_window_started room_slot=7 actor=-1 visibility=public`
+  - `RUN_VERIFY ok=true checks=5 failures=0`
+  - `REPORT_DIFF ok=true mismatches=0`
+
+### Risks / Next
+- Risks:
+  - notebook notes are intentionally local-only and never enter public report diff or replication
+  - extraction window restart remains blocked for the abort tick only; further tightening should happen only if playtests show a real need
+- Next:
+  - if the notebook needs more utility later, keep it in the local/private recap layer and out of simulation

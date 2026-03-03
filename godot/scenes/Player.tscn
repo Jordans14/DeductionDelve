@@ -16,12 +16,12 @@ position = Vector2(0, -2)
 color = Color(0.4, 0.9, 0.8, 1)
 polygon = PackedVector2Array(-13, -19, 13, -19, 13, 19, -13, 19)
 
-[node name="Name" type="Label2D" parent="."]
+[node name="Name" type="Label" parent="."]
 position = Vector2(-16, -34)
 text = "P?"
 font_size = 16
 
-[node name="Carry" type="Label2D" parent="."]
+[node name="Carry" type="Label" parent="."]
 visible = false
 position = Vector2(-8, -52)
 text = "EV"

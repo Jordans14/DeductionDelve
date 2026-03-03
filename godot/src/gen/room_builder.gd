@@ -32,13 +32,13 @@ func build_from_chain(room_chain: Array) -> void:
 		])
 		room_node.add_child(panel)
 
-		var label := Label2D.new()
+		var label := Label.new()
 		label.position = Vector2(14, -ROOM_HEIGHT + 24)
 		label.text = "%d:%s [%s]" % [slot, str(room.get("id", "?")), str(room.get("hazard", "none"))]
 		label.modulate = Color(0.1, 0.1, 0.1)
 		room_node.add_child(label)
 
-		var indicator := Label2D.new()
+		var indicator := Label.new()
 		indicator.position = Vector2(ROOM_WIDTH - 48.0, -ROOM_HEIGHT + 28.0)
 		indicator.text = "!"
 		indicator.visible = false
@@ -52,7 +52,7 @@ func _process(delta: float) -> void:
 	for slot in indicator_time_left_by_slot.keys():
 		var left := float(indicator_time_left_by_slot[slot]) - delta
 		indicator_time_left_by_slot[slot] = maxf(left, 0.0)
-		var indicator: Label2D = indicator_by_slot.get(slot, null)
+		var indicator: Label = indicator_by_slot.get(slot, null)
 		if indicator:
 			indicator.visible = left > 0.0
 
@@ -60,7 +60,7 @@ func flash_hazard_indicator(room_slot: int, duration_sec: float = 0.3) -> void:
 	if not indicator_time_left_by_slot.has(room_slot):
 		return
 	indicator_time_left_by_slot[room_slot] = maxf(float(indicator_time_left_by_slot[room_slot]), duration_sec)
-	var indicator: Label2D = indicator_by_slot.get(room_slot, null)
+	var indicator: Label = indicator_by_slot.get(room_slot, null)
 	if indicator:
 		indicator.visible = true
 

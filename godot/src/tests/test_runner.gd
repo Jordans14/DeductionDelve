@@ -5,6 +5,7 @@ const NETWORK_MANAGER_SCRIPT = preload("res://src/net/network_manager.gd")
 const RUN_GENERATOR_SCRIPT = preload("res://src/gen/run_generator.gd")
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EVIDENCE_SERVICE_SCRIPT = preload("res://src/run/evidence_service.gd")
+const EVENT_LOG_SCRIPT = preload("res://src/run/event_log.gd")
 
 func _init() -> void:
 	var failures: Array[String] = []
@@ -254,6 +255,9 @@ func _test_run_end_tick_determinism(failures: Array[String]) -> void:
 
 func _test_extraction_objective_end_reason(failures: Array[String]) -> void:
 	var manager = NETWORK_MANAGER_SCRIPT.new()
+	manager.is_host = true
+	manager.run_active = true
+	manager.current_server_tick = 120
 	manager.extraction_room_slot = 7
 	manager.player_room_by_peer = {2: 7}
 	manager.artifacts_by_id = {
@@ -261,10 +265,29 @@ func _test_extraction_objective_end_reason(failures: Array[String]) -> void:
 		2: {"artifact_id": 2, "owner_peer_id": 0, "room_slot": 7}
 	}
 	var reason := manager.compute_end_reason_for_tick(120)
-	if reason != "extraction_objective":
-		failures.append("objective end should trigger when carrier reaches extraction room slot")
-	if manager.compute_end_reason_for_tick(1800) != "extraction_objective":
-		failures.append("objective end should take precedence over tick-limit when both true")
+	if reason != "":
+		failures.append("objective end should wait for extraction window before completing")
+	if manager.extraction_window_started_tick != 120:
+		failures.append("objective end should capture the extraction window start tick when the carrier reaches extraction room slot")
+	if manager.extraction_window_artifact_id != 1 or manager.extraction_window_owner_peer_id != 2:
+		failures.append("objective end should capture the extraction window artifact and carrier deterministically")
+	if manager.next_event_id != 2:
+		failures.append("objective end should emit exactly one extraction_window_started event when the window begins")
+	var hold_tick: int = 120 + int(manager.EXTRACTION_WINDOW_TICKS)
+	var hold_reason := manager.compute_end_reason_for_tick(hold_tick)
+	if hold_reason != "extraction_objective":
+		failures.append("objective end should complete after the deterministic extraction window elapses")
+	manager.current_server_tick = hold_tick
+	var extraction_details: Dictionary = manager._find_extraction_completion_details()
+	if extraction_details.is_empty():
+		failures.append("objective end should still have extraction details after the hold finishes")
+	else:
+		manager.record_public_event("extraction_completed", int(extraction_details.get("room_slot", -1)), int(extraction_details.get("owner_peer_id", -1)), {
+			"artifact_id": int(extraction_details.get("artifact_id", 0))
+		})
+		manager.record_public_event("run_ended", -1, -1, {})
+	if manager.next_event_id != 4:
+		failures.append("objective end should reserve sequential event ids for extraction_completed then run_ended after the hold finishes")
 	manager.free()
 
 func _test_role_reveal_secrecy_until_end(failures: Array[String]) -> void:

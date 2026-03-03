@@ -25,6 +25,7 @@
 18. Extraction objective end-reason determinism test.
 19. Role reveal secrecy-until-end test.
 20. End payload data-contract test.
+21. Extraction readiness window determinism + public meta allowlist test.
 
 ## Manual Runbook: Lobby + Spawn Smoke
 1. Run `scripts/run_host.ps1`.
@@ -71,8 +72,19 @@
 18. Trigger hazard pulse and verify `!` indicator flashes and then decays without affecting run state.
 19. Continue run until host tick limit is reached and verify end screen appears on all clients.
 20. While carrying an artifact, reach the last room slot and verify run ends with reason `extraction_objective`.
+21. Confirm `extraction_window_started` appears before `extraction_completed`.
 21. Verify end screen shows seed, role reveals, and evidence summary rows.
 22. Verify role map is not visible before run end.
+23. Press `N`, enter a short suspicion note, and verify it appears only in the local notebook / `YOUR NOTES` feed.
+
+## Automated Headless Proof
+- Command:
+  - `.\scripts\run_headless_proof.ps1`
+- Expected markers:
+  - `TIMELINE_EVENT ... type=sabotage_camera_jam ...`
+  - `TIMELINE_EVENT ... type=extraction_window_started ...`
+  - `RUN_VERIFY ok=true checks=5 failures=0`
+  - `REPORT_DIFF ok=true mismatches=0`
 
 ## Script Entry Points
 - `scripts/run_host.ps1` launches game as host.

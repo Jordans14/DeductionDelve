@@ -53,6 +53,8 @@
   - `hazard_state_changed`: empty
   - `run_started`: `seed`
   - `evidence_checked`: empty
+  - `extraction_window_started`: `duration_ticks`
+  - `extraction_window_aborted`: empty
   - `run_ended`: empty
 - Unknown event types or unlisted keys resolve to empty metadata.
 - Unit tests now validate this logic through pure helper APIs rather than internal NetworkManager methods.
@@ -77,7 +79,7 @@
 
 ## Run Lifecycle v0
 - End condition priority (host authoritative, deterministic):
-  1. `extraction_objective`: any artifact carrier reaches extraction room slot (`last room slot`).
+  1. `extraction_objective`: any artifact carrier holds inside extraction room slot (`last room slot`) for the deterministic extraction readiness window.
   2. fallback `tick_limit`: `tick >= RUN_TICK_LIMIT`.
 - Role-map reveal is transmitted only in end payload, never in run-start payload.
 - End payload includes:

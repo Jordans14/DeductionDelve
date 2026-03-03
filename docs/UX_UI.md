@@ -13,6 +13,7 @@
 - Current debug HUD implementation:
   - `Your role: ...`
   - `Carrying: E#` or `None`
+  - status line keeps seed/player/extraction info visible and appends `Extraction stabilizing...` during the extraction readiness hold
   - interaction prompt line near carry HUD:
     - `Q: Pick up E#`
     - `E: Drop`
@@ -28,6 +29,7 @@
   - `event`, `who`, `where`, `confidence`, `notes`.
 - Supports uncertainty flags (possible/likely/contested).
 - Timeline bookmarks from major events (death, sabotage trace, artifact pickup).
+- Current v0 slice: press `N` to toggle a local-only notebook panel, type a short note, and press `Enter` to add a private note entry to `YOUR NOTES`.
 
 ## Non-Verbal Tell Presentation
 - Footprint decals in certain terrain.

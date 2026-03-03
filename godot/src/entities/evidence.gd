@@ -1,7 +1,7 @@
 extends Node2D
 
 @onready var core: Polygon2D = $Core
-@onready var label: Label2D = $Label
+@onready var label: Label = $Label
 
 var artifact_id: int = 0
 var room_slot: int = -1
