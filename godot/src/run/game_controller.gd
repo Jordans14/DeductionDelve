@@ -6,9 +6,25 @@ const ROOM_WIDTH := 520.0
 const WARDEN_CHECK_RANGE := 96.0
 const NOTEBOOK_RECENT_LIMIT := 8
 const NOTEBOOK_MAX_LEN := 120
+const NOTEBOOK_INSPECTION_AUTONOTE_TICKS := 30
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EVIDENCE_SERVICE_SCRIPT = preload("res://src/run/evidence_service.gd")
 const ITEM_PICKUP_SCENE = preload("res://scenes/Item.tscn")
+
+var NetworkManager: Node:
+	get:
+		var tree := get_tree()
+		return tree.root.get_node_or_null("/root/NetworkManager") if tree != null else null
+
+var EventLog: Node:
+	get:
+		var tree := get_tree()
+		return tree.root.get_node_or_null("/root/EventLog") if tree != null else null
+
+var RunState: Node:
+	get:
+		var tree := get_tree()
+		return tree.root.get_node_or_null("/root/RunState") if tree != null else null
 
 @onready var room_root: Node2D = get_node_or_null("Rooms") as Node2D
 @onready var player_root: Node2D = get_node_or_null("Players") as Node2D
@@ -48,6 +64,7 @@ var run_ended: bool = false
 var end_timeline_limit: int = 8
 var end_payload: Dictionary = {}
 var notebook_open: bool = false
+var notebook_last_autonote_tick_by_key: Dictionary = {}
 var cli_auto_pickup: bool = false
 var cli_auto_pickup_done: bool = false
 var cli_auto_role_action: bool = false
@@ -342,6 +359,8 @@ func _on_timeline_event_added(event: Dictionary) -> void:
 	if str(event.get("event_type", "")) == "notebook_note_added":
 		if int(event.get("target_peer_id", -1)) == _local_peer_id():
 			_refresh_notebook_panel()
+	elif str(event.get("event_type", "")) == "warden_check_result":
+		_maybe_autonote_on_inspection(event)
 	_refresh_timeline()
 
 func _on_run_ended(payload: Dictionary) -> void:
@@ -398,10 +417,18 @@ func _submit_notebook_note() -> void:
 		return
 	var local_id := _local_peer_id()
 	var room_slot := _room_slot_for_local_peer(local_id)
-	var event := _build_notebook_note_event(note_text, local_id, tick_counter, _next_local_event_id(EventLog), room_slot)
-	EventLog.add_event(event)
+	_add_notebook_note(note_text, local_id, tick_counter, room_slot)
 	notebook_input.text = ""
 	_refresh_notebook_panel()
+
+func _add_notebook_note(text: String, local_peer_id: int, note_tick: int, room_slot: int, event_log: Node = null) -> void:
+	var note_text := _sanitize_notebook_text(text)
+	if note_text.is_empty():
+		return
+	var el: Node = event_log if event_log != null else EventLog
+	if el == null:
+		return
+	el.add_event(_build_notebook_note_event(note_text, local_peer_id, note_tick, _next_local_event_id(el), room_slot))
 
 func _build_notebook_note_event(text: String, local_peer_id: int, note_tick: int, event_id: int, room_slot: int) -> Dictionary:
 	return {
@@ -424,6 +451,41 @@ func _next_local_event_id(event_log: Node) -> int:
 		var event: Dictionary = event_raw
 		max_id = maxi(max_id, int(event.get("event_id", 0)))
 	return max_id + 1
+
+func _maybe_autonote_on_inspection(event: Dictionary) -> void:
+	var local_peer_id := _local_peer_id()
+	if local_peer_id <= 0:
+		return
+	_maybe_autonote_on_inspection_with_event_log(EventLog, event, local_peer_id, int(event.get("tick", tick_counter)))
+	_refresh_notebook_panel()
+
+func _maybe_autonote_on_inspection_with_event_log(event_log: Node, event: Dictionary, local_peer_id: int, now_tick: int) -> void:
+	if event_log == null or local_peer_id <= 0:
+		return
+	if str(event.get("event_type", "")) != "warden_check_result":
+		return
+	if int(event.get("target_peer_id", -1)) != local_peer_id:
+		return
+	var meta: Dictionary = event.get("meta", {})
+	var artifact_id := int(meta.get("artifact_id", 0))
+	if artifact_id <= 0:
+		return
+	var note_key := "artifact_%d" % artifact_id
+	var last_tick := int(notebook_last_autonote_tick_by_key.get(note_key, -999999))
+	if now_tick - last_tick < NOTEBOOK_INSPECTION_AUTONOTE_TICKS:
+		return
+	notebook_last_autonote_tick_by_key[note_key] = now_tick
+	var room_slot := int(event.get("room_slot", -1))
+	var note_text := "Checked E%d" % artifact_id
+	if room_slot >= 0:
+		note_text += " in room %d" % room_slot
+	var label := _sanitize_notebook_text(str(meta.get("label", "")))
+	if not label.is_empty():
+		note_text += ": %s" % label
+	_add_notebook_note(note_text, local_peer_id, now_tick, room_slot, event_log)
+
+func apply_autonote_for_test(event_log: Node, event: Dictionary, local_peer_id: int, now_tick: int) -> void:
+	_maybe_autonote_on_inspection_with_event_log(event_log, event, local_peer_id, now_tick)
 
 func _refresh_timeline() -> void:
 	if timeline_label == null:
@@ -575,7 +637,7 @@ func _update_interaction_prompt(local_id: int) -> void:
 	var prompts: Array[String] = []
 	var local_pos: Vector2 = players[local_id].global_position
 	var local_slot := _room_slot_for_position(local_pos)
-	var carried_id := NetworkManager.get_local_carried_artifact_id()
+	var carried_id: int = int(NetworkManager.get_local_carried_artifact_id())
 	if carried_id > 0:
 		prompts.append(_carry_objective_prompt(local_slot))
 	else:
@@ -619,7 +681,7 @@ func _update_status() -> void:
 	parts.append("Players %d" % int(RunState.player_ids.size()))
 	parts.append("Host %s" % str(NetworkManager.is_host))
 	parts.append("Extract: room %d" % _extraction_room_slot())
-	var local_items := NetworkManager.get_local_item_names() if NetworkManager.has_method("get_local_item_names") else []
+	var local_items: Array = NetworkManager.get_local_item_names() if NetworkManager.has_method("get_local_item_names") else []
 	if not local_items.is_empty():
 		parts.append("Items: %s" % ", ".join(local_items))
 	if NetworkManager.is_local_extraction_window_active():
@@ -628,7 +690,7 @@ func _update_status() -> void:
 		parts.append(feedback_text)
 	status_label.text = " | ".join(parts)
 	if carry_label:
-		var carried_id := NetworkManager.get_local_carried_artifact_id()
+		var carried_id: int = int(NetworkManager.get_local_carried_artifact_id())
 		carry_label.text = "Carrying: E%d" % carried_id if carried_id > 0 else "Carrying: None"
 
 func _sync_evidence_nodes(evidence_by_id: Dictionary) -> void:

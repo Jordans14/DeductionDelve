@@ -27,6 +27,7 @@ func _init() -> void:
 	_test_extraction_objective_end_reason(failures)
 	_test_role_reveal_secrecy_until_end(failures)
 	_test_end_payload_contract(failures)
+	_test_inspection_autonote_private_and_throttled(failures)
 
 	if failures.is_empty():
 		print("[PASS] Milestone tests passed.")
@@ -323,3 +324,43 @@ func _test_end_payload_contract(failures: Array[String]) -> void:
 	if not public_meta.is_empty():
 		failures.append("run_ended public meta should be empty by allowlist")
 	manager.free()
+
+func _test_inspection_autonote_private_and_throttled(failures: Array[String]) -> void:
+	var controller_script = load("res://src/run/game_controller.gd")
+	if controller_script == null:
+		failures.append("game_controller script should load for inspection autonote test")
+		return
+	var controller = controller_script.new()
+	var event_log = EVENT_LOG_SCRIPT.new()
+	var inspected_event := {
+		"tick": 40,
+		"event_id": 5,
+		"room_slot": 3,
+		"actor_peer_id": 2,
+		"event_type": "warden_check_result",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"artifact_id": 4, "score": 73}
+	}
+	controller.apply_autonote_for_test(event_log, inspected_event, 2, 40)
+	controller.apply_autonote_for_test(event_log, inspected_event, 2, 45)
+	var public_events: Array = event_log.get_recent_public(8)
+	var private_events: Array = event_log.get_recent_private_for(2, 8)
+	if not public_events.is_empty():
+		failures.append("inspection autonote should never appear in the public event feed")
+	if private_events.size() != 1:
+		failures.append("inspection autonote throttle should allow only one private notebook note inside the throttle window")
+	elif str(Dictionary(private_events[0]).get("event_type", "")) != "notebook_note_added":
+		failures.append("inspection autonote should emit notebook_note_added")
+	else:
+		var note: Dictionary = private_events[0]
+		if int(note.get("target_peer_id", -1)) != 2:
+			failures.append("inspection autonote should remain target-scoped to the local peer")
+		var note_text := str(Dictionary(note.get("meta", {})).get("text", ""))
+		if note_text.find("Checked E4 in room 3") == -1:
+			failures.append("inspection autonote should include the checked artifact and room in the private note text")
+	controller.apply_autonote_for_test(event_log, inspected_event, 2, 80)
+	if event_log.get_recent_private_for(2, 8).size() != 2:
+		failures.append("inspection autonote should create a second note after the deterministic throttle window expires")
+	controller.free()
+	event_log.free()
