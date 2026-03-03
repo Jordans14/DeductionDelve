@@ -42,7 +42,10 @@ var RunState: Node:
 @onready var carry_label: Label = get_node_or_null("CanvasLayer/HUD/Carry") as Label
 @onready var prompt_label: Label = get_node_or_null("CanvasLayer/HUD/Prompt") as Label
 @onready var timeline_label: Label = get_node_or_null("CanvasLayer/HUD/Timeline") as Label
+@onready var hint_label: Label = get_node_or_null("CanvasLayer/HUD/HintLabel") as Label
 @onready var room_builder: Node2D = get_node_or_null("Rooms") as Node2D
+@onready var help_panel: Control = get_node_or_null("CanvasLayer/HelpPanel") as Control
+@onready var help_label: Label = get_node_or_null("CanvasLayer/HelpPanel/HelpLabel") as Label
 @onready var notebook_panel: Control = get_node_or_null("CanvasLayer/NotebookPanel") as Control
 @onready var notebook_hint_label: Label = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Hint") as Label
 @onready var notebook_input: LineEdit = get_node_or_null("CanvasLayer/NotebookPanel/VBox/Input") as LineEdit
@@ -75,6 +78,7 @@ var run_ended: bool = false
 var end_timeline_limit: int = 8
 var end_payload: Dictionary = {}
 var notebook_open: bool = false
+var help_open: bool = false
 var notebook_last_autonote_tick_by_key: Dictionary = {}
 var notebook_filter_mode: String = NOTEBOOK_FILTER_ALL
 var notebook_toast_expires_tick: int = -1
@@ -130,6 +134,10 @@ func _ready() -> void:
 		notebook_hint_label.text = "Enter to save, Esc to close"
 	if notebook_toast_label:
 		notebook_toast_label.text = ""
+	if help_panel:
+		help_panel.visible = false
+	if help_label:
+		help_label.text = _build_help_overlay_text()
 	print("run_started_transition")
 	print("GAME_READY pid=%d" % OS.get_process_id())
 
@@ -153,6 +161,7 @@ func _physics_process(delta: float) -> void:
 		notebook_toast_expires_tick = -1
 		if notebook_toast_label:
 			notebook_toast_label.text = ""
+	_update_hint_label(local_id)
 	if run_ended and _pressed_once(KEY_TAB):
 		end_timeline_limit = 20 if end_timeline_limit == 8 else 8
 		_refresh_end_timeline()
@@ -166,11 +175,31 @@ func _input(event: InputEvent) -> void:
 			_toggle_notebook(not notebook_open)
 			get_viewport().set_input_as_handled()
 			return
+		if key_event.keycode == KEY_F1 or key_event.keycode == KEY_H:
+			_toggle_help_overlay(not help_open)
+			get_viewport().set_input_as_handled()
+			return
 		if notebook_open and key_event.keycode == KEY_ESCAPE:
 			_toggle_notebook(false)
 			get_viewport().set_input_as_handled()
 			return
-		if notebook_open and key_event.keycode == KEY_ENTER:
+		if notebook_open and (key_event.keycode == KEY_ENTER or key_event.keycode == KEY_KP_ENTER):
+			if notebook_input and notebook_input.has_focus():
+				if key_event.shift_pressed:
+					notebook_input.text = _apply_quick_tag_shortcuts(notebook_input.text, NOTEBOOK_FILTER_SUSPECT)
+					notebook_input.caret_column = notebook_input.text.length()
+					get_viewport().set_input_as_handled()
+					return
+				if key_event.ctrl_pressed:
+					notebook_input.text = _apply_quick_tag_shortcuts(notebook_input.text, NOTEBOOK_FILTER_ALIBI)
+					notebook_input.caret_column = notebook_input.text.length()
+					get_viewport().set_input_as_handled()
+					return
+				if key_event.alt_pressed:
+					notebook_input.text = _apply_quick_tag_shortcuts(notebook_input.text, NOTEBOOK_FILTER_EVIDENCE)
+					notebook_input.caret_column = notebook_input.text.length()
+					get_viewport().set_input_as_handled()
+					return
 			_submit_notebook_note()
 			get_viewport().set_input_as_handled()
 
@@ -929,7 +958,11 @@ func _render_end_summary() -> void:
 			int(row.get("stolen", 0)),
 			int(row.get("carrying_end", 0))
 		])
-	end_summary_label.text = "Evidence Summary\n%s" % _join_or_placeholder(lines, "No summary")
+	var local_id := _local_peer_id()
+	var stats_lines := _build_run_stats_lines(_build_run_stats(EventLog, local_id))
+	var action_lines := _build_action_summary_lines(EventLog, local_id, 8)
+	var sections: Array[String] = ["Evidence Summary", _join_or_placeholder(lines, "No summary"), "", "Stats", _join_or_placeholder(stats_lines, "No stats"), "", "Action Summary", _join_or_placeholder(action_lines, "No actions")]
+	end_summary_label.text = "\n".join(sections)
 
 func _refresh_end_timeline() -> void:
 	if end_timeline_label == null:
@@ -1304,6 +1337,32 @@ func _on_copy_notes_pressed() -> void:
 		return
 	DisplayServer.clipboard_set(payload)
 	_private_toast("Notes copied")
+
+func _toggle_help_overlay(force_open: Variant = null) -> void:
+	help_open = not help_open if force_open == null else bool(force_open)
+	if help_panel:
+		help_panel.visible = help_open
+	if help_open and notebook_open:
+		_toggle_notebook(false)
+
+func _build_help_overlay_text() -> String:
+	return "\n".join([
+		"Goal: collect evidence -> extract.",
+		"Move: arrow keys / input axis",
+		"N: notebook, Enter: save note",
+		"Shift+Enter: SUSPECT  Ctrl+Enter: ALIBI  Alt+Enter: EVIDENCE",
+		"T: inspect evidence when nearby",
+		"Pin latest note, filter notes, copy notes",
+		"F1/H: toggle help"
+	])
+
+func _update_hint_label(local_id: int) -> void:
+	if hint_label == null:
+		return
+	if help_open or notebook_open or run_ended:
+		hint_label.text = ""
+		return
+	hint_label.text = _update_next_step_hint_state(EventLog, local_id, tick_counter)
 
 func _build_action_summary_lines(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
 	var lines: Array[String] = []

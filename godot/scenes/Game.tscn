@@ -66,6 +66,26 @@ offset_bottom = 300.0
 text = "Timeline"
 autowrap_mode = 2
 
+[node name="HintLabel" type="Label" parent="CanvasLayer/HUD"]
+layout_mode = 2
+offset_top = 78.0
+offset_right = 620.0
+offset_bottom = 100.0
+text = ""
+autowrap_mode = 2
+
+[node name="HelpPanel" type="PanelContainer" parent="CanvasLayer"]
+visible = false
+offset_left = 520.0
+offset_top = 16.0
+offset_right = 1120.0
+offset_bottom = 220.0
+
+[node name="HelpLabel" type="Label" parent="CanvasLayer/HelpPanel"]
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
 [node name="NotebookPanel" type="PanelContainer" parent="CanvasLayer"]
 visible = false
 offset_left = 700.0

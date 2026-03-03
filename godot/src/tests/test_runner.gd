@@ -30,6 +30,7 @@ func _init() -> void:
 	_test_inspection_autonote_private_and_throttled(failures)
 	_test_notebook_pin_private_and_export_ordering(failures)
 	_test_notebook_filters_copy_and_sections(failures)
+	_test_run_report_stats_action_summary_and_hint_logic(failures)
 
 	if failures.is_empty():
 		print("[PASS] Milestone tests passed.")
@@ -479,4 +480,97 @@ func _test_notebook_filters_copy_and_sections(failures: Array[String]) -> void:
 	if copy_text.find("[PIN] t0010: EVIDENCE: Checked E4 in room 3") == -1:
 		failures.append("notebook copy payload should include the pinned evidence note")
 	controller.free()
+	event_log.free()
+
+func _test_run_report_stats_action_summary_and_hint_logic(failures: Array[String]) -> void:
+	var controller_script = load("res://src/run/game_controller.gd")
+	if controller_script == null:
+		failures.append("game_controller script should load for report summary/hint test")
+		return
+	var controller = controller_script.new()
+	var empty_log = EVENT_LOG_SCRIPT.new()
+	var no_notes_hint: String = controller.compute_next_step_hint_for_test_with_state(empty_log, 2, false, 7)
+	if no_notes_hint.find("notebook") == -1:
+		failures.append("next-step hint should recommend the notebook when the player has no notes")
+	var event_log = EVENT_LOG_SCRIPT.new()
+	event_log.add_event(controller._build_notebook_note_event("SUSPECT: player lingered in room 3 for too long", 2, 10, 1, 3))
+	event_log.add_event({
+		"event_id": 2,
+		"tick": 11,
+		"room_slot": 3,
+		"actor_peer_id": 2,
+		"event_type": "notebook_note_pin_toggled",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"note_event_id": 1, "pinned": true}
+	})
+	var inspect_hint: String = controller.compute_next_step_hint_for_test_with_state(event_log, 2, false, 7)
+	if inspect_hint.find("inspect") == -1:
+		failures.append("next-step hint should recommend inspection once the player has notes but no inspections")
+	event_log.add_event({
+		"event_id": 3,
+		"tick": 20,
+		"room_slot": 3,
+		"actor_peer_id": 2,
+		"event_type": "warden_check_result",
+		"visibility": "private",
+		"target_peer_id": 2,
+		"meta": {"artifact_id": 4, "score": 73}
+	})
+	event_log.add_event({
+		"event_id": 4,
+		"tick": 30,
+		"room_slot": 7,
+		"actor_peer_id": -1,
+		"event_type": "extraction_window_started",
+		"visibility": "public",
+		"meta": {"duration_ticks": 180}
+	})
+	event_log.add_event({
+		"event_id": 5,
+		"tick": 40,
+		"room_slot": 7,
+		"actor_peer_id": 2,
+		"event_type": "extraction_completed",
+		"visibility": "public",
+		"meta": {"artifact_id": 4}
+	})
+	event_log.add_event({
+		"event_id": 6,
+		"tick": 41,
+		"room_slot": -1,
+		"actor_peer_id": -1,
+		"event_type": "run_ended",
+		"visibility": "public",
+		"meta": {}
+	})
+	for public_event in event_log.get_recent_public(16):
+		var event_type := str(Dictionary(public_event).get("event_type", ""))
+		if event_type in ["notebook_note_added", "notebook_note_pin_toggled", "warden_check_result"]:
+			failures.append("private notebook/inspection events should never leak into the public event feed")
+			break
+	var action_lines: Array[String] = controller.build_action_summary_lines_for_test(event_log, 2, 8)
+	var action_text := "\n".join(action_lines)
+	if action_text.find("Inspected E4") == -1:
+		failures.append("action summary should include inspected artifact lines")
+	if action_text.find("Note: SUSPECT:") == -1:
+		failures.append("action summary should include notebook note lines with tags")
+	if action_text.find("Extraction completed") == -1:
+		failures.append("action summary should include extraction completion lines")
+	var stats_lines: Array[String] = controller.build_run_stats_lines_for_test(event_log, 2)
+	var stats_text := "\n".join(stats_lines)
+	if stats_text.find("Notes: 1 (Pinned: 1)") == -1:
+		failures.append("run stats should include note and pinned counts")
+	if stats_text.find("Inspections: 1 (E:1)") == -1:
+		failures.append("run stats should include inspection counts and distinct artifact count")
+	if stats_text.find("Extraction: Completed") == -1:
+		failures.append("run stats should include extraction completion state")
+	var carrying_hint: String = controller.compute_next_step_hint_for_test_with_state(event_log, 2, true, 7)
+	if carrying_hint.find("Extraction room 7") == -1:
+		failures.append("next-step hint should point carrying players to the extraction room")
+	var quick_tag: String = controller.apply_quick_tag_shortcuts_for_test("lingered near exit", "SUSPECT")
+	if quick_tag != "SUSPECT: lingered near exit":
+		failures.append("quick-tag helper should prefix suspect notes deterministically")
+	controller.free()
+	empty_log.free()
 	event_log.free()
