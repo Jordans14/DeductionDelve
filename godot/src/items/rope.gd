@@ -53,6 +53,7 @@ func _physics_process(delta: float) -> void:
 		var old_pos = global_position
 		global_position += velocity * delta
 		
+		# Ceiling seek: Up to 400px above START position
 		var space_state = get_world_2d().direct_space_state
 		var q = PhysicsRayQueryParameters2D.create(old_pos, global_position)
 		q.collision_mask = 1 # walls
@@ -63,16 +64,18 @@ func _physics_process(delta: float) -> void:
 		if result:
 			top_p = result.position
 			deployed = true
-		elif start_y - global_position.y >= max_up:
+		elif start_y - global_position.y >= 380.0:
+			# If we fly high enough without hitting a ceiling, just hang in the air
 			top_p = global_position
 			deployed = true
 			
 		if deployed:
-			# Raycast downward to see if it hits floor
-			var bot_q = PhysicsRayQueryParameters2D.create(top_p, top_p + Vector2(0, max_down))
+			# Raycast downward from the ceiling hook to the first floor (up to 800px down)
+			# This ensures rope reaches the platform below if available.
+			var bot_q = PhysicsRayQueryParameters2D.create(top_p + Vector2(0, 10), top_p + Vector2(0, 750))
 			bot_q.collision_mask = 1
 			var bot_res = space_state.intersect_ray(bot_q)
-			var bot_y = bot_res.position.y if bot_res else top_p.y + max_down
+			var bot_y = bot_res.position.y if bot_res else top_p.y + 750
 			rpc_deploy.rpc(top_p, bot_y)
 			
 	elif state == 0:

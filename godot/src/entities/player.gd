@@ -466,11 +466,10 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		coyote_timer -= delta
 
 		# Gap-running: Spelunky style native float. If we run off an edge quickly without jumping, we float horizontally!
-		# 0.11s float gives exactly enough time to blindly cross a 32px 1-tile gap at 420px/s (which takes ~0.08s to cross).
-		# At 0.11s they travel ~46 pixels out. It guarantees they easily cross 1-tile gaps (32px), 
-		# but guarantees they fall perfectly into the abyss for 2-tile wide gaps (64px) exactly like Spelunky! No raycasts needed!
-		if coyote_timer > 0.0 and absf(velocity.x) > MOVE_SPEED * 0.70 and sprint_bridge_timer <= 0.0:
-			sprint_bridge_timer = 0.11
+		# 0.12s float gives exactly enough time to blindly cross a 32px 1-tile gap at 420px/s (which takes ~0.08s to cross).
+		# We trigger this the VERY moment we leave the floor (coyote_timer just started decaying)
+		if coyote_timer > 0.11 and absf(velocity.x) > MOVE_SPEED * 0.70 and sprint_bridge_timer <= 0.0:
+			sprint_bridge_timer = 0.15 # Just enough time to glide 1 tile purely horizontal
 				
 		if sprint_bridge_timer > 0.0:
 			sprint_bridge_timer -= delta
