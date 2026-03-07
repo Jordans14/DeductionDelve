@@ -110,14 +110,14 @@ func _build_noise_grid(run_seed: int) -> Array:
 	var cave_noise := FastNoiseLite.new()
 	cave_noise.seed = run_seed
 	cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	cave_noise.frequency = 0.04
+	cave_noise.frequency = 0.06 # Higher frequency for tighter, ant-farm squiggles
 	cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	cave_noise.fractal_octaves = 3
 	
 	var chamber_noise := FastNoiseLite.new()
 	chamber_noise.seed = run_seed + 1337
 	chamber_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	chamber_noise.frequency = 0.025
+	chamber_noise.frequency = 0.04
 	chamber_noise.fractal_octaves = 2
 
 	var grid := []
@@ -127,15 +127,11 @@ func _build_noise_grid(run_seed: int) -> Array:
 			var n : float = cave_noise.get_noise_2d(float(x), float(y))
 			var nc : float = chamber_noise.get_noise_2d(float(x), float(y))
 			
-			# 0-crossing worm noise generates a deeply interconnected, sprawling maze of tunnels!
-			var is_tunnel : bool = abs(n) < 0.16
+			# Ant-Farm thin squiggles
+			var is_tunnel : bool = abs(n) < 0.08
 			
-			# Secondary noise carves out large, organic cave rooms
-			var is_chamber : bool = nc > 0.35
-			
-			# Introduce a bit of organic roughness before smoothing
-			if randf() < 0.03:
-				is_tunnel = not is_tunnel
+			# Rare tiny rooms
+			var is_chamber : bool = nc > 0.45
 				
 			var is_wall : bool = not (is_tunnel or is_chamber)
 			col.append(is_wall)
@@ -167,12 +163,12 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int, radius: float = 2.8) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 1.8) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
 	var cx : int = GW / 2; var cy : int = 3
 	while cy < GH - 4:
-		var r_var := rng.randf_range(0.8, 1.4)
+		var r_var := rng.randf_range(0.8, 1.2)
 		_carve_circle(grid, cx, cy, int(radius * r_var)) # Clear wide main pathway
 		var r := rng.randf()
 		if r < 0.65:   cy += 1 # Increased vertical bias
@@ -183,9 +179,9 @@ func _carve_critical_path(grid: Array, run_seed: int, radius: float = 2.8) -> vo
 	for _b in range(6):
 		var bx : int = rng.randi_range(6, GW - 7)
 		var by : int = rng.randi_range(4, GH - 5)
-		var blen : int = rng.randi_range(6, 16)
+		var blen : int = rng.randi_range(3, 10)
 		var bdir : int = 1 if (rng.randi() % 2 == 0) else -1
-		for b in range(blen): _carve_circle(grid, bx + b * bdir, by, 3)
+		for b in range(blen): _carve_circle(grid, bx + b * bdir, by, 1)
 
 func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
 	for dx in range(-radius, radius + 1):
@@ -199,73 +195,39 @@ func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
 # STAGE 4: CHUNK BOUNDARY CONNECTORS
 # ============================================================
 func _carve_chunk_connectors(grid: Array, run_seed: int) -> void:
-	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 99
-	# Vertical passages — 3 tiles wide
-	for col in range(COLS):
-		for row in range(ROWS - 1):
-			var ox : int = rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
-			var tx : int = col * CHUNK_W + ox; var sy : int = (row + 1) * CHUNK_H
-			for py in range(sy - 2, sy + 3):
-				for px in range(tx - 1, tx + 2):
-					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
-	# Horizontal passages — 3 tiles tall (Skip 50% to preserve vertical walls!)
-	for col in range(COLS - 1):
-		for row in range(ROWS):
-			if rng.randf() < 0.5: continue
-			var oy : int = rng.randi_range(CHUNK_H / 4, 3 * CHUNK_H / 4)
-			var sx2 : int = (col + 1) * CHUNK_W; var ty : int = row * CHUNK_H + oy
-			for px in range(sx2 - 2, sx2 + 3):
-				for py in range(ty - 1, ty + 2):
-					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
+	# Disabled to prevent "flat platformer rooms" look!
+	pass
 
 # ============================================================
-# STAGE 4b: WINDING PATHWAYS (Replaces huge chambers)
+# STAGE 4b: WINDING PATHWAYS (The Ant Farm Diggers)
 # ============================================================
 func _carve_pathways(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 54321
-	# 8 Horizontal Worms (Wide, spanning sections)
-	for _i in range(8):
-		var cx : int = rng.randi_range(6, GW - 6)
-		var cy : int = rng.randi_range(6, GH - 6)
-		var length : int = rng.randi_range(25, 45)
-		var thickness : int = rng.randi_range(3, 5)
-		var y_drift : float = 0.0
-		var slope : float = rng.randf_range(-0.4, 0.4)
+	
+	# Spawn 50 "Ant Farm Diggers" to create a web of thin paths
+	for _i in range(50):
+		var px : float = rng.randf_range(10, GW - 10)
+		var py : float = rng.randf_range(10, GH - 10)
+		var dir : float = rng.randf_range(0, TAU)
+		var length : int = rng.randi_range(40, 90)
+		var thickness : int = rng.randi_range(1, 3) # Very tight passages (1 to 2 radius mostly)
+		
 		for i in range(length):
-			var px : int = cx + i
-			if px >= GW - 1: break
-			var py : int = int(cy + y_drift)
-			for dx in range(-thickness, thickness):
-				for dy in range(-thickness, thickness):
+			# Dig
+			for dx in range(-thickness, thickness + 1):
+				for dy in range(-thickness, thickness + 1):
 					if dx*dx + dy*dy <= thickness * thickness:
-						var fx : int = px + dx; var fy : int = py + dy
+						var fx : int = int(px) + dx
+						var fy : int = int(py) + dy
 						if fx > 0 and fy > 0 and fx < GW - 1 and fy < GH - 1:
 							grid[fx][fy] = false
-			y_drift += slope
-			slope += rng.randf_range(-0.15, 0.15)
-			slope = clamp(slope, -0.8, 0.8)
-
-	# 8 Vertical Worms (Ascending shafts between horizontal platforms)
-	for _i in range(8):
-		var cx : int = rng.randi_range(6, GW - 6)
-		var cy : int = rng.randi_range(GH / 2, GH - 6)
-		var length : int = rng.randi_range(20, 35)
-		var thickness : int = rng.randi_range(3, 5)
-		var x_drift : float = 0.0
-		var slope : float = rng.randf_range(-0.3, 0.3)
-		for i in range(length):
-			var py : int = cy - i
-			if py <= 1: break
-			var px : int = int(cx + x_drift)
-			for dx in range(-thickness, thickness):
-				for dy in range(-thickness, thickness):
-					if dx*dx + dy*dy <= thickness * thickness:
-						var fx : int = px + dx; var fy : int = py + dy
-						if fx > 0 and fy > 0 and fx < GW - 1 and fy < GH - 1:
-							grid[fx][fy] = false
-			x_drift += slope
-			slope += rng.randf_range(-0.1, 0.1)
-			slope = clamp(slope, -0.5, 0.5)
+							
+			# Random organic drift (Brownian motion)
+			dir += rng.randf_range(-0.5, 0.5)
+			px += cos(dir) * 1.5
+			py += sin(dir) * 1.5
+			
+			if px <= 2 or px >= GW - 3 or py <= 2 or py >= GH - 3: break
 
 # ============================================================
 # STAGE 6: SETTLEMENT POCKETS — flat-floored meeting areas
