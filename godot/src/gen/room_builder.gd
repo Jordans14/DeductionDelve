@@ -16,6 +16,7 @@ var CHUNK_H : int  # tiles per room tall  (24)
 
 var indicator_by_slot      : Dictionary = {}
 var indicator_time_left_by_slot : Dictionary = {}
+var spawn_points : Array[Vector2] = []
 var biome_noise  : FastNoiseLite
 var cached_glow_tex : GradientTexture2D
 
@@ -88,7 +89,7 @@ func build_from_chain(room_chain: Array) -> void:
 	_collect_spawn_points(grid)
 
 	# ── Stage 9: Draw atmosphere background ───────────────
-	_draw_background()
+	_draw_background(run_seed)
 
 	# ── Stage 10: Render GLOBAL walls with horizontal merging ──
 	_render_all_walls(grid)
@@ -164,7 +165,7 @@ func _carve_critical_path(grid: Array, run_seed: int, radius: float = 6.0) -> vo
 	rng.seed = run_seed + 7777
 	var cx := GW / 2; var cy := 3
 	while cy < GH - 4:
-		_carve_circle(grid, cx, cy, 6)  # Wide enough for comfortable play
+		_carve_circle(grid, cx, cy, int(radius))  # Use the provided radius for massive chambers
 		var r := rng.randf()
 		if r < 0.55:   cy += 1
 		elif r < 0.65: cy = max(cy - 1, 2)
@@ -334,7 +335,7 @@ func _collect_spawn_points(grid: Array) -> void:
 # ============================================================
 # STAGE 9: ATMOSPHERIC BACKGROUND (layers + cave darkness)
 # ============================================================
-func _draw_background() -> void:
+func _draw_background(run_seed: int) -> void:
 	var world_w := float(COLS) * ROOM_WIDTH
 	var world_h := float(ROWS) * ROOM_HEIGHT
 
