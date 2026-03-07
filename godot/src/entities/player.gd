@@ -43,6 +43,12 @@ var camera: Camera2D
 var shake_intensity: float = 0.0
 var dust: CPUParticles2D
 
+var inventory_bombs := 4
+var inventory_ropes := 4
+var is_climbing := false
+var climb_x := 0.0
+var item_latch := false
+
 func _ready() -> void:
 	visual_root = Node2D.new()
 	add_child(visual_root)
@@ -107,6 +113,9 @@ func _ready() -> void:
 	hazard_detector.add_child(col2)
 	add_child(hazard_detector)
 	hazard_detector.area_entered.connect(_on_hazard_entered)
+	
+	# Rope detection
+	hazard_detector.collision_mask = 1 | 8 # Includes ropes
 	
 	# Main player lantern — warm golden illumination
 	var gradient = Gradient.new()
@@ -195,6 +204,23 @@ func _on_hazard_entered(area: Area2D) -> void:
 			modulate = Color(1.0, 0.2, 0.2, 1.0)
 			get_tree().create_timer(0.3).timeout.connect(func(): if not dead: modulate = Color.WHITE)
 
+func add_spelunky_item(type: String, amt: int) -> void:
+	if type == "bomb": inventory_bombs += amt
+	if type == "rope": inventory_ropes += amt
+
+@rpc("any_peer", "call_local", "reliable")
+func rpc_spawn_bomb(pos: Vector2, vel: Vector2) -> void:
+	var b = preload("res://src/items/bomb.gd").new()
+	b.global_position = pos
+	b.linear_velocity = vel
+	get_parent().add_child(b)
+
+@rpc("any_peer", "call_local", "reliable")
+func rpc_spawn_rope(pos: Vector2) -> void:
+	var r = preload("res://src/items/rope.gd").new()
+	r.global_position = pos
+	get_parent().add_child(r)
+
 func configure_for_peer(id_value: int) -> void:
 	peer_id = id_value
 	set_multiplayer_authority(id_value) # CRITICAL: Ensure player controls themselves
@@ -250,10 +276,30 @@ func _process(delta: float) -> void:
 		eyes.position.x = lerpf(eyes.position.x, 0.0, 15.0 * delta)
 
 	var local_uid = get_node_or_null("/root/NetworkManager").get_multiplayer().get_unique_id() if get_node_or_null("/root/NetworkManager") and get_node_or_null("/root/NetworkManager").get_multiplayer().has_multiplayer_peer() else 0
-	if Input.is_key_pressed(KEY_X) and whip_timer <= 0.0 and peer_id == local_uid and not dead:
-		whip_timer = 0.40
-		wall_grab_latch = 0.65  # whip duration + 0.25s latch window
+	
+	if peer_id == local_uid and not dead:
+		var dir = 1.0 if eyes.position.x >= 0 else -1.0
 		
+		# Whip attack
+		if Input.is_key_pressed(KEY_X) and whip_timer <= 0.0:
+			whip_timer = 0.40
+			wall_grab_latch = 0.65  # whip duration + 0.25s latch window
+			
+		# Throw Bomb
+		if Input.is_key_pressed(KEY_C):
+			if not item_latch and inventory_bombs > 0:
+				inventory_bombs -= 1
+				rpc_spawn_bomb.rpc(global_position + Vector2(dir * 10, -5), velocity + Vector2(dir * 250, -250))
+				item_latch = true
+		# Throw Rope
+		elif Input.is_key_pressed(KEY_V):
+			if not item_latch and inventory_ropes > 0:
+				inventory_ropes -= 1
+				rpc_spawn_rope.rpc(global_position + Vector2(dir * 12, -10))
+				item_latch = true
+		else:
+			item_latch = false
+			
 	if whip_timer > 0.0:
 		whip_timer -= delta
 		whip_visual.visible = true
@@ -270,8 +316,12 @@ func _process(delta: float) -> void:
 		
 		var draw_reach := total_reach
 		if whip_ray.is_colliding():
+			var hit_obj = whip_ray.get_collider()
 			var hit_pos = whip_ray.get_collision_point()
 			draw_reach = global_position.distance_to(hit_pos) - 5.0
+			# Only trigger damage at the very tip (start of animation)
+			if progress < 0.2 and hit_obj and hit_obj.has_method("apply_damage"):
+				hit_obj.apply_damage(1)
 		
 		whip_ray.enabled = false
 
@@ -340,6 +390,38 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		var cw = is_on_floor()
 		move_and_slide()
 		return
+
+	# Climbing Logic
+	var overlapping_rope = false
+	var rope_x = 0.0
+	for area in hazard_detector.get_overlapping_areas():
+		if area.collision_layer == 8:
+			overlapping_rope = true
+			rope_x = area.global_position.x
+			break
+			
+	if is_climbing and not overlapping_rope:
+		is_climbing = false
+		
+	if overlapping_rope and not is_climbing and Input.is_key_pressed(KEY_UP):
+		is_climbing = true
+		climb_x = rope_x
+		velocity = Vector2.ZERO
+		
+	if is_climbing:
+		global_position.x = lerpf(global_position.x, climb_x, 20.0 * delta)
+		if jump_pressed and not was_jump_pressed:
+			is_climbing = false
+			velocity.y = JUMP_VELOCITY
+		else:
+			var vert_move = 0.0
+			if Input.is_key_pressed(KEY_UP): vert_move = -1.0
+			elif Input.is_key_pressed(KEY_DOWN): vert_move = 1.0
+			velocity.y = vert_move * MOVE_SPEED * 0.8
+			velocity.x = 0
+			move_and_slide()
+			was_jump_pressed = jump_pressed
+			return
 
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME

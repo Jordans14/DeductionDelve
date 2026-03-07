@@ -1,0 +1,77 @@
+extends RigidBody2D
+class_name SpelunkyBomb
+
+var timer := 2.5
+var visual: Polygon2D
+var flash_timer := 0.0
+
+@rpc("any_peer", "call_local", "reliable")
+func rpc_explode(pos: Vector2) -> void:
+	var rb = get_node_or_null("/root/Game/RoomBuilder")
+	if rb and rb.has_method("carve_hole"):
+		rb.carve_hole(pos, 60.0) # approx 2 tiles radius
+	
+	# Blast physics / Damage
+	var parent = get_parent()
+	if parent:
+		var blast = Polygon2D.new()
+		blast.color = Color(1.0, 0.5, 0.1, 0.8)
+		blast.polygon = _build_circle(60)
+		blast.position = pos
+		parent.add_child(blast)
+		var tween = blast.create_tween()
+		tween.tween_property(blast, "color:a", 0.0, 0.3)
+		tween.tween_callback(blast.queue_free)
+		
+		# apply impulse to players
+		for child in parent.get_children():
+			if child.has_method("simulate_step") and child is CharacterBody2D:
+				var dist = child.global_position.distance_to(pos)
+				if dist < 80.0:
+					var dir = (child.global_position - pos).normalized()
+					child.velocity += dir * (80.0 - dist) * 15.0
+					if child.has_method("apply_damage"): child.apply_damage(1) # pseudo damage
+	
+	queue_free()
+
+func _build_circle(r: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var segments := 16
+	for i in range(segments):
+		var ang = float(i) / float(segments) * TAU
+		pts.append(Vector2(cos(ang)*r, sin(ang)*r))
+	return pts
+
+func _ready() -> void:
+	# RigidBody config
+	gravity_scale = 1.0
+	mass = 1.0
+	collision_layer = 0
+	collision_mask = 1 # hits walls
+	physics_material_override = PhysicsMaterial.new()
+	physics_material_override.bounce = 0.4
+	physics_material_override.friction = 0.5
+	
+	var col := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = 6.0
+	col.shape = shape
+	add_child(col)
+	
+	visual = Polygon2D.new()
+	visual.color = Color(0.1, 0.1, 0.1) # Black bomb
+	visual.polygon = _build_circle(6.0)
+	add_child(visual)
+
+func _process(delta: float) -> void:
+	timer -= delta
+	flash_timer += delta
+	# Flashing effect
+	var flash_speed = 3.0 if timer > 1.0 else 15.0
+	if sin(flash_timer * flash_speed) > 0.0:
+		visual.color = Color(1.0, 0.2, 0.0)
+	else:
+		visual.color = Color(0.1, 0.1, 0.1)
+		
+	if timer <= 0.0 and is_multiplayer_authority():
+		rpc_explode.rpc(global_position)

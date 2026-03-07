@@ -19,6 +19,7 @@ var indicator_time_left_by_slot : Dictionary = {}
 var spawn_points : Array[Vector2] = []
 var biome_noise  : FastNoiseLite
 var cached_glow_tex : GradientTexture2D
+var world_grid := []
 
 func _ready() -> void:
 	set_process(true)
@@ -102,6 +103,31 @@ func build_from_chain(room_chain: Array) -> void:
 
 	# ── Stage 12: Floating platforms in vertical drops ─────
 	_place_platforms(grid, run_seed)
+	
+	world_grid = grid
+
+# ============================================================
+# RUNTIME DESTRUCTION
+# ============================================================
+func carve_hole(world_pos: Vector2, radius_px: float) -> void:
+	if world_grid.is_empty(): return
+	var tx = int(world_pos.x / T_SIZE)
+	var ty = int(world_pos.y / T_SIZE)
+	var r = int(radius_px / T_SIZE)
+	var changed = false
+	for dx in range(-r, r + 1):
+		for dy in range(-r, r + 1):
+			if dx*dx + dy*dy <= r*r:
+				var nx = tx + dx
+				var ny = ty + dy
+				if nx > 0 and ny > 0 and nx < GW-1 and ny < GH-1:
+					if world_grid[nx][ny]: 
+						world_grid[nx][ny] = false
+						changed = true
+	if changed:
+		var old_walls = get_node_or_null("Walls")
+		if old_walls: old_walls.queue_free()
+		call_deferred("_render_all_walls", world_grid)
 
 # ============================================================
 # STAGE 1: DOMAIN-WARPED LAYERED NOISE
@@ -127,8 +153,8 @@ func _build_noise_grid(run_seed: int) -> Array:
 			var n : float = cave_noise.get_noise_2d(float(x), float(y))
 			var nc : float = chamber_noise.get_noise_2d(float(x), float(y))
 			
-			# Ant-Farm thin squiggles
-			var is_tunnel : bool = abs(n) < 0.08
+			# Ant-Farm thin squiggles, widened slightly to prevent getting stuck
+			var is_tunnel : bool = abs(n) < 0.12
 			
 			# Rare tiny rooms
 			var is_chamber : bool = nc > 0.45
@@ -163,7 +189,7 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int, radius: float = 1.8) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 2.5) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
 	var cx : int = GW / 2; var cy : int = 3
@@ -209,8 +235,8 @@ func _carve_pathways(grid: Array, run_seed: int) -> void:
 		var px : float = rng.randf_range(10, GW - 10)
 		var py : float = rng.randf_range(10, GH - 10)
 		var dir : float = rng.randf_range(0, TAU)
-		var length : int = rng.randi_range(40, 90)
-		var thickness : int = rng.randi_range(1, 3) # Very tight passages (1 to 2 radius mostly)
+		var length : int = rng.randi_range(60, 110)
+		var thickness : int = rng.randi_range(2, 4) # Thicker passages so players don't bottleneck easily
 		
 		for i in range(length):
 			# Dig
@@ -709,6 +735,11 @@ func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 	col.one_way_collision = true # CRITICAL: Allows players to jump UP through the platforms!
 	body.add_child(col)
 	parent.add_child(body)
+	
+	if randf() < 0.1: # 10% chance per platform block to spawn a loot box
+		var box = preload("res://src/items/loot_box.gd").new()
+		box.position = Vector2(x + T_SIZE/2, y - 12)
+		parent.add_child(box)
 
 # ============================================================
 # PUBLIC API
