@@ -453,9 +453,9 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 		var state: Dictionary = snapshot[key]
 		
 		if peer_id == local_id:
-			# Soft reconciliation: only snap if error is significant
+			# Soft reconciliation: increased threshold to 160px to avoid rubberbanding
 			var target_p : Vector2 = state.get("p", actor.global_position)
-			if actor.global_position.distance_to(target_p) > 64.0:
+			if actor.global_position.distance_to(target_p) > 160.0:
 				actor.global_position = target_p
 			continue
 			

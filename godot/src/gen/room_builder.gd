@@ -68,7 +68,7 @@ func build_from_chain(room_chain: Array) -> void:
 	grid = _smooth_ca(grid, 2)
 
 	# ── Stage 3: Spelunky biased critical path ─────────────
-	_carve_critical_path(grid, run_seed, 10.0) # Massive radius for guaranteed traversal
+	_carve_critical_path(grid, run_seed, 4.5) # Narrative tight tunnels
 
 	# ── Stage 4: Guaranteed chunk-boundary connectors ──────
 	_carve_chunk_connectors(grid, run_seed)
@@ -81,6 +81,12 @@ func build_from_chain(room_chain: Array) -> void:
 
 	# ── Stage 6b: Remove chokepoints — any passage < 3 tiles wide ──
 	_widen_narrow_passages(grid)
+
+	# ── Stage 6c: Worm Holes — vertical connectivity ──────────
+	_carve_worm_holes(grid, run_seed)
+
+	# ── Stage 6d: Cleanup floating islands ───────────────────
+	_cleanup_floating_islands(grid)
 
 	# ── Stage 7: Enforce hard borders + global floor ───────
 	_enforce_borders(grid)
@@ -160,16 +166,16 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int, radius: float = 6.0) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 4.5) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
-	var cx := GW / 2; var cy := 3
+	var cx : int = GW / 2; var cy : int = 3
 	while cy < GH - 4:
-		_carve_circle(grid, cx, cy, int(radius))  # Use the provided radius for massive chambers
+		_carve_circle(grid, cx, cy, int(radius))
 		var r := rng.randf()
-		if r < 0.55:   cy += 1
-		elif r < 0.65: cy = max(cy - 1, 2)
-		elif r < 0.80: cx = clamp(cx + rng.randi_range(1, 3), 2, GW - 3)
+		if r < 0.65:   cy += 1 # Increased vertical bias
+		elif r < 0.70: cy = max(cy - 1, 2)
+		elif r < 0.85: cx = clamp(cx + rng.randi_range(1, 3), 2, GW - 3)
 		else:          cx = clamp(cx - rng.randi_range(1, 3), 2, GW - 3)
 	# Horizontal exploration branches — also wide
 	for _b in range(12):
@@ -192,21 +198,21 @@ func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
 # ============================================================
 func _carve_chunk_connectors(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 99
-	# Vertical passages between chunk rows — 9 tiles wide
+	# Vertical passages — 5 tiles wide
 	for col in range(COLS):
 		for row in range(ROWS - 1):
-			var ox := rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
-			var tx := col * CHUNK_W + ox; var sy := (row + 1) * CHUNK_H
-			for py in range(sy - 5, sy + 6):
-				for px in range(tx - 4, tx + 5):
+			var ox : int = rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
+			var tx : int = col * CHUNK_W + ox; var sy : int = (row + 1) * CHUNK_H
+			for py in range(sy - 3, sy + 4):
+				for px in range(tx - 2, tx + 3):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
-	# Horizontal passages between chunk columns — 9 tiles tall
+	# Horizontal passages — 5 tiles tall
 	for col in range(COLS - 1):
 		for row in range(ROWS):
-			var oy := rng.randi_range(CHUNK_H / 4, 3 * CHUNK_H / 4)
-			var sx2 := (col + 1) * CHUNK_W; var ty := row * CHUNK_H + oy
-			for px in range(sx2 - 5, sx2 + 6):
-				for py in range(ty - 4, ty + 5):
+			var oy : int = rng.randi_range(CHUNK_H / 4, 3 * CHUNK_H / 4)
+			var sx2 : int = (col + 1) * CHUNK_W; var ty : int = row * CHUNK_H + oy
+			for px in range(sx2 - 3, sx2 + 4):
+				for py in range(ty - 2, ty + 3):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
 
 # ============================================================
@@ -264,24 +270,48 @@ func _carve_settlement_pockets(grid: Array, run_seed: int) -> void:
 # STAGE 6b: REMOVE CHOKEPOINTS — widen any passage < 3 tiles
 # ============================================================
 func _widen_narrow_passages(grid: Array) -> void:
-	# Extreme clearing: 4 rounds of aggressive widening with 5-tile clearing radius.
-	for _pass in range(4):
-		for x in range(5, GW - 5):
-			for y in range(5, GH - 5):
+	# Subtle widening: 3 tiles wide for actual cave paths
+	for _pass in range(2):
+		for x in range(3, GW - 3):
+			for y in range(3, GH - 3):
 				if grid[x][y]: continue
-				# Bottlenecks: walls within 4 tiles
-				var lw = bool(grid[x-1][y]) or bool(grid[x-2][y]) or bool(grid[x-3][y]) or bool(grid[x-4][y])
-				var rw = bool(grid[x+1][y]) or bool(grid[x+2][y]) or bool(grid[x+3][y]) or bool(grid[x+4][y])
+				var lw : bool = bool(grid[x-1][y]) or bool(grid[x-2][y])
+				var rw : bool = bool(grid[x+1][y]) or bool(grid[x+2][y])
 				if lw and rw:
-					for dx in range(-5, 6):
-						var nx := x + dx
+					for dx in range(-2, 3):
+						var nx : int = x + dx
 						if nx > 0 and nx < GW - 1: grid[nx][y] = false
-				var tw = bool(grid[x][y-1]) or bool(grid[x][y-2]) or bool(grid[x][y-3]) or bool(grid[x][y-4])
-				var bw = bool(grid[x][y+1]) or bool(grid[x][y+2]) or bool(grid[x][y+3]) or bool(grid[x][y+4])
+				var tw : bool = bool(grid[x][y-1]) or bool(grid[x][y-2])
+				var bw : bool = bool(grid[x][y+1]) or bool(grid[x][y+2])
 				if tw and bw:
-					for dy in range(-5, 6):
-						var ny := y + dy
+					for dy in range(-2, 3):
+						var ny : int = y + dy
 						if ny > 0 and ny < GH - 1: grid[x][ny] = false
+
+func _carve_worm_holes(grid: Array, run_seed: int) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 888
+	# Thin vertical shafts to guarantee floor-to-floor access
+	for i in range(20):
+		var wx : int = rng.randi_range(10, GW - 10)
+		var wy_start : int = rng.randi_range(5, GH / 4)
+		for h in range(GH - 10):
+			var py : int = wy_start + h
+			if py < GH - 12:
+				grid[wx][py] = false
+				grid[wx-1][py] = false
+
+func _cleanup_floating_islands(grid: Array) -> void:
+	# Delete small groups of rock tiles that are isolated in the air
+	for x in range(2, GW - 2):
+		for y in range(2, GH - 2):
+			if bool(grid[x][y]):
+				var neighbors : int = 0
+				for dx in range(-1, 2):
+					for dy in range(-1, 2):
+						if dx == 0 and dy == 0: continue
+						if bool(grid[x+dx][y+dy]): neighbors += 1
+				if neighbors <= 1: # Isolated single block or small edge
+					grid[x][y] = false
 
 # ============================================================
 # STAGE 7: BORDERS + GLOBAL FLOOR
