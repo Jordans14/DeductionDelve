@@ -15,7 +15,7 @@ signal host_endpoint_changed(bind: String, port: int)
 
 const DEFAULT_PORT := 2456
 const SABOTAGE_COOLDOWN_TICKS := 400
-const RUN_TICK_LIMIT := 7200
+const RUN_TICK_LIMIT := 18000  # 5 minutes at 60 ticks/sec
 const CAMERA_JAM_MAX_WARDEN_SCORE := 84
 const EXTRACTION_WINDOW_TICKS := 600
 const NETWORK_CONFIG_SCRIPT = preload("res://src/net/network_config.gd")
