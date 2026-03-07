@@ -16,8 +16,8 @@ var CHUNK_H : int  # tiles per room tall  (24)
 
 var indicator_by_slot      : Dictionary = {}
 var indicator_time_left_by_slot : Dictionary = {}
-var spawn_points : Array[Vector2] = []
 var biome_noise  : FastNoiseLite
+var cached_glow_tex : GradientTexture2D
 
 func _ready() -> void:
 	set_process(true)
@@ -51,6 +51,14 @@ func build_from_chain(room_chain: Array) -> void:
 	biome_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	biome_noise.frequency = 0.012
 	biome_noise.fractal_octaves = 2
+
+	# Cache textures for performance
+	cached_glow_tex = GradientTexture2D.new()
+	cached_glow_tex.gradient = Gradient.new()
+	cached_glow_tex.gradient.colors = [Color.WHITE, Color(1,1,1,0)]
+	cached_glow_tex.fill = GradientTexture2D.FILL_RADIAL
+	cached_glow_tex.fill_from = Vector2(0.5, 0.5)
+	cached_glow_tex.width = 128; cached_glow_tex.height = 128
 
 	# ── Stage 1: Domain-warped noise grid ──────────────────
 	var grid := _build_noise_grid(run_seed)
@@ -524,20 +532,20 @@ func _add_bioluminescence(parent: Node2D, grid: Array, sx: int, sy: int, biome_a
 				if exposed and rng.randf() < 0.03:
 					var world_pos := Vector2(float(lx)*T_SIZE + T_SIZE*0.5, float(ly)*T_SIZE + T_SIZE*0.5)
 					
-					# Light node (PointLight2D for the actual aura)
+					# Light node
 					var light := PointLight2D.new()
 					light.color = glow_col
 					light.energy = 0.8
-					light.texture = _create_radial_gradient(160)
+					light.texture = cached_glow_tex
 					light.position = world_pos
 					parent.add_child(light)
 					
-					# Flora visual (cluster of 3-5 tiny glowing dots)
-					for _j in range(rng.randi_range(3, 6)):
+					# Flora visual (cluster of tiny glowing dots)
+					for _j in range(rng.randi_range(3, 5)):
 						var dot := Polygon2D.new()
 						dot.color = glow_col.lightened(0.2)
 						dot.polygon = PackedVector2Array([Vector2(-2,-2), Vector2(2,-2), Vector2(2,2), Vector2(-2,2)])
-						dot.position = world_pos + Vector2(rng.randf_range(-8, 8), rng.randf_range(-8, 8))
+						dot.position = world_pos + Vector2(rng.randf_range(-10, 10), rng.randf_range(-10, 10))
 						parent.add_child(dot)
 
 func _add_crystals(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color) -> void:
@@ -564,7 +572,8 @@ func _add_crystals(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Col
 					# Light aura
 					var clight := PointLight2D.new()
 					clight.color = col; clight.energy = 0.5
-					clight.texture = _create_radial_gradient(100)
+					clight.texture = cached_glow_tex
+					clight.scale = Vector2(0.8, 0.8)
 					clight.position = world_pos + Vector2(0, -8)
 					parent.add_child(clight)
 
@@ -598,14 +607,6 @@ func _add_vines(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color)
 						parent.add_child(glow)
 					break
 
-func _create_radial_gradient(size: int) -> GradientTexture2D:
-	var tex := GradientTexture2D.new()
-	tex.gradient = Gradient.new()
-	tex.gradient.colors = [Color.WHITE, Color(1,1,1,0)]
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.width = size; tex.height = size
-	return tex
 
 func _add_ambient_atmosphere(parent: Node2D) -> void:
 	var dust := CPUParticles2D.new()
@@ -730,20 +731,6 @@ func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, 
 	var poly := Polygon2D.new(); poly.color = color
 	poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(w,0), Vector2(w,h), Vector2(0,h)])
 	body.add_child(poly)
-	
-	# Micro-noise pass: Millions of tiny simulated rock grains for surface texture
-	# We'll use 8-12 randomized "rock spots" per segment to add depth
-	var spot_rng := RandomNumberGenerator.new()
-	spot_rng.seed = int(x * 71 + y * 97)
-	var spot_count := int(clampf(w / 16.0, 4.0, 16.0))
-	for _i in range(spot_count):
-		var spot := Polygon2D.new()
-		var s_size := spot_rng.randf_range(1.0, 4.0)
-		var shade = spot_rng.randf_range(-0.15, 0.15)
-		spot.color = Color(color.r + shade, color.g + shade, color.b + shade, 0.3)
-		spot.polygon = PackedVector2Array([Vector2(0,0), Vector2(s_size,0), Vector2(s_size,s_size), Vector2(0,s_size)])
-		spot.position = Vector2(spot_rng.randf_range(0, w - s_size), spot_rng.randf_range(0, h - s_size))
-		body.add_child(spot)
 
 	var col := CollisionPolygon2D.new(); col.polygon = poly.polygon
 	body.add_child(col); parent.add_child(body)
