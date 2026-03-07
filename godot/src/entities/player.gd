@@ -51,6 +51,7 @@ var item_latch := false
 var is_crawling := false
 var is_ledge_hanging := false
 var ledge_hang_dir := 1.0
+var sprint_bridge_timer := 0.0
 var _spawn_seq := 0  # increments per throw; passed to RPCs for deterministic node naming
 
 func _ready() -> void:
@@ -395,6 +396,12 @@ func _process(delta: float) -> void:
 			hand_l.position = Vector2(-12.0, 4.0 + sin(time * 3.0) * 2.0)
 			hand_r.position = Vector2(12.0, 4.0 + cos(time * 3.0) * 2.0)
 			body_poly.rotation = lerp_angle(body_poly.rotation, 0.0, 10.0 * delta)
+	elif is_ledge_hanging:
+		foot_l.position = Vector2(-4.0, 16.0)
+		foot_r.position = Vector2(8.0, 14.0)
+		hand_l.position = Vector2(ledge_hang_dir * 10.0, -18.0)
+		hand_r.position = Vector2(ledge_hang_dir * 14.0, -18.0)
+		body_poly.rotation = -ledge_hang_dir * 0.15
 	else:
 		foot_l.position = Vector2(-6.0, 15.0 - clampf(velocity.y / 50.0, -10.0, 10.0))
 		foot_r.position = Vector2(6.0, 17.0 - clampf(velocity.y / 50.0, -10.0, 10.0))
@@ -442,11 +449,17 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
 		has_double_jumped = false
+		if absf(velocity.x) > MOVE_SPEED * 0.6:
+			sprint_bridge_timer = 0.12
+		else:
+			sprint_bridge_timer = 0.0
 	else:
 		coyote_timer -= delta
+		sprint_bridge_timer -= delta
 
 	if jump_pressed and not was_jump_pressed:
 		jump_buffer_timer = JUMP_BUFFER_TIME
+		sprint_bridge_timer = 0.0  # Jumping instantly breaks the horizontal float 
 	else:
 		jump_buffer_timer -= delta
 
@@ -481,38 +494,29 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	if is_crawling and is_on_floor() and move_axis != 0 and not is_ledge_hanging:
 		var ledge_space = get_world_2d().direct_space_state
 		var check_dir: float = sign(move_axis)
-		# Cast from foot level (center + ~14px) forward and downward to detect ledge edges
+		# Single vertical ray down past the edge of the foot.
 		var floor_ahead = PhysicsRayQueryParameters2D.create(
-			global_position + Vector2(check_dir * 16, 14.0),
-			global_position + Vector2(check_dir * 28, 28.0)
+			global_position + Vector2(check_dir * 18, 19.0),
+			global_position + Vector2(check_dir * 18, 25.0)
 		)
 		floor_ahead.collision_mask = 1
 		if not ledge_space.intersect_ray(floor_ahead):
 			is_ledge_hanging = true
-			ledge_hang_dir = check_dir
+			ledge_hang_dir = -check_dir # Once falling, we grab facing backward
 			is_crawling = false
 			if col_shape_node and col_shape_node.shape is RectangleShape2D:
 				col_shape_node.shape = col_shape_node.shape.duplicate()
 				col_shape_node.shape.size.y = 38
 				col_shape_node.position.y = 0
-			global_position.x += check_dir * 10.0
+			# Fall around the corner: Drop 30px so hands perfectly interlock block top!
+			global_position.x += check_dir * 16.0
+			global_position.y += 30.0 
 			velocity = Vector2.ZERO
 
 	# ─── Gap-running (Spelunky: glide over 1-tile gaps at speed) ─────────────
-	# Activates while airborne but still within coyote window (just stepped off edge),
-	# and moving fast. Suppresses gravity for a moment if ground exists just ahead.
-	var is_fast_running: bool = absf(velocity.x) > MOVE_SPEED * 0.6 and coyote_timer > 0.0
-	var sprint_bridge: bool = false
-	if is_fast_running and not is_on_floor():
-		var space3 = get_world_2d().direct_space_state
-		var gap_dir: float = sign(velocity.x)
-		var land_q = PhysicsRayQueryParameters2D.create(
-			global_position + Vector2(gap_dir * 64, 0),
-			global_position + Vector2(gap_dir * 64, 28)
-		)
-		land_q.collision_mask = 1
-		if space3.intersect_ray(land_q):
-			sprint_bridge = true
+	# Replaces fragile raycasting with authentic Spelunky "Wile E. Coyote" 
+	# horizontal float. Persists exactly 0.12s when sprinting off any drop!
+	var sprint_bridge: bool = sprint_bridge_timer > 0.0 and not is_on_floor()
 
 	# ─── Speed / acceleration ─────────────────────────────────────────────────
 	var spd_multiplier: float = 0.3 if is_crawling else 1.0

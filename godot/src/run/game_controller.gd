@@ -310,12 +310,9 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 				if input_pack.has("pos") and typeof(input_pack["pos"]) == TYPE_VECTOR2:
 					var client_pos: Vector2 = input_pack["pos"]
 					if client_pos != Vector2.ZERO:
-						var dist: float = actor.global_position.distance_to(client_pos)
-						if dist > 500.0:
-							actor.global_position = client_pos   # snap on large desync
-						else:
-							# Fast lerp — stays tightly synced without jitter
-							actor.global_position = actor.global_position.lerp(client_pos, min(18.0 * delta, 1.0))
+						# Use apply_snapshot so _process interpolation handles smoothing.
+						# This avoids fighting CharacterBody2D physics directly.
+						actor.apply_snapshot(client_pos, actor.velocity)
 			var room_slot := _room_slot_for_position(actor.global_position)
 			NetworkManager.update_authoritative_player_state(peer_id, actor.global_position, room_slot)
 			if NetworkManager.has_method("track_noise_trace") and actor.has_method("is_carrying_artifact"):
