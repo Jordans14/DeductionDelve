@@ -1,7 +1,8 @@
 extends Node2D
 
 const ROOM_WIDTH := 520.0
-const ROOM_HEIGHT := 800.0
+const ROOM_HEIGHT := 600.0
+const T_SIZE := 40.0
 
 var indicator_by_slot: Dictionary = {}
 var indicator_time_left_by_slot: Dictionary = {}
@@ -18,65 +19,91 @@ func build_from_chain(room_chain: Array) -> void:
 
 	for room in room_chain:
 		var slot := int(room.get("slot", 0))
+		var grid_x := slot % 5
+		var grid_y := slot / 5
+		
 		var room_node := Node2D.new()
-		room_node.position = Vector2(float(slot) * ROOM_WIDTH, 0.0)
+		room_node.position = Vector2(float(grid_x) * ROOM_WIDTH, float(grid_y) * ROOM_HEIGHT)
 		add_child(room_node)
 
 		var base_color = _color_for_type(str(room.get("type", "traversal")))
 		
-		# Background Panel
 		var bg := Polygon2D.new()
 		bg.color = base_color.darkened(0.5)
 		bg.polygon = PackedVector2Array([
-			Vector2(0, -ROOM_HEIGHT), Vector2(ROOM_WIDTH, -ROOM_HEIGHT),
-			Vector2(ROOM_WIDTH, 0), Vector2(0, 0)
+			Vector2(0, 0), Vector2(ROOM_WIDTH, 0),
+			Vector2(ROOM_WIDTH, ROOM_HEIGHT), Vector2(0, ROOM_HEIGHT)
 		])
 		room_node.add_child(bg)
 
-		# Add solid floor
-		_add_solid_box(room_node, base_color, 0, -16, ROOM_WIDTH, 16)
-		
-		# Procedural Cave Generation
 		var p_seed: int = slot * 7919 + 12345
+		var cells_w := int(ROOM_WIDTH / T_SIZE)
+		var cells_h := int(ROOM_HEIGHT / T_SIZE)
 		
-		# Generate jagged cave walls scaling all the way down
-		for i in range(12):
-			var wy = -int(ROOM_HEIGHT) + i * 80.0
-			var wxl = 20.0 + float((p_seed + i * 3) % 60)
-			_add_solid_box(room_node, base_color.darkened(0.3), 0, wy, wxl, 85)
+		var grid := []
+		for x in range(cells_w):
+			var col := []
+			for y in range(cells_h):
+				var is_wall = (p_seed + x * 13 + y * 71) % 100 < 48
+				if grid_x == 0 and x == 0: is_wall = true
+				if grid_x == 4 and x == cells_w - 1: is_wall = true
+				if grid_y == 0 and y == 0: is_wall = true
+				if grid_y == 2 and y == cells_h - 1: is_wall = true
+				col.append(is_wall)
+			grid.append(col)
 			
-			var wxr = float(ROOM_WIDTH) - 20.0 - float((p_seed + i * 7) % 60)
-			var w_w = float(ROOM_WIDTH) - wxr
-			_add_solid_box(room_node, base_color.darkened(0.3), wxr, wy, w_w, 85)
+		for iter in range(4):
+			var next_grid := []
+			for x in range(cells_w):
+				var next_col := []
+				for y in range(cells_h):
+					var neighbors = 0
+					for dx in [-1, 0, 1]:
+						for dy in [-1, 0, 1]:
+							if dx == 0 and dy == 0: continue
+							var nx = x + dx
+							var ny = y + dy
+							if nx < 0 or ny < 0 or nx >= cells_w or ny >= cells_h:
+								neighbors += 1
+							elif grid[nx][ny]:
+								neighbors += 1
+					
+					var wall = grid[x][y]
+					if neighbors > 4: wall = true
+					elif neighbors < 4: wall = false
+					
+					if x > 4 and x < 8:
+						if y < 3 or y > cells_h - 4:
+							wall = false
+					
+					if grid_y == 2 and y == cells_h - 1: wall = true
+					if grid_x == 0 and x == 0: wall = true
+					if grid_x == 4 and x == cells_w - 1: wall = true
+					next_col.append(wall)
+				next_grid.append(next_col)
+			grid = next_grid
 
-		# Generate floors with drop-through gaps every 150px
-		for y_level in range(int(-ROOM_HEIGHT + 150), -50, 150):
-			var gap_start = 80.0 + float((p_seed + y_level * 11) % int(ROOM_WIDTH - 260.0))
-			var gap_width = 80.0 + float((p_seed + y_level * 17) % 100)
-			
-			if (p_seed + y_level) % 10 > 2: # 80% chance for a floor layer
-				_add_solid_box(room_node, base_color.lightened(0.1), 0, float(y_level), gap_start, 24)
-				_add_solid_box(room_node, base_color.lightened(0.1), gap_start + gap_width, float(y_level), float(ROOM_WIDTH) - (gap_start + gap_width), 24)
-				
-				# Occasional floating isolated block
-				if (p_seed + y_level) % 10 > 7:
-					var isolated_x = gap_start + gap_width / 2.0 - 20.0
-					_add_solid_box(room_node, base_color.lightened(0.2), isolated_x, float(y_level) - 50.0, 40, 20)
+		for x in range(cells_w):
+			for y in range(cells_h):
+				if grid[x][y]:
+					_add_solid_box(room_node, base_color.darkened(0.2), x * T_SIZE, y * T_SIZE, T_SIZE, T_SIZE)
 
-		# Lethal Hazards (Spikes)
 		if str(room.get("hazard", "")) == "spikes":
 			var gap_spikes_x = 80.0 + float((p_seed * 31) % int(ROOM_WIDTH - 200.0))
-			_add_spikes(room_node, gap_spikes_x, -24, 120)
+			if grid_y < 2:
+				_add_spikes(room_node, gap_spikes_x, ROOM_HEIGHT - 32.0, 120.0)
+			else:
+				_add_spikes(room_node, gap_spikes_x, ROOM_HEIGHT - T_SIZE - 8.0, 120.0)
 
 		var label := Label.new()
-		label.position = Vector2(14, -ROOM_HEIGHT + 24)
-		label.text = "%d:%s [%s]" % [slot, str(room.get("id", "?")), str(room.get("hazard", "none"))]
+		label.position = Vector2(14, 14)
+		label.text = "%d:%s [%s] (%d,%d)" % [slot, str(room.get("id", "?")), str(room.get("hazard", "none")), grid_x, grid_y]
 		label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.8))
 		label.add_theme_font_size_override("font_size", 16)
 		room_node.add_child(label)
 
 		var indicator := Label.new()
-		indicator.position = Vector2(ROOM_WIDTH - 48.0, -ROOM_HEIGHT + 28.0)
+		indicator.position = Vector2(ROOM_WIDTH - 48.0, 28.0)
 		indicator.text = "!"
 		indicator.visible = false
 		indicator.modulate = Color(1.0, 0.18, 0.20, 1.0)
@@ -84,10 +111,6 @@ func build_from_chain(room_chain: Array) -> void:
 		room_node.add_child(indicator)
 		indicator_by_slot[slot] = indicator
 		indicator_time_left_by_slot[slot] = 0.0
-
-	# Add Map Boundaries
-	_add_solid_box(self, Color(0.2, 0.2, 0.2), -40, -1500, 40, 2000)
-	_add_solid_box(self, Color(0.2, 0.2, 0.2), float(room_chain.size()) * ROOM_WIDTH, -1500, 40, 2000)
 
 func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, h: float) -> void:
 	var body = StaticBody2D.new()
@@ -98,13 +121,6 @@ func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, 
 		Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)
 	])
 	body.add_child(poly)
-	
-	var highlight = Line2D.new()
-	highlight.add_point(Vector2(0, 0))
-	highlight.add_point(Vector2(w, 0))
-	highlight.width = 4.0
-	highlight.default_color = color.lightened(0.3)
-	body.add_child(highlight)
 	
 	var col = CollisionPolygon2D.new()
 	col.polygon = poly.polygon

@@ -72,7 +72,7 @@ func _create_artifact(seed_value: int, artifact_id: int, room_slot: int, spawn_i
 		"signature": real_signature(seed_value, artifact_id, room_slot, spawn_index),
 		"is_forged": false,
 		"owner_peer_id": 0,
-		"world_pos": Vector2(86 + 520 * room_slot + 44 * spawn_index, -100.0 * float((spawn_index % 7) + 1))
+		"world_pos": Vector2(86.0 + float(room_slot % 5) * 520.0 + 44.0 * spawn_index, 300.0 + float(room_slot / 5) * 600.0 + 100.0 * float((spawn_index % 3) - 1))
 	}
 
 func _spawn_count_for_room(room: Dictionary) -> int:

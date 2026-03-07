@@ -27,6 +27,8 @@ var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var was_jump_pressed := false
 var has_double_jumped := false
+var whip_poly: Polygon2D
+var whip_timer := 0.0
 
 var health: int = 3
 var dead: bool = false
@@ -136,6 +138,13 @@ func _ready() -> void:
 	dust.position = Vector2(0, 19)
 	add_child(dust)
 
+	whip_poly = Polygon2D.new()
+	whip_poly.color = Color(0.8, 0.4, 0.1)
+	whip_poly.polygon = PackedVector2Array([Vector2(0, -4), Vector2(50, -2), Vector2(50, 2), Vector2(0, 4)])
+	whip_poly.visible = false
+	whip_poly.position = Vector2(0, 4)
+	visual_root.add_child(whip_poly)
+
 func _on_hazard_entered(area: Area2D) -> void:
 	if dead: return
 	if area.is_in_group("hazards"):
@@ -193,6 +202,22 @@ func _process(delta: float) -> void:
 		eyes.position.x = lerpf(eyes.position.x, -4.0, 15.0 * delta)
 	else:
 		eyes.position.x = lerpf(eyes.position.x, 0.0, 15.0 * delta)
+
+	var local_uid = get_node_or_null("/root/NetworkManager").get_multiplayer().get_unique_id() if get_node_or_null("/root/NetworkManager") and get_node_or_null("/root/NetworkManager").get_multiplayer().has_multiplayer_peer() else 0
+	if Input.is_key_pressed(KEY_X) and whip_timer <= 0.0 and peer_id == local_uid and not dead:
+		whip_timer = 0.35
+		
+	if whip_timer > 0.0:
+		whip_timer -= delta
+		whip_poly.visible = true
+		var dir = 1.0 if eyes.position.x >= 0 else -1.0
+		whip_poly.scale.x = dir
+		if whip_timer > 0.2:
+			whip_poly.rotation = lerp_angle(whip_poly.rotation, -PI/2 * dir, 30.0 * delta)
+		else:
+			whip_poly.rotation = lerp_angle(whip_poly.rotation, PI/8 * dir, 50.0 * delta)
+	else:
+		whip_poly.visible = false
 		
 	shadow.color.a = clampf(0.4 - (abs(velocity.y) / JUMP_VELOCITY) * 0.4, 0.0, 0.4)
 	
@@ -252,6 +277,12 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
+	var is_grabbing_wall = false
+	if is_on_wall() and velocity.y > 0 and move_axis != 0:
+		is_grabbing_wall = true
+		velocity.y = min(velocity.y, 40.0) # Wall slide
+		has_double_jumped = false
+
 	if jump_buffer_timer > 0.0:
 		if coyote_timer > 0.0:
 			velocity.y = JUMP_VELOCITY
@@ -259,8 +290,14 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			coyote_timer = 0.0
 			visual_root.scale = Vector2(0.7, 1.3)
 			dust.restart()
-		elif not has_double_jumped and not is_on_floor():
+		elif is_grabbing_wall:
 			velocity.y = JUMP_VELOCITY * 0.9
+			velocity.x = -sign(move_axis) * 350.0
+			jump_buffer_timer = 0.0
+			visual_root.scale = Vector2(1.2, 0.8)
+			dust.restart()
+		elif not has_double_jumped and not is_on_floor():
+			velocity.y = JUMP_VELOCITY * 1.15
 			jump_buffer_timer = 0.0
 			has_double_jumped = true
 			visual_root.scale = Vector2(0.5, 1.5)
@@ -270,7 +307,8 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		velocity.y *= 0.5 
 
 	var was_on_floor = is_on_floor()
-	velocity.y += GRAVITY * delta
+	if not is_grabbing_wall:
+		velocity.y += GRAVITY * delta
 	move_and_slide()
 	
 	if not was_on_floor and is_on_floor():
