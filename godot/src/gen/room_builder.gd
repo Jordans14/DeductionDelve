@@ -3,8 +3,8 @@ extends Node2D
 # ============================================================
 # WORLD CONSTANTS
 # ============================================================
-const COLS := 5
-const ROWS := 3
+const COLS := 10
+const ROWS := 6
 const ROOM_WIDTH  : float = 1024.0
 const ROOM_HEIGHT : float = 768.0
 const T_SIZE      : float = 32.0
@@ -252,41 +252,58 @@ func _carve_settlement_pockets(grid: Array, run_seed: int) -> void:
 # STAGE 6b: REMOVE CHOKEPOINTS — widen any passage < 3 tiles
 # ============================================================
 func _widen_narrow_passages(grid: Array) -> void:
-	# Horizontal chokepoints: open tile with wall-or-edge within 1 tile left AND right
-	for x in range(2, GW - 2):
-		for y in range(2, GH - 2):
-			if grid[x][y]:
-				continue  # only care about open cells
-			# Check if neighbors on both sides are too close
-			var left_wall = grid[x-1][y] or grid[x-2][y]
-			var right_wall = grid[x+1][y] or grid[x+2][y]
-			if left_wall and right_wall:
-				# Force 2-tile clearance on both sides
-				for dx in range(-2, 3):
-					var nx := x + dx
-					if nx > 0 and nx < GW - 1:
-						grid[nx][y] = false
-			# Vertical: check above and below
-			var top_wall = grid[x][y-1] or grid[x][y-2]
-			var bot_wall = grid[x][y+1] or grid[x][y+2]
-			if top_wall and bot_wall:
-				for dy in range(-2, 3):
-					var ny := y + dy
-					if ny > 0 and ny < GH - 1:
-						grid[x][ny] = false
+	# Two passes: first horizontal, then vertical. Each pass clears 3 tiles on each side.
+	for _pass in range(2):
+		for x in range(3, GW - 3):
+			for y in range(3, GH - 3):
+				if grid[x][y]:
+					continue
+				# Horizontal bottleneck: walls within 2 tiles on both sides
+				var lw = bool(grid[x-1][y]) or bool(grid[x-2][y])
+				var rw = bool(grid[x+1][y]) or bool(grid[x+2][y])
+				if lw and rw:
+					for dx in range(-3, 4):
+						var nx := x + dx
+						if nx > 0 and nx < GW - 1:
+							grid[nx][y] = false
+				# Vertical bottleneck: walls within 2 tiles above and below
+				var tw = bool(grid[x][y-1]) or bool(grid[x][y-2])
+				var bw = bool(grid[x][y+1]) or bool(grid[x][y+2])
+				if tw and bw:
+					for dy in range(-3, 4):
+						var ny := y + dy
+						if ny > 0 and ny < GH - 1:
+							grid[x][ny] = false
 
 # ============================================================
 # STAGE 7: BORDERS + GLOBAL FLOOR
 # ============================================================
 func _enforce_borders(grid: Array) -> void:
+	# Top and side walls
 	for x in range(GW):
-		grid[x][0]      = true
-		grid[x][GH - 1] = true  # absolute bottom
-		grid[x][GH - 2] = true  # global floor — always solid
-		grid[x][GH - 3] = true  # extra thickness
+		grid[x][0] = true
+		grid[x][1] = true
 	for y in range(GH):
 		grid[0][y]      = true
+		grid[1][y]      = true
 		grid[GW - 1][y] = true
+		grid[GW - 2][y] = true
+	# Global floor: solid base with rocky height variation
+	var floor_rng := RandomNumberGenerator.new()
+	floor_rng.seed = 4224 # Deterministic floor look
+	for x in range(GW):
+		# Base floor row
+		grid[x][GH - 1] = true
+		grid[x][GH - 2] = true
+		# Rocky variation: height 1 to 3
+		var h := floor_rng.randi_range(1, 4)
+		for fy in range(GH - h, GH):
+			grid[x][fy] = true
+			
+	# Ensure clearance: clear 5 rows above the maximum possible floor height (GH-4)
+	for x in range(2, GW - 2):
+		for cy in range(GH - 9, GH - 4):
+			grid[x][cy] = false
 
 # ============================================================
 # STAGE 8: SPAWN POINTS
@@ -318,7 +335,7 @@ func _draw_background() -> void:
 	var bg1 := Polygon2D.new()
 	bg1.color = Color(0.07, 0.05, 0.08, 0.6)
 	bg1.polygon = bg0.polygon.duplicate()
-	bg1.position = Vector2(12, 16)
+	bg1.position = Vector2(1, 1) # Parallax suggestion
 	add_child(bg1)
 
 	var bg2 := Polygon2D.new()
@@ -362,13 +379,27 @@ func _render_room(room: Dictionary, grid: Array, run_seed: int) -> void:
 	# Draw wall tiles with per-tile biome color + rim-light on exposed tops
 	for lx in range(CHUNK_W):
 		for ly in range(CHUNK_H):
-			var is_wall : bool = grid[sx + lx][sy + ly]
+			var cur_x := sx + lx
+			var cur_y := sy + ly
+			var is_wall : bool = grid[cur_x][cur_y]
 			if is_wall:
-				var wc := _wall_color_at(sx + lx, sy + ly)
+				var wc := _wall_color_at(cur_x, cur_y)
+				
+				# Check if this is a "floor" surface (wall with air above)
+				var is_floor := ly > 0 and not grid[cur_x][cur_y - 1]
+				var is_global_floor := cur_y >= GH - 4
+				
+				if is_global_floor:
+					wc = wc.darkened(0.2).lerp(Color(0.2, 0.2, 0.25), 0.5) # Dark slate for global floor
+				elif is_floor:
+					wc = wc.lightened(0.05) # Slightly lighter for walkable surfaces
+					
 				_add_solid_box(room_node, wc, float(lx)*T_SIZE, float(ly)*T_SIZE, T_SIZE, T_SIZE)
-				# Rim highlight: lighter stripe on top face of wall if cell above is open
-				if ly > 0 and not grid[sx + lx][sy + ly - 1]:
-					_add_rim(room_node, float(lx)*T_SIZE, float(ly)*T_SIZE, T_SIZE, _biome_rim_at(sx+lx, sy+ly))
+				
+				# Rim highlight: multi-layered for better art direction
+				if is_floor:
+					var rim_col := _biome_rim_at(cur_x, cur_y)
+					_add_rim(room_node, float(lx)*T_SIZE, float(ly)*T_SIZE, T_SIZE, rim_col)
 
 	# Stalactites / stalagmites — decorative only, no physics
 	_add_formations(room_node, grid, sx, sy)
@@ -402,14 +433,26 @@ func _render_room(room: Dictionary, grid: Array, run_seed: int) -> void:
 # RIM-LIGHT HIGHLIGHT on top edge of wall tiles
 # ============================================================
 func _add_rim(parent: Node2D, x: float, y: float, w: float, color: Color) -> void:
+	# Primary rim
 	var rim := Polygon2D.new()
 	rim.color = color
 	rim.polygon = PackedVector2Array([
 		Vector2(0, 0), Vector2(w, 0),
-		Vector2(w - 2.0, 4.0), Vector2(2.0, 4.0)
+		Vector2(w, 3.0), Vector2(0, 3.0)
 	])
 	rim.position = Vector2(x, y)
 	parent.add_child(rim)
+	
+	# Secondary sub-rim for "shine" effect
+	var shine := Polygon2D.new()
+	shine.color = color.lightened(0.3)
+	shine.color.a = 0.4
+	shine.polygon = PackedVector2Array([
+		Vector2(2.0, 1.0), Vector2(w - 2.0, 1.0),
+		Vector2(w - 2.0, 2.0), Vector2(2.0, 2.0)
+	])
+	shine.position = Vector2(x, y)
+	parent.add_child(shine)
 
 # ============================================================
 # STALACTITES & STALAGMITES (decorative only)

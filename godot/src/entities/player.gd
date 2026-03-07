@@ -29,6 +29,8 @@ var was_jump_pressed := false
 var has_double_jumped := false
 var whip_visual: Line2D
 var whip_timer := 0.0
+var wall_grab_latch := 0.0  # stays > 0 for a short window after whip swing
+var whip_ray: RayCast2D
 
 var health: int = 3
 var dead: bool = false
@@ -162,6 +164,13 @@ func _ready() -> void:
 	whip_visual.visible = false
 	whip_visual.position = Vector2(8, 0)
 	visual_root.add_child(whip_visual)
+	
+	whip_ray = RayCast2D.new()
+	whip_ray.enabled = false
+	whip_ray.collision_mask = 1 # World layer
+	add_child(whip_ray)
+
+	set_multiplayer_authority(int(name) if name.is_valid_int() else 1)
 
 func _on_hazard_entered(area: Area2D) -> void:
 	if dead: return
@@ -223,25 +232,38 @@ func _process(delta: float) -> void:
 
 	var local_uid = get_node_or_null("/root/NetworkManager").get_multiplayer().get_unique_id() if get_node_or_null("/root/NetworkManager") and get_node_or_null("/root/NetworkManager").get_multiplayer().has_multiplayer_peer() else 0
 	if Input.is_key_pressed(KEY_X) and whip_timer <= 0.0 and peer_id == local_uid and not dead:
-		whip_timer = 0.45  # longer duration for unroll+snap
+		whip_timer = 0.40
+		wall_grab_latch = 0.65  # whip duration + 0.25s latch window
 		
 	if whip_timer > 0.0:
 		whip_timer -= delta
 		whip_visual.visible = true
 		var dir = 1.0 if eyes.position.x >= 0 else -1.0
-		var progress : float = 1.0 - (whip_timer / 0.45)  # 0→1 over lifetime
+		var progress : float = 1.0 - (whip_timer / 0.40)  # 0→1 over lifetime
 		
 		# Animate each of the 8 points based on progress
 		var seg_count := whip_visual.get_point_count()
-		var total_reach := 90.0   # max horizontal extent
+		var total_reach := 70.0   # max horizontal extent (kept short to avoid wall clipping)
+		# Check for wall collision to clip whip reach
+		whip_ray.target_position = Vector2(total_reach * dir, -5.0)
+		whip_ray.enabled = true
+		whip_ray.force_raycast_update()
+		
+		var draw_reach := total_reach
+		if whip_ray.is_colliding():
+			var hit_pos = whip_ray.get_collision_point()
+			draw_reach = global_position.distance_to(hit_pos) - 5.0
+		
+		whip_ray.enabled = false
+
 		for i in range(seg_count):
 			var frac = float(i) / float(seg_count - 1)
 			
 			# How far along has THIS segment unrolled?
 			var seg_progress = clampf((progress - frac * 0.4) / 0.5, 0.0, 1.0)
 			
-			# X: starts coiled behind, extends forward
-			var base_x = lerpf(-10.0, total_reach * frac, seg_progress) * dir
+			# X: starts coiled behind, extends forward, constrained by draw_reach
+			var base_x = lerpf(-10.0, draw_reach * frac, seg_progress) * dir
 			
 			# Y: starts low (coiled), rises to wave shape, then snaps flat
 			var wave = sin(frac * PI * 2.5 - progress * PI * 3.0) * (1.0 - seg_progress) * 20.0
@@ -320,10 +342,15 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
+	# Wall grab latch timer
+	if wall_grab_latch > 0.0:
+		wall_grab_latch -= delta
+
 	var is_grabbing_wall = false
-	if is_on_wall() and velocity.y > 0 and move_axis != 0 and whip_timer > 0.0:
+	if is_on_wall() and velocity.y > -50 and move_axis != 0 and wall_grab_latch > 0.0:
 		is_grabbing_wall = true
-		velocity.y = min(velocity.y, 40.0) # Wall slide with whip
+		# "Hang" effect: very slow descent if pressing towards wall during latch
+		velocity.y = min(velocity.y, 20.0) 
 		has_double_jumped = false
 
 	if jump_buffer_timer > 0.0:
@@ -361,9 +388,17 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			shake_intensity = 5.0
 
 
-func apply_snapshot(pos: Vector2, vel: Vector2, alpha: float = 0.35) -> void:
-	global_position = global_position.lerp(pos, alpha)
-	velocity = velocity.lerp(vel, alpha)
+func apply_snapshot(pos: Vector2, vel: Vector2, alpha: float = 0.12) -> void:
+	# Even smoother interpolation for small movements to reduce jitter
+	var dist = global_position.distance_to(pos)
+	if dist > 300.0:
+		global_position = pos
+		velocity = vel
+	elif dist > 1.0:
+		# Use a weighted blend for more stability
+		global_position = global_position.lerp(pos, alpha)
+		velocity = velocity.lerp(vel, alpha * 0.5)
+	# If within 4px, don't lerp at all — prevents micro-jitter
 
 func set_carrying_artifact(carrying: bool) -> void:
 	carrying_artifact = carrying

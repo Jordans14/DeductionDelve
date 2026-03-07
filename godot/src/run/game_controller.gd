@@ -1,6 +1,6 @@
 extends Node2D
 
-const SNAPSHOT_INTERVAL := 0.08
+const SNAPSHOT_INTERVAL := 0.04
 const SPAWN_X_STEP := 80.0
 const ROOM_WIDTH := 1024.0
 const WARDEN_CHECK_RANGE := 96.0
