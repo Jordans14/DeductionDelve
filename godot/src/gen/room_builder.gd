@@ -3,8 +3,8 @@ extends Node2D
 # ============================================================
 # WORLD CONSTANTS
 # ============================================================
-const COLS := 10
-const ROWS := 6
+const COLS := 8
+const ROWS := 4
 const ROOM_WIDTH  : float = 1024.0
 const ROOM_HEIGHT : float = 768.0
 const T_SIZE      : float = 32.0
@@ -82,11 +82,14 @@ func build_from_chain(room_chain: Array) -> void:
 	# ── Stage 9: Draw atmosphere background ───────────────
 	_draw_background()
 
-	# ── Stage 10: Render all room chunks ──────────────────
-	for room in room_chain:
-		_render_room(room, grid, run_seed)
+	# ── Stage 10: Render GLOBAL walls with horizontal merging ──
+	_render_all_walls(grid)
 
-	# ── Stage 11: Floating platforms in vertical drops ─────
+	# ── Stage 11: Render specific room decorations ────────
+	for room in room_chain:
+		_render_room_decorations(room, grid, run_seed)
+
+	# ── Stage 12: Floating platforms in vertical drops ─────
 	_place_platforms(grid, run_seed)
 
 # ============================================================
@@ -351,9 +354,49 @@ func _draw_background() -> void:
 	add_child(darkness)
 
 # ============================================================
-# STAGE 10: RENDER ROOM CHUNKS
+# STAGE 10: RENDER GLOBAL WALLS (Optimized with merging)
 # ============================================================
-func _render_room(room: Dictionary, grid: Array, run_seed: int) -> void:
+func _render_all_walls(grid: Array) -> void:
+	var wall_root := Node2D.new()
+	wall_root.name = "Walls"
+	add_child(wall_root)
+	
+	for y in range(GH):
+		var start_x := -1
+		for x in range(GW):
+			var is_wall = bool(grid[x][y])
+			if is_wall and start_x < 0:
+				start_x = x
+			elif not is_wall and start_x >= 0:
+				_render_wall_segment(wall_root, start_x, y, x - start_x, grid)
+				start_x = -1
+		if start_x >= 0:
+			_render_wall_segment(wall_root, start_x, y, GW - start_x, grid)
+
+func _render_wall_segment(parent: Node2D, tx: int, ty: int, length: int, grid: Array) -> void:
+	var wc := _wall_color_at(tx, ty)
+	var is_global_floor = ty >= GH - 4
+	if is_global_floor:
+		wc = wc.darkened(0.2).lerp(Color(0.2, 0.2, 0.25), 0.5)
+	
+	var world_x := float(tx) * T_SIZE
+	var world_y := float(ty) * T_SIZE
+	var world_w := float(length) * T_SIZE
+	
+	_add_solid_box(parent, wc, world_x, world_y, world_w, T_SIZE)
+	
+	# Add rims for the whole segment
+	for i in range(length):
+		var cur_x := tx + i
+		# Check if air above
+		if ty > 0 and not bool(grid[cur_x][ty - 1]):
+			var rim_col := _biome_rim_at(cur_x, ty)
+			_add_rim(parent, float(cur_x) * T_SIZE, world_y, T_SIZE, rim_col)
+
+# ============================================================
+# STAGE 11: ROOM-SPECIFIC DECORATIONS
+# ============================================================
+func _render_room_decorations(room: Dictionary, grid: Array, run_seed: int) -> void:
 	var slot   : int = int(room.get("slot", 0))
 	var grid_x : int = slot % COLS
 	var grid_y : int = slot / COLS
@@ -364,44 +407,16 @@ func _render_room(room: Dictionary, grid: Array, run_seed: int) -> void:
 	room_node.position = Vector2(float(grid_x) * ROOM_WIDTH, float(grid_y) * ROOM_HEIGHT)
 	add_child(room_node)
 
-	# Very subtle ambient biome tint (sampled at chunk centre — organic blob)
+	# Very subtle ambient biome tint
 	var cx_t : int = sx + CHUNK_W / 2
 	var cy_t : int = sy + CHUNK_H / 2
 	var amb := _biome_ambient_at(cx_t, cy_t)
 	var tint := Polygon2D.new()
-	tint.color = Color(amb.r, amb.g, amb.b, 0.06)
-	tint.polygon = PackedVector2Array([
-		Vector2(0,0), Vector2(ROOM_WIDTH,0),
-		Vector2(ROOM_WIDTH,ROOM_HEIGHT), Vector2(0,ROOM_HEIGHT)
-	])
+	tint.color = Color(amb.r, amb.g, amb.b, 0.05)
+	tint.polygon = PackedVector2Array([Vector2(0,0), Vector2(ROOM_WIDTH,0), Vector2(ROOM_WIDTH,ROOM_HEIGHT), Vector2(0,ROOM_HEIGHT)])
 	room_node.add_child(tint)
 
-	# Draw wall tiles with per-tile biome color + rim-light on exposed tops
-	for lx in range(CHUNK_W):
-		for ly in range(CHUNK_H):
-			var cur_x := sx + lx
-			var cur_y := sy + ly
-			var is_wall : bool = grid[cur_x][cur_y]
-			if is_wall:
-				var wc := _wall_color_at(cur_x, cur_y)
-				
-				# Check if this is a "floor" surface (wall with air above)
-				var is_floor := ly > 0 and not grid[cur_x][cur_y - 1]
-				var is_global_floor := cur_y >= GH - 4
-				
-				if is_global_floor:
-					wc = wc.darkened(0.2).lerp(Color(0.2, 0.2, 0.25), 0.5) # Dark slate for global floor
-				elif is_floor:
-					wc = wc.lightened(0.05) # Slightly lighter for walkable surfaces
-					
-				_add_solid_box(room_node, wc, float(lx)*T_SIZE, float(ly)*T_SIZE, T_SIZE, T_SIZE)
-				
-				# Rim highlight: multi-layered for better art direction
-				if is_floor:
-					var rim_col := _biome_rim_at(cur_x, cur_y)
-					_add_rim(room_node, float(lx)*T_SIZE, float(ly)*T_SIZE, T_SIZE, rim_col)
-
-	# Stalactites / stalagmites — decorative only, no physics
+	# Stalactites / stalagmites
 	_add_formations(room_node, grid, sx, sy)
 
 	# Hazard spikes
@@ -413,11 +428,11 @@ func _render_room(room: Dictionary, grid: Array, run_seed: int) -> void:
 			if grid[sx + stx][sy + ly]: spy = float(ly)*T_SIZE - 8.0; break
 		_add_spikes(room_node, float(stx)*T_SIZE - 60.0, spy, 120.0)
 
-	# Room indicator label — minimal, shows type letter only
+	# Labels and Indicators
 	var type_str : String = str(room.get("type", "?"))
 	var label := Label.new(); label.position = Vector2(10, 10)
 	label.text = type_str[0].to_upper()
-	label.add_theme_color_override("font_color", Color(amb, 0.4))
+	label.add_theme_color_override("font_color", Color(amb.r, amb.g, amb.b, 0.4))
 	label.add_theme_font_size_override("font_size", 11)
 	room_node.add_child(label)
 
