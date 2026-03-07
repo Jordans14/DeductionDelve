@@ -280,7 +280,7 @@ func _spawn_players() -> void:
 		actor.name = "Player_%d" % peer_id
 		player_root.add_child(actor)
 		var spawn_slot = i % max(1, RunState.room_chain.size())
-		actor.global_position = Vector2(140.0 + float(spawn_slot * ROOM_WIDTH), -300.0)
+		actor.global_position = Vector2(140.0 + float(spawn_slot * ROOM_WIDTH), -700.0)
 		if actor.has_method("configure_for_peer"):
 			actor.configure_for_peer(peer_id)
 		players[peer_id] = actor
