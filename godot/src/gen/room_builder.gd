@@ -255,28 +255,24 @@ func _carve_settlement_pockets(grid: Array, run_seed: int) -> void:
 # STAGE 6b: REMOVE CHOKEPOINTS — widen any passage < 3 tiles
 # ============================================================
 func _widen_narrow_passages(grid: Array) -> void:
-	# Three passes for extreme clearance. Each pass clears 4 tiles on each side.
-	for _pass in range(3):
-		for x in range(4, GW - 4):
-			for y in range(4, GH - 4):
-				if grid[x][y]:
-					continue
-				# Horizontal bottleneck
-				var lw = bool(grid[x-1][y]) or bool(grid[x-2][y]) or bool(grid[x-3][y])
-				var rw = bool(grid[x+1][y]) or bool(grid[x+2][y]) or bool(grid[x+3][y])
+	# Extreme clearing: 4 rounds of aggressive widening with 5-tile clearing radius.
+	for _pass in range(4):
+		for x in range(5, GW - 5):
+			for y in range(5, GH - 5):
+				if grid[x][y]: continue
+				# Bottlenecks: walls within 4 tiles
+				var lw = bool(grid[x-1][y]) or bool(grid[x-2][y]) or bool(grid[x-3][y]) or bool(grid[x-4][y])
+				var rw = bool(grid[x+1][y]) or bool(grid[x+2][y]) or bool(grid[x+3][y]) or bool(grid[x+4][y])
 				if lw and rw:
-					for dx in range(-4, 5):
+					for dx in range(-5, 6):
 						var nx := x + dx
-						if nx > 0 and nx < GW - 1:
-							grid[nx][y] = false
-				# Vertical bottleneck
-				var tw = bool(grid[x][y-1]) or bool(grid[x][y-2]) or bool(grid[x][y-3])
-				var bw = bool(grid[x][y+1]) or bool(grid[x][y+2]) or bool(grid[x][y+3])
+						if nx > 0 and nx < GW - 1: grid[nx][y] = false
+				var tw = bool(grid[x][y-1]) or bool(grid[x][y-2]) or bool(grid[x][y-3]) or bool(grid[x][y-4])
+				var bw = bool(grid[x][y+1]) or bool(grid[x][y+2]) or bool(grid[x][y+3]) or bool(grid[x][y+4])
 				if tw and bw:
-					for dy in range(-4, 5):
+					for dy in range(-5, 6):
 						var ny := y + dy
-						if ny > 0 and ny < GH - 1:
-							grid[x][ny] = false
+						if ny > 0 and ny < GH - 1: grid[x][ny] = false
 
 # ============================================================
 # STAGE 7: BORDERS + GLOBAL FLOOR
@@ -313,12 +309,11 @@ func _enforce_borders(grid: Array) -> void:
 # STAGE 8: SPAWN POINTS (Search from Floor UPWARDS)
 # ============================================================
 func _collect_spawn_points(grid: Array) -> void:
-	# Search for air gaps starting from just above the floor level
-	var floor_search_start = GH - 14
+	# Search from Floor UPWARDS
+	var floor_search_start = GH - 16
 	for col in range(COLS):
 		var tx := col * CHUNK_W + CHUNK_W / 2
 		for ty in range(floor_search_start, 5, -1):
-			# If we find 2 air blocks above a solid block, that's a good spawn
 			if not bool(grid[tx][ty]) and not bool(grid[tx][ty - 1]) and bool(grid[tx][ty + 1]):
 				spawn_points.append(global_position + Vector2(float(tx) * T_SIZE + T_SIZE * 0.5, float(ty) * T_SIZE + T_SIZE))
 				break
@@ -382,9 +377,9 @@ func _render_all_walls(grid: Array) -> void:
 
 func _render_wall_segment(parent: Node2D, tx: int, ty: int, length: int, grid: Array) -> void:
 	var wc := _wall_color_at(tx, ty)
-	var is_global_floor = ty >= GH - 14 # Match new raised floor level
+	var is_global_floor = ty >= GH - 16 # Match new raised floor level
 	if is_global_floor:
-		wc = wc.darkened(0.2).lerp(Color(0.2, 0.2, 0.25), 0.55) # Dark Shale
+		wc = Color(0.12, 0.12, 0.18).lerp(Color(0.2, 0.2, 0.4), 0.4) # Brighter Deep Shale
 	
 	var world_x := float(tx) * T_SIZE
 	var world_y := float(ty) * T_SIZE
@@ -398,6 +393,8 @@ func _render_wall_segment(parent: Node2D, tx: int, ty: int, length: int, grid: A
 		# Check if air above
 		if ty > 0 and not bool(grid[cur_x][ty - 1]):
 			var rim_col := _biome_rim_at(cur_x, ty)
+			if ty >= GH - 16:
+				rim_col = rim_col.lerp(Color(0.0, 0.8, 1.0, 0.8), 0.5) # Cyan-shale glow for ground
 			_add_rim(parent, float(cur_x) * T_SIZE, world_y, T_SIZE, rim_col)
 
 # ============================================================

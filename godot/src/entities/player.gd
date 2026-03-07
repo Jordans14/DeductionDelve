@@ -31,6 +31,8 @@ var whip_visual: Line2D
 var whip_timer := 0.0
 var wall_grab_latch := 0.0  # stays > 0 for a short window after whip swing
 var whip_ray: RayCast2D
+var net_pos: Vector2
+var net_vel: Vector2
 
 var health: int = 3
 var dead: bool = false
@@ -220,6 +222,17 @@ func _process(delta: float) -> void:
 	elif camera:
 		camera.offset = Vector2.ZERO
 
+	if not is_multiplayer_authority():
+		# Smoothly interpolate remote players toward their authoritative position every frame
+		var lerp_alpha = 15.0 * delta # 15/s frequency
+		var dist = global_position.distance_to(net_pos)
+		if dist > 400.0:
+			global_position = net_pos
+			velocity = net_vel
+		elif dist > 0.5:
+			global_position = global_position.lerp(net_pos, lerp_alpha)
+			velocity = velocity.lerp(net_vel, lerp_alpha * 0.5)
+
 	visual_root.scale.x = lerpf(visual_root.scale.x, 1.0, 10.0 * delta)
 	visual_root.scale.y = lerpf(visual_root.scale.y, 1.0, 10.0 * delta)
 	
@@ -388,16 +401,11 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			shake_intensity = 5.0
 
 
-func apply_snapshot(pos: Vector2, vel: Vector2, alpha: float = 0.12) -> void:
-	# Even smoother interpolation for small movements to reduce jitter
-	var dist = global_position.distance_to(pos)
-	if dist > 300.0:
-		global_position = pos
-		velocity = vel
-	elif dist > 1.0:
-		# Use a weighted blend for more stability
-		global_position = global_position.lerp(pos, alpha)
-		velocity = velocity.lerp(vel, alpha * 0.5)
+func apply_snapshot(pos: Vector2, vel: Vector2, _alpha: float = 0.0) -> void:
+	# Store targets for _process interpolation
+	net_pos = pos
+	net_vel = vel
+	if global_position.is_equal_approx(Vector2.ZERO): global_position = pos
 	# If within 4px, don't lerp at all — prevents micro-jitter
 
 func set_carrying_artifact(carrying: bool) -> void:
