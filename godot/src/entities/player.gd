@@ -53,6 +53,8 @@ var is_crawling := false
 var is_ledge_hanging := false
 var ledge_hang_dir := 1.0
 var sprint_bridge_timer := 0.0
+var visual_hang_offset := Vector2.ZERO
+var _base_visual_y := 0.0
 var _spawn_seq := 0  # increments per throw; passed to RPCs for deterministic node naming
 
 var _remote_on_floor := false  # Synced from authoritative player for animations
@@ -281,10 +283,13 @@ func _process(delta: float) -> void:
 	
 	if is_crawling:
 		visual_root.scale.y = lerpf(visual_root.scale.y, 0.5, 12.0 * delta)
-		visual_root.position.y = lerpf(visual_root.position.y, 9.5, 12.0 * delta)
+		_base_visual_y = lerpf(_base_visual_y, 9.5, 12.0 * delta)
 	else:
 		visual_root.scale.y = lerpf(visual_root.scale.y, 1.0, 12.0 * delta)
-		visual_root.position.y = lerpf(visual_root.position.y, 0.0, 12.0 * delta)
+		_base_visual_y = lerpf(_base_visual_y, 0.0, 12.0 * delta)
+
+	visual_hang_offset = visual_hang_offset.lerp(Vector2.ZERO, 15.0 * delta)
+	visual_root.position = Vector2(visual_hang_offset.x, _base_visual_y + visual_hang_offset.y)
 
 	
 	if velocity.x > 10:
@@ -459,10 +464,17 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	else:
 		coyote_timer -= delta
 
-		# Gap-running: Spelunky style. If we run off an edge quickly without jumping, we float horizontally exactly 1 gap length (0.15s).
-		# By checking velocity.x we avoid activating if stopped or jumping. Raycasts fail on chunk edges/uneven tiles so physics time is 100x better!
+		# Gap-running: Check if exactly 1-tile gap and running fast
 		if coyote_timer > 0.0 and absf(velocity.x) > MOVE_SPEED * 0.5 and sprint_bridge_timer <= 0.0:
-			sprint_bridge_timer = 0.15
+			var space3 = get_world_2d().direct_space_state
+			var gap_dir = sign(velocity.x)
+			var land_q = PhysicsRayQueryParameters2D.create(
+				global_position + Vector2(gap_dir * 42.0, 0),
+				global_position + Vector2(gap_dir * 42.0, 32.0)
+			)
+			land_q.collision_mask = 1
+			if space3.intersect_ray(land_q):
+				sprint_bridge_timer = 0.15 # Just enough time to glide 1 tile purely horizontal
 				
 		if sprint_bridge_timer > 0.0:
 			sprint_bridge_timer -= delta
@@ -531,6 +543,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 					col_shape_node.shape.size.y = 38
 					col_shape_node.position.y = 0
 				# Fall around the corner: Drop perfectly so hands hit the previous floor geometric line
+				visual_hang_offset = Vector2(-check_dir * 16.0, -36.0)
 				global_position.x += check_dir * 16.0
 				global_position.y += 36.0 
 				velocity = Vector2.ZERO
