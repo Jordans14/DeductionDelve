@@ -1,12 +1,12 @@
 extends CharacterBody2D
 
-const MOVE_SPEED := 400.0
-const ACCEL := 1800.0
-const FRICTION := 1800.0
-const JUMP_VELOCITY := -650.0
-const GRAVITY := 1300.0
-const COYOTE_TIME := 0.1
-const JUMP_BUFFER_TIME := 0.1
+const MOVE_SPEED := 420.0
+const ACCEL := 2000.0
+const FRICTION := 2000.0
+const JUMP_VELOCITY := -680.0
+const GRAVITY := 1500.0
+const COYOTE_TIME := 0.12
+const JUMP_BUFFER_TIME := 0.12
 
 @onready var body_poly: Polygon2D = $Body
 @onready var name_label: Label = $Name
@@ -103,7 +103,7 @@ func _ready() -> void:
 	add_child(hazard_detector)
 	hazard_detector.area_entered.connect(_on_hazard_entered)
 	
-	# Light
+	# Main player lantern — warm golden illumination
 	var gradient = Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 1.0])
 	gradient.colors = PackedColorArray([Color(1,1,1,1), Color(0,0,0,1)])
@@ -112,15 +112,27 @@ func _ready() -> void:
 	tex.fill = GradientTexture2D.FILL_RADIAL
 	tex.fill_from = Vector2(0.5, 0.5)
 	tex.fill_to = Vector2(1.0, 0.5)
-	tex.width = 256
-	tex.height = 256
+	tex.width = 256; tex.height = 256
 	light = PointLight2D.new()
 	light.texture = tex
-	light.color = Color(0.9, 0.8, 0.6)
-	light.energy = 0.5
-	light.scale = Vector2(1.5, 1.5)
+	light.color = Color(1.0, 0.85, 0.55)   # warm lantern yellow
+	light.energy = 2.2
+	light.scale = Vector2(4.0, 4.0)
 	light.shadow_enabled = true
+	light.shadow_color = Color(0, 0, 0, 0.7)
 	add_child(light)
+
+	# Soft ambient fill — cool-tinted, wide radius, low energy
+	var tex2 = GradientTexture2D.new()
+	tex2.gradient = gradient; tex2.fill = GradientTexture2D.FILL_RADIAL
+	tex2.fill_from = Vector2(0.5, 0.5); tex2.fill_to = Vector2(1.0, 0.5)
+	tex2.width = 256; tex2.height = 256
+	var ambient_light := PointLight2D.new()
+	ambient_light.texture = tex2
+	ambient_light.color = Color(0.55, 0.60, 0.80)  # cool blue-purple ambient
+	ambient_light.energy = 0.45
+	ambient_light.scale = Vector2(7.0, 7.0)
+	add_child(ambient_light)
 
 	# Particles
 	dust = CPUParticles2D.new()
