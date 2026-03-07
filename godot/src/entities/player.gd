@@ -5,6 +5,8 @@ const ACCEL := 1400.0
 const FRICTION := 1800.0
 const JUMP_VELOCITY := -430.0
 const GRAVITY := 1100.0
+const COYOTE_TIME := 0.1
+const JUMP_BUFFER_TIME := 0.1
 
 @onready var body_poly: Polygon2D = $Body
 @onready var name_label: Label = $Name
@@ -16,12 +18,27 @@ var visual_root: Node2D
 var eyes: Node2D
 var shadow: Polygon2D
 
+var hand_l: Polygon2D
+var hand_r: Polygon2D
+var foot_l: Polygon2D
+var foot_r: Polygon2D
+
+var coyote_timer := 0.0
+var jump_buffer_timer := 0.0
+var was_jump_pressed := false
+
+var health: int = 3
+var dead: bool = false
+var hazard_detector: Area2D
+var light: PointLight2D
+var camera: Camera2D
+var shake_intensity: float = 0.0
+var dust: CPUParticles2D
+
 func _ready() -> void:
-	# Visual polish setup via script
 	visual_root = Node2D.new()
 	add_child(visual_root)
 	
-	# Move body_poly under visual_root for scaling
 	remove_child(body_poly)
 	visual_root.add_child(body_poly)
 	
@@ -29,6 +46,19 @@ func _ready() -> void:
 	shadow.color = Color(0, 0, 0, 0.3)
 	shadow.polygon = PackedVector2Array([-12, 19, 12, 19, 8, 23, -8, 23])
 	add_child(shadow)
+	
+	hand_l = Polygon2D.new()
+	hand_l.polygon = PackedVector2Array([-4, -4, 4, -4, 4, 4, -4, 4])
+	visual_root.add_child(hand_l)
+
+	hand_r = hand_l.duplicate(true)
+	visual_root.add_child(hand_r)
+
+	foot_l = hand_l.duplicate(true)
+	visual_root.add_child(foot_l)
+
+	foot_r = hand_l.duplicate(true)
+	visual_root.add_child(foot_r)
 	
 	eyes = Node2D.new()
 	var eye_l = Polygon2D.new()
@@ -43,23 +73,101 @@ func _ready() -> void:
 	
 	var eye_r = eye_l.duplicate(true)
 	eye_r.position = Vector2(5, -6)
-	
 	eyes.add_child(eye_l)
 	eyes.add_child(eye_r)
 	visual_root.add_child(eyes)
+
+	# Hazard detector
+	hazard_detector = Area2D.new()
+	var col2 = CollisionShape2D.new()
+	var rect2 = RectangleShape2D.new()
+	rect2.size = Vector2(24, 34)
+	col2.shape = rect2
+	hazard_detector.add_child(col2)
+	add_child(hazard_detector)
+	hazard_detector.area_entered.connect(_on_hazard_entered)
+	
+	# Light
+	var gradient = Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 1.0])
+	gradient.colors = PackedColorArray([Color(1,1,1,1), Color(0,0,0,1)])
+	var tex = GradientTexture2D.new()
+	tex.gradient = gradient
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 256
+	tex.height = 256
+	light = PointLight2D.new()
+	light.texture = tex
+	light.color = Color(0.9, 0.8, 0.6)
+	light.energy = 1.0
+	light.shadow_enabled = true
+	add_child(light)
+
+	# Particles
+	dust = CPUParticles2D.new()
+	dust.emitting = false
+	dust.one_shot = true
+	dust.explosiveness = 1.0
+	dust.amount = 8
+	dust.direction = Vector2(0, -1)
+	dust.spread = 90.0
+	dust.initial_velocity_min = 20.0
+	dust.initial_velocity_max = 60.0
+	dust.scale_amount_min = 2.0
+	dust.scale_amount_max = 6.0
+	dust.color = Color(0.8, 0.8, 0.8, 0.5)
+	dust.position = Vector2(0, 19)
+	add_child(dust)
+
+func _on_hazard_entered(area: Area2D) -> void:
+	if dead: return
+	if area.is_in_group("hazards"):
+		health -= 1
+		velocity.y = -350
+		velocity.x = -sign(velocity.x) * 200
+		shake_intensity = 15.0
+		var net = get_node_or_null("/root/NetworkManager")
+		if health <= 0:
+			dead = true
+			if net and carrying_artifact:
+				net.request_drop()
+			modulate = Color(1.0, 1.0, 1.0, 0.4)
+		else:
+			modulate = Color(1.0, 0.2, 0.2, 1.0)
+			get_tree().create_timer(0.3).timeout.connect(func(): if not dead: modulate = Color.WHITE)
 
 func configure_for_peer(id_value: int) -> void:
 	peer_id = id_value
 	name_label.text = "P%d" % id_value
 	var hue := float((id_value * 47) % 255) / 255.0
-	body_poly.color = Color.from_hsv(hue, 0.75, 0.95)
+	var base_color = Color.from_hsv(hue, 0.75, 0.95)
+	body_poly.color = base_color
+	
+	var limb_color = base_color.darkened(0.2)
+	hand_l.color = limb_color
+	hand_r.color = limb_color
+	foot_l.color = limb_color
+	foot_r.color = limb_color
+	
+	var net = get_node_or_null("/root/NetworkManager")
+	if net and net.get_multiplayer().has_multiplayer_peer() and net.get_multiplayer().get_unique_id() == id_value:
+		camera = Camera2D.new()
+		camera.zoom = Vector2(1.2, 1.2)
+		camera.position_smoothing_enabled = true
+		add_child(camera)
 
 func _process(delta: float) -> void:
-	# Squash and stretch visually
+	if camera and shake_intensity > 0.1:
+		camera.offset = Vector2(randf_range(-shake_intensity, shake_intensity), randf_range(-shake_intensity, shake_intensity))
+		shake_intensity = lerpf(shake_intensity, 0.0, 10.0 * delta)
+	elif camera:
+		camera.offset = Vector2.ZERO
+
 	visual_root.scale.x = lerpf(visual_root.scale.x, 1.0, 10.0 * delta)
 	visual_root.scale.y = lerpf(visual_root.scale.y, 1.0, 10.0 * delta)
 	
-	# Eye direction
 	if velocity.x > 10:
 		eyes.position.x = lerpf(eyes.position.x, 4.0, 15.0 * delta)
 	elif velocity.x < -10:
@@ -67,28 +175,83 @@ func _process(delta: float) -> void:
 	else:
 		eyes.position.x = lerpf(eyes.position.x, 0.0, 15.0 * delta)
 		
-	# Shadow visibility
 	shadow.color.a = clampf(0.4 - (abs(velocity.y) / JUMP_VELOCITY) * 0.4, 0.0, 0.4)
+	
+	var time = Time.get_ticks_msec() / 1000.0
+	if dead:
+		foot_l.position = Vector2(-6.0, 19.0)
+		foot_r.position = Vector2(6.0, 19.0)
+		hand_l.position = Vector2(-12.0, 4.0)
+		hand_r.position = Vector2(12.0, 4.0)
+		body_poly.rotation = sin(time * 2.0) * 0.2
+	elif is_on_floor():
+		if absf(velocity.x) > 10.0:
+			var cycle = time * 20.0
+			foot_l.position = Vector2(-6.0 + sin(cycle) * 8.0, 19.0 + cos(cycle) * 4.0)
+			foot_r.position = Vector2(6.0 + sin(cycle + PI) * 8.0, 19.0 + cos(cycle + PI) * 4.0)
+			hand_l.position = Vector2(-12.0, 4.0 + sin(cycle + PI) * 6.0)
+			hand_r.position = Vector2(12.0, 4.0 + sin(cycle) * 6.0)
+			body_poly.rotation = sin(cycle) * 0.05
+		else:
+			foot_l.position = Vector2(-6.0, 19.0)
+			foot_r.position = Vector2(6.0, 19.0)
+			hand_l.position = Vector2(-12.0, 4.0 + sin(time * 3.0) * 2.0)
+			hand_r.position = Vector2(12.0, 4.0 + cos(time * 3.0) * 2.0)
+			body_poly.rotation = lerp_angle(body_poly.rotation, 0.0, 10.0 * delta)
+	else:
+		foot_l.position = Vector2(-6.0, 15.0 - clampf(velocity.y / 50.0, -10.0, 10.0))
+		foot_r.position = Vector2(6.0, 17.0 - clampf(velocity.y / 50.0, -10.0, 10.0))
+		hand_l.position = Vector2(-12.0, -4.0)
+		hand_r.position = Vector2(12.0, -8.0)
+		body_poly.rotation = lerp_angle(body_poly.rotation, velocity.x * 0.001, 10.0 * delta)
 
 func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
+	if dead:
+		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
+		velocity.y = move_toward(velocity.y, -100.0, ACCEL * delta * 0.2)
+		var cw = is_on_floor()
+		move_and_slide()
+		return
+
+	if is_on_floor():
+		coyote_timer = COYOTE_TIME
+	else:
+		coyote_timer -= delta
+		
+	if jump_pressed and not was_jump_pressed:
+		jump_buffer_timer = JUMP_BUFFER_TIME
+	else:
+		jump_buffer_timer -= delta
+		
+	var just_released_jump = not jump_pressed and was_jump_pressed
+	was_jump_pressed = jump_pressed
+
 	var target := move_axis * MOVE_SPEED
 	if absf(target) > 0.01:
 		velocity.x = move_toward(velocity.x, target, ACCEL * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
-	if jump_pressed and is_on_floor():
+	if jump_buffer_timer > 0.0 and coyote_timer > 0.0:
 		velocity.y = JUMP_VELOCITY
-		# Jump stretch
+		jump_buffer_timer = 0.0
+		coyote_timer = 0.0
 		visual_root.scale = Vector2(0.7, 1.3)
+		dust.restart()
+		
+	if just_released_jump and velocity.y < 0:
+		velocity.y *= 0.5 
 
 	var was_on_floor = is_on_floor()
 	velocity.y += GRAVITY * delta
 	move_and_slide()
 	
-	# Landing squash
 	if not was_on_floor and is_on_floor():
 		visual_root.scale = Vector2(1.3, 0.7)
+		dust.restart()
+		if velocity.y > 800:
+			shake_intensity = 5.0
+
 
 func apply_snapshot(pos: Vector2, vel: Vector2, alpha: float = 0.35) -> void:
 	global_position = global_position.lerp(pos, alpha)

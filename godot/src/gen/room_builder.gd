@@ -24,28 +24,14 @@ func build_from_chain(room_chain: Array) -> void:
 
 		var base_color = _color_for_type(str(room.get("type", "traversal")))
 		
-		# Outline/Shadow
-		var outline := Polygon2D.new()
-		outline.color = Color(0.1, 0.1, 0.1, 0.6)
-		outline.polygon = PackedVector2Array([
-			Vector2(-4, -ROOM_HEIGHT - 4),
-			Vector2(ROOM_WIDTH - 4.0, -ROOM_HEIGHT - 4),
-			Vector2(ROOM_WIDTH - 4.0, 4),
-			Vector2(-4, 4)
+		# Background Panel
+		var bg := Polygon2D.new()
+		bg.color = base_color.darkened(0.5)
+		bg.polygon = PackedVector2Array([
+			Vector2(0, -ROOM_HEIGHT), Vector2(ROOM_WIDTH, -ROOM_HEIGHT),
+			Vector2(ROOM_WIDTH, 0), Vector2(0, 0)
 		])
-		room_node.add_child(outline)
-
-		# Main panel
-		var panel := Polygon2D.new()
-		panel.color = base_color
-		var panel_poly = PackedVector2Array([
-			Vector2(0, -ROOM_HEIGHT),
-			Vector2(ROOM_WIDTH - 8.0, -ROOM_HEIGHT),
-			Vector2(ROOM_WIDTH - 8.0, 0),
-			Vector2(0, 0)
-		])
-		panel.polygon = panel_poly
-		room_node.add_child(panel)
+		room_node.add_child(bg)
 		
 		# Grid overlay
 		var grid := Line2D.new()
@@ -57,10 +43,27 @@ func build_from_chain(room_chain: Array) -> void:
 			grid.add_point(Vector2((i + 1) * 40.0, -ROOM_HEIGHT))
 		room_node.add_child(grid)
 
+		# Add solid floor
+		_add_solid_box(room_node, base_color, 0, -16, ROOM_WIDTH, 16)
+		
+		# Procedural platforms
+		var p_seed = slot * 7919 + 12345
+		var platform_count = (p_seed % 4) + 2
+		for i in range(platform_count):
+			var px = 40.0 + float((p_seed + i * 11) % int(ROOM_WIDTH - 120.0))
+			var py = -80.0 - float((p_seed + i * 17) % int(ROOM_HEIGHT - 120.0))
+			var pw = 60.0 + float((p_seed + i * 23) % 80)
+			_add_solid_box(room_node, base_color.lightened(0.2), px, py, pw, 20)
+
+		# Lethal Hazards (Spikes)
+		if str(room.get("hazard", "")) == "spikes":
+			var sx = 60.0 + float((p_seed * 31) % int(ROOM_WIDTH - 200.0))
+			_add_spikes(room_node, sx, -24, 80)
+
 		var label := Label.new()
 		label.position = Vector2(14, -ROOM_HEIGHT + 24)
 		label.text = "%d:%s [%s]" % [slot, str(room.get("id", "?")), str(room.get("hazard", "none"))]
-		label.add_theme_color_override("font_color", Color(0.15, 0.15, 0.15, 0.8))
+		label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85, 0.8))
 		label.add_theme_font_size_override("font_size", 16)
 		room_node.add_child(label)
 
@@ -73,6 +76,52 @@ func build_from_chain(room_chain: Array) -> void:
 		room_node.add_child(indicator)
 		indicator_by_slot[slot] = indicator
 		indicator_time_left_by_slot[slot] = 0.0
+
+func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, h: float) -> void:
+	var body = StaticBody2D.new()
+	body.position = Vector2(x, y)
+	var poly = Polygon2D.new()
+	poly.color = color
+	poly.polygon = PackedVector2Array([
+		Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)
+	])
+	body.add_child(poly)
+	
+	var highlight = Line2D.new()
+	highlight.add_point(Vector2(0, 0))
+	highlight.add_point(Vector2(w, 0))
+	highlight.width = 4.0
+	highlight.default_color = color.lightened(0.3)
+	body.add_child(highlight)
+	
+	var col = CollisionPolygon2D.new()
+	col.polygon = poly.polygon
+	body.add_child(col)
+	parent.add_child(body)
+
+func _add_spikes(parent: Node2D, x: float, y: float, w: float) -> void:
+	var area = Area2D.new()
+	area.position = Vector2(x, y)
+	area.add_to_group("hazards")
+	
+	var poly = Polygon2D.new()
+	poly.color = Color(0.8, 0.1, 0.1)
+	var points := PackedVector2Array()
+	points.append(Vector2(0, 8))
+	var spikes_count = int(w / 10.0)
+	for i in range(spikes_count):
+		points.append(Vector2(float(i) * 10.0 + 5.0, 0))
+		points.append(Vector2(float(i + 1) * 10.0, 8))
+	poly.polygon = points
+	area.add_child(poly)
+	
+	var col = CollisionShape2D.new()
+	var rect = RectangleShape2D.new()
+	rect.size = Vector2(w, 8)
+	col.shape = rect
+	col.position = Vector2(w / 2.0, 4.0)
+	area.add_child(col)
+	parent.add_child(area)
 
 func _process(delta: float) -> void:
 	for slot in indicator_time_left_by_slot.keys():

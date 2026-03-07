@@ -91,6 +91,7 @@ var cli_auto_role_action: bool = false
 var cli_auto_role_action_done: bool = false
 var last_report_user_path: String = ""
 var last_verify_status: String = ""
+var warden_ghost: Area2D
 
 func _ready() -> void:
 	if NetworkManager.has_signal("state_snapshot"):
@@ -138,6 +139,31 @@ func _ready() -> void:
 		help_panel.visible = false
 	if help_label:
 		help_label.text = _build_help_overlay_text()
+
+	warden_ghost = Area2D.new()
+	warden_ghost.position = Vector2(-2000, 300)
+	var col = CollisionShape2D.new()
+	var circle = CircleShape2D.new()
+	circle.radius = 48.0
+	col.shape = circle
+	warden_ghost.add_child(col)
+	warden_ghost.add_to_group("hazards")
+
+	var ghost_poly = Polygon2D.new()
+	ghost_poly.color = Color(0.2, 0.0, 0.4, 0.8)
+	ghost_poly.polygon = PackedVector2Array([
+		Vector2(0, -48), Vector2(30, -20), Vector2(30, 20), Vector2(15, 48), 
+		Vector2(0, 35), Vector2(-15, 48), Vector2(-30, 20), Vector2(-30, -20)
+	])
+	warden_ghost.add_child(ghost_poly)
+	
+	var ghost_eyes = Polygon2D.new()
+	ghost_eyes.color = Color.RED
+	ghost_eyes.polygon = PackedVector2Array([-12, -10, -4, -10, -4, -2, -12, -2, 4, -10, 12, -10, 12, -2, 4, -2])
+	warden_ghost.add_child(ghost_eyes)
+	
+	add_child(warden_ghost)
+
 	print("run_started_transition")
 	print("GAME_READY pid=%d" % OS.get_process_id())
 
@@ -167,6 +193,14 @@ func _physics_process(delta: float) -> void:
 		_refresh_end_timeline()
 	if notebook_open and Input.is_key_pressed(KEY_ESCAPE):
 		_toggle_notebook(false)
+		
+	if warden_ghost and players.has(local_id) and NetworkManager.is_run_active() and not run_ended:
+		if tick_counter > 1500:
+			var target_pos: Vector2 = players[local_id].global_position
+			warden_ghost.position = warden_ghost.position.move_toward(target_pos, 70.0 * delta)
+			warden_ghost.rotation = sin(tick_counter * 0.1) * 0.1
+		else:
+			warden_ghost.position = Vector2(-2000, 300)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:

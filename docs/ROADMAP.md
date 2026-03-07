@@ -30,6 +30,30 @@
 - End-of-run timeline and role reveal summary.
 - Playable vertical slice with extraction/wipe end conditions.
 
+## Milestone 6: Spelunky-style Core Platforming & Character Rig
+- Replace flat single-polygon player with animated segmented limbs / refined geometry.
+- Add advanced platforming metrics (coyote time, jump buffer, variable jump height).
+- Add responsive player particles (dust trails, jump puffs).
+
+## Milestone 7: Binding of Isaac-style Procedural Rooms
+- Refactor room generation to include platforms, gaps, and varied height terrain.
+- Use composed polygon obstacles rather than single floor rectangles.
+- Implement camera transition bounds per-room matching room coordinates.
+
+## Milestone 8: Lethal Hazards & Isaac-style Health Systems
+- Add spikes, dropping blocks, and basic traps inside the procedural rooms.
+- Add a 3-heart health system for players with death/spectator states.
+- Connect sabotage items to overdrive these traps on command.
+
+## Milestone 9: Active Physics & Visual Polish
+- Use RigidBody2D logic for dropped items and evidence so they bounce and react to terrain.
+- Add 2D dynamic point lights to players, items, and hazards with shadow-casting terrain.
+- Add screen-shake for heavy impacts and hazard triggers.
+
+## Milestone 10: Gameplay Loop Completion & The "Warden" Entity
+- Add a persistent chase entity or timer-based stressor if players idle too long.
+- Connect health, death, and extraction mechanics to finalize the battle-tested roguelite loop.
+
 ## Post-Slice
 - Dedicated server option.
 - WebSocket relay path and web-client compatibility pass.
