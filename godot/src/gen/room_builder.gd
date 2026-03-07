@@ -88,6 +88,9 @@ func build_from_chain(room_chain: Array) -> void:
 	# ── Stage 6d: Cleanup floating islands ───────────────────
 	_cleanup_floating_islands(grid)
 
+	# ── Stage 6e: Narrative walkways & ridges ────────────────
+	_add_walkways(grid, run_seed)
+
 	# ── Stage 7: Enforce hard borders + global floor ───────
 	_enforce_borders(grid)
 
@@ -135,8 +138,9 @@ func _build_noise_grid(run_seed: int) -> Array:
 		for y in range(GH):
 			var n1 : float = cave_noise.get_noise_2d(float(x), float(y))
 			var n2 : float = detail.get_noise_2d(float(x), float(y)) * 0.2
-			var depth_bias : float = float(y) / float(GH) * 0.18
-			var is_wall : bool = (n1 + n2) > (-0.08 + depth_bias)
+			var depth_bias : float = float(y) / float(GH) * 0.15
+			# Higher threshold for more initial solid mass
+			var is_wall : bool = (n1 + n2) > (-0.15 + depth_bias)
 			col.append(is_wall)
 		grid.append(col)
 	return grid
@@ -166,23 +170,23 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int, radius: float = 4.5) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 3.6) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
 	var cx : int = GW / 2; var cy : int = 3
 	while cy < GH - 4:
-		_carve_circle(grid, cx, cy, int(radius))
+		_carve_circle(grid, cx, cy, int(radius)) # Even tighter for 'Cave' feel
 		var r := rng.randf()
 		if r < 0.65:   cy += 1 # Increased vertical bias
 		elif r < 0.70: cy = max(cy - 1, 2)
 		elif r < 0.85: cx = clamp(cx + rng.randi_range(1, 3), 2, GW - 3)
 		else:          cx = clamp(cx - rng.randi_range(1, 3), 2, GW - 3)
-	# Horizontal exploration branches — also wide
-	for _b in range(12):
-		var bx := rng.randi_range(6, GW - 7)
-		var by := rng.randi_range(4, GH - 5)
-		var blen := rng.randi_range(8, 22)
-		var bdir := 1 if (rng.randi() % 2 == 0) else -1
+	# Horizontal exploration branches — fewer for more rock
+	for _b in range(6):
+		var bx : int = rng.randi_range(6, GW - 7)
+		var by : int = rng.randi_range(4, GH - 5)
+		var blen : int = rng.randi_range(6, 16)
+		var bdir : int = 1 if (rng.randi() % 2 == 0) else -1
 		for b in range(blen): _carve_circle(grid, bx + b * bdir, by, 3)
 
 func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
@@ -222,7 +226,8 @@ func _carve_chambers(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 54321
 	for col in range(COLS):
 		for row in range(ROWS):
-			var cx := col * CHUNK_W + rng.randi_range(CHUNK_W / 3, 2 * CHUNK_W / 3)
+			if rng.randf() > 0.5: continue # 50% fewer chambers for less 'openness'
+			var cx := col * CHUNK_W + rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
 			var cy := row * CHUNK_H + rng.randi_range(CHUNK_H / 3, 2 * CHUNK_H / 3)
 			var rx := rng.randi_range(5, CHUNK_W / 3)
 			var ry := rng.randi_range(3, CHUNK_H / 3)
@@ -312,6 +317,21 @@ func _cleanup_floating_islands(grid: Array) -> void:
 						if bool(grid[x+dx][y+dy]): neighbors += 1
 				if neighbors <= 1: # Isolated single block or small edge
 					grid[x][y] = false
+
+func _add_walkways(grid: Array, run_seed: int) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 999
+	# Add horizontal ledges in vertical drops to aid movement and add 'Pathways'
+	for _i in range(25):
+		var wx : int = rng.randi_range(5, GW - 15)
+		var wy : int = rng.randi_range(10, GH - 20)
+		var ww : int = rng.randi_range(6, 14)
+		# Only place if there's air above
+		if not bool(grid[wx][wy]):
+			for lx in range(ww):
+				var tx : int = wx + lx
+				if tx < GW - 2:
+					grid[tx][wy] = true # Solid walkway ledge
+					if wy > 0: grid[tx][wy - 1] = false # Clear air above walkway
 
 # ============================================================
 # STAGE 7: BORDERS + GLOBAL FLOOR
