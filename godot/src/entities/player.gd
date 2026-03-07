@@ -26,6 +26,7 @@ var foot_r: Polygon2D
 var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var was_jump_pressed := false
+var was_down_pressed := false
 var has_double_jumped := false
 var whip_visual: Line2D
 var whip_timer := 0.0
@@ -53,6 +54,8 @@ var is_ledge_hanging := false
 var ledge_hang_dir := 1.0
 var sprint_bridge_timer := 0.0
 var _spawn_seq := 0  # increments per throw; passed to RPCs for deterministic node naming
+
+var _remote_on_floor := false  # Synced from authoritative player for animations
 
 func _ready() -> void:
 	visual_root = Node2D.new()
@@ -382,9 +385,10 @@ func _process(delta: float) -> void:
 		hand_l.position = Vector2(-12.0, 4.0)
 		hand_r.position = Vector2(12.0, 4.0)
 		body_poly.rotation = sin(time * 2.0) * 0.2
-	elif is_on_floor():
+	elif _sync_is_on_floor():
 		if absf(velocity.x) > 10.0:
 			var cycle = time * 20.0
+
 			foot_l.position = Vector2(-6.0 + sin(cycle) * 8.0, 19.0 + cos(cycle) * 4.0)
 			foot_r.position = Vector2(6.0 + sin(cycle + PI) * 8.0, 19.0 + cos(cycle + PI) * 4.0)
 			hand_l.position = Vector2(-12.0, 4.0 + sin(cycle + PI) * 6.0)
@@ -445,6 +449,8 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			was_jump_pressed = jump_pressed
 			return
 
+	var down_held: bool = Input.is_key_pressed(KEY_DOWN)
+
 	# ─── Coyote / jump buffer ─────────────────────────────────────────────────
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
@@ -452,19 +458,11 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		sprint_bridge_timer = 0.0
 	else:
 		coyote_timer -= delta
-		
-		# Gap-running: Check once when stepping off the edge (coyote_timer just started)
-		# Trigger if moving decently fast and there's a landing spot precisely 1 gap away
-		if coyote_timer > 0.0 and absf(velocity.x) > 100.0 and sprint_bridge_timer <= 0.0:
-			var space3 = get_world_2d().direct_space_state
-			var gap_dir = sign(velocity.x)
-			var land_q = PhysicsRayQueryParameters2D.create(
-				global_position + Vector2(gap_dir * 40.0, 0),
-				global_position + Vector2(gap_dir * 40.0, 24.0)
-			)
-			land_q.collision_mask = 1
-			if space3.intersect_ray(land_q):
-				sprint_bridge_timer = 0.18
+
+		# Gap-running: Spelunky style. If we run off an edge quickly without jumping, we float horizontally exactly 1 gap length (0.15s).
+		# By checking velocity.x we avoid activating if stopped or jumping. Raycasts fail on chunk edges/uneven tiles so physics time is 100x better!
+		if coyote_timer > 0.0 and absf(velocity.x) > MOVE_SPEED * 0.5 and sprint_bridge_timer <= 0.0:
+			sprint_bridge_timer = 0.15
 				
 		if sprint_bridge_timer > 0.0:
 			sprint_bridge_timer -= delta
@@ -478,9 +476,12 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	var just_released_jump: bool = not jump_pressed and was_jump_pressed
 	was_jump_pressed = jump_pressed
 
+	var is_down_just_pressed: bool = down_held and not was_down_pressed
+	was_down_pressed = down_held
+
 	# ─── Crawl (Duck) ────────────────────────────────────────────────────────
 	var col_shape_node = get_node_or_null("CollisionShape2D")
-	var want_crawl: bool = is_on_floor() and Input.is_key_pressed(KEY_DOWN) and not is_climbing
+	var want_crawl: bool = is_on_floor() and down_held and not is_climbing
 	if want_crawl:
 		if not is_crawling:
 			is_crawling = true
@@ -577,7 +578,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		if wall_grab_latch <= 0.0:
 			if move_axis != 0 and sign(move_axis) != ledge_hang_dir:
 				drop = true
-			elif Input.is_key_pressed(KEY_DOWN):
+			elif is_down_just_pressed:
 				drop = true
 			
 		# Drop off: press away or down
@@ -647,7 +648,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			shake_intensity = 5.0
 
 
-func apply_snapshot(pos: Vector2, vel: Vector2, _alpha: float = 0.0) -> void:
+func apply_snapshot(pos: Vector2, vel: Vector2, _alpha: float = 0.0, _network_on_floor: bool = false) -> void:
 	# Update networked targets.
 	if not net_initialized:
 		global_position = pos
@@ -655,7 +656,12 @@ func apply_snapshot(pos: Vector2, vel: Vector2, _alpha: float = 0.0) -> void:
 	
 	net_pos = pos
 	net_vel = vel
-	# If within 4px, don't lerp at all — prevents micro-jitter
+	
+	# Explicitly sync state visually if remote!
+	_remote_on_floor = _network_on_floor
+
+func _sync_is_on_floor() -> bool:
+	return is_on_floor() if is_multiplayer_authority() else _remote_on_floor
 
 func set_carrying_artifact(carrying: bool) -> void:
 	carrying_artifact = carrying

@@ -347,14 +347,14 @@ func start_run(seed_override: int = 0, room_count: int = 15) -> void:
 	_broadcast_item_state()
 	record_public_event("run_started", -1, -1, {"seed": run_seed})
 
-func send_client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO) -> void:
+func send_client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO, pack_flags: int = 0) -> void:
 	var mp := _mp()
 	if mp == null:
 		return
 	if is_host:
-		input_by_peer[mp.get_unique_id()] = {"move": move_axis, "jump": jump_pressed, "seq": seq, "pos": pos}
+		input_by_peer[mp.get_unique_id()] = {"move": move_axis, "jump": jump_pressed, "seq": seq, "pos": pos, "flags": pack_flags}
 		return
-	client_input.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, move_axis, jump_pressed, seq, pos)
+	client_input.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, move_axis, jump_pressed, seq, pos, pack_flags)
 
 func consume_peer_input(peer_id: int) -> Dictionary:
 	if not input_by_peer.has(peer_id):
@@ -501,14 +501,14 @@ func host_start_run(seed_value: int, room_chain: Array, peer_ids: Array) -> void
 	emit_signal("run_started", seed_value, room_chain)
 
 @rpc("any_peer", "unreliable_ordered")
-func client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO) -> void:
+func client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO, pack_flags: int = 0) -> void:
 	if not is_host:
 		return
 	var mp := _mp()
 	if mp == null:
 		return
 	var sender := mp.get_remote_sender_id()
-	input_by_peer[sender] = {"move": move_axis, "jump": jump_pressed, "seq": seq, "pos": pos}
+	input_by_peer[sender] = {"move": move_axis, "jump": jump_pressed, "seq": seq, "pos": pos, "flags": pack_flags}
 
 
 @rpc("authority", "call_local", "unreliable_ordered")

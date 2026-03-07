@@ -312,7 +312,8 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 					if client_pos != Vector2.ZERO:
 						# Estimate velocity so animations play correctly on host screen.
 						var est_vel = (client_pos - actor.global_position) / max(delta, 0.001)
-						actor.apply_snapshot(client_pos, est_vel)
+						var r_flags = int(input_pack.get("flags", 0))
+						actor.apply_snapshot(client_pos, est_vel, 0.0, bool(r_flags & 1))
 			var room_slot := _room_slot_for_position(actor.global_position)
 			NetworkManager.update_authoritative_player_state(peer_id, actor.global_position, room_slot)
 			if NetworkManager.has_method("track_noise_trace") and actor.has_method("is_carrying_artifact"):
@@ -322,11 +323,13 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 			var snapshot := {}
 			for peer_id in players.keys():
 				var actor = players[peer_id]
-				snapshot[str(peer_id)] = {"p": actor.global_position, "v": actor.velocity}
+				var is_floor = actor.is_on_floor() if peer_id == local_id else actor._remote_on_floor
+				snapshot[str(peer_id)] = {"p": actor.global_position, "v": actor.velocity, "f": is_floor}
 			NetworkManager.broadcast_state(snapshot, tick_counter)
 	elif not NetworkManager.is_host and not run_ended:
 		var send_pos : Vector2 = players[local_id].global_position if players.has(local_id) else Vector2.ZERO
-		NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos)
+		var floor_flags : int = 1 if (players.has(local_id) and players[local_id].is_on_floor()) else 0
+		NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos, floor_flags)
 		if players.has(local_id):
 			players[local_id].simulate_step(move_axis, jump_pressed, delta)
 
@@ -466,8 +469,7 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 			# Fully trust local simulation. No server-reconciliation snapping. Completely eliminates rubberbanding.
 			continue
 			
-
-		actor.apply_snapshot(state.get("p", actor.global_position), state.get("v", actor.velocity), 0.25)
+		actor.apply_snapshot(state.get("p", actor.global_position), state.get("v", actor.velocity), 0.25, state.get("f", false))
 
 func _on_evidence_state_changed(evidence_by_id: Dictionary) -> void:
 	_sync_evidence_nodes(evidence_by_id)
