@@ -17,6 +17,47 @@ func build_from_chain(room_chain: Array) -> void:
 	indicator_by_slot.clear()
 	indicator_time_left_by_slot.clear()
 
+	# Global Background
+	var global_bg := Polygon2D.new()
+	global_bg.color = Color(0.12, 0.08, 0.08) # Cohesive dark cave background
+	global_bg.polygon = PackedVector2Array([
+		Vector2(0, 0), Vector2(5.0 * ROOM_WIDTH, 0),
+		Vector2(5.0 * ROOM_WIDTH, 3.0 * ROOM_HEIGHT), Vector2(0, 3.0 * ROOM_HEIGHT)
+	])
+	add_child(global_bg)
+
+	# Global Cave Generation (65x45 tiles)
+	var g_cells_w = int(5.0 * ROOM_WIDTH / T_SIZE)
+	var g_cells_h = int(3.0 * ROOM_HEIGHT / T_SIZE)
+	var grid := []
+	var shared_seed = int((room_chain[0].get("slot", 0) + 1) * 12345)
+
+	var noise := FastNoiseLite.new()
+	noise.seed = shared_seed
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.frequency = 0.09
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 3
+
+	for x in range(g_cells_w):
+		var col := []
+		for y in range(g_cells_h):
+			var n_val = noise.get_noise_2d(float(x), float(y))
+			var is_wall = n_val > -0.1
+			
+			if x % 13 > 4 and x % 13 < 8:
+				if y % 15 < 4 or y % 15 > 13: # Widen the drop shafts slightly
+					is_wall = false
+					
+			if y % 15 > 10 and y % 15 < 14: # Tunneling near floor
+				if x % 13 < 4 or x % 13 > 9:
+					is_wall = false
+
+			if x == 0 or x == g_cells_w - 1: is_wall = true
+			if y == 0 or y == g_cells_h - 1: is_wall = true
+			col.append(is_wall)
+		grid.append(col)
+
 	for room in room_chain:
 		var slot := int(room.get("slot", 0))
 		var grid_x := slot % 5
@@ -28,72 +69,34 @@ func build_from_chain(room_chain: Array) -> void:
 
 		var base_color = _color_for_type(str(room.get("type", "traversal")))
 		
-		var bg := Polygon2D.new()
-		bg.color = base_color.darkened(0.5)
-		bg.polygon = PackedVector2Array([
+		# Subtle chunk tint
+		var bg_tint := Polygon2D.new()
+		bg_tint.color = Color(base_color, 0.05)
+		bg_tint.polygon = PackedVector2Array([
 			Vector2(0, 0), Vector2(ROOM_WIDTH, 0),
 			Vector2(ROOM_WIDTH, ROOM_HEIGHT), Vector2(0, ROOM_HEIGHT)
 		])
-		room_node.add_child(bg)
+		room_node.add_child(bg_tint)
 
-		var p_seed: int = slot * 7919 + 12345
-		var cells_w := int(ROOM_WIDTH / T_SIZE)
-		var cells_h := int(ROOM_HEIGHT / T_SIZE)
-		
-		var grid := []
-		for x in range(cells_w):
-			var col := []
-			for y in range(cells_h):
-				var is_wall = (p_seed + x * 13 + y * 71) % 100 < 48
-				if grid_x == 0 and x == 0: is_wall = true
-				if grid_x == 4 and x == cells_w - 1: is_wall = true
-				if grid_y == 0 and y == 0: is_wall = true
-				if grid_y == 2 and y == cells_h - 1: is_wall = true
-				col.append(is_wall)
-			grid.append(col)
-			
-		for iter in range(4):
-			var next_grid := []
-			for x in range(cells_w):
-				var next_col := []
-				for y in range(cells_h):
-					var neighbors = 0
-					for dx in [-1, 0, 1]:
-						for dy in [-1, 0, 1]:
-							if dx == 0 and dy == 0: continue
-							var nx = x + dx
-							var ny = y + dy
-							if nx < 0 or ny < 0 or nx >= cells_w or ny >= cells_h:
-								neighbors += 1
-							elif grid[nx][ny]:
-								neighbors += 1
-					
-					var wall = grid[x][y]
-					if neighbors > 4: wall = true
-					elif neighbors < 4: wall = false
-					
-					if x > 4 and x < 8:
-						if y < 3 or y > cells_h - 4:
-							wall = false
-					
-					if grid_y == 2 and y == cells_h - 1: wall = true
-					if grid_x == 0 and x == 0: wall = true
-					if grid_x == 4 and x == cells_w - 1: wall = true
-					next_col.append(wall)
-				next_grid.append(next_col)
-			grid = next_grid
+		var room_w_cells = int(ROOM_WIDTH / T_SIZE)
+		var room_h_cells = int(ROOM_HEIGHT / T_SIZE)
+		var start_x = grid_x * room_w_cells
+		var start_y = grid_y * room_h_cells
 
-		for x in range(cells_w):
-			for y in range(cells_h):
-				if grid[x][y]:
-					_add_solid_box(room_node, base_color.darkened(0.2), x * T_SIZE, y * T_SIZE, T_SIZE, T_SIZE)
+		for local_x in range(room_w_cells):
+			for local_y in range(room_h_cells):
+				if grid[start_x + local_x][start_y + local_y]:
+					_add_solid_box(room_node, Color(0.22, 0.18, 0.16), local_x * T_SIZE, local_y * T_SIZE, T_SIZE, T_SIZE)
 
 		if str(room.get("hazard", "")) == "spikes":
-			var gap_spikes_x = 80.0 + float((p_seed * 31) % int(ROOM_WIDTH - 200.0))
-			if grid_y < 2:
-				_add_spikes(room_node, gap_spikes_x, ROOM_HEIGHT - 32.0, 120.0)
-			else:
-				_add_spikes(room_node, gap_spikes_x, ROOM_HEIGHT - T_SIZE - 8.0, 120.0)
+			var gap_spikes_x = 80.0 + float(((slot * 7919 + 12345) * 31) % int(ROOM_WIDTH - 200.0))
+			var spike_y = ROOM_HEIGHT - T_SIZE - 8.0
+			# place on highest lower ground
+			for local_y in range(room_h_cells - 2, room_h_cells / 2, -1):
+				if grid[start_x + int(gap_spikes_x / T_SIZE)][start_y + local_y]:
+					spike_y = local_y * T_SIZE - 8.0
+					break
+			_add_spikes(room_node, gap_spikes_x, spike_y, 120.0)
 
 		var label := Label.new()
 		label.position = Vector2(14, 14)

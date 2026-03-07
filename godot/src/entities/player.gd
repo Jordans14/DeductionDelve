@@ -27,7 +27,7 @@ var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var was_jump_pressed := false
 var has_double_jumped := false
-var whip_poly: Polygon2D
+var whip_visual: Line2D
 var whip_timer := 0.0
 
 var health: int = 3
@@ -138,12 +138,19 @@ func _ready() -> void:
 	dust.position = Vector2(0, 19)
 	add_child(dust)
 
-	whip_poly = Polygon2D.new()
-	whip_poly.color = Color(0.8, 0.4, 0.1)
-	whip_poly.polygon = PackedVector2Array([Vector2(0, -4), Vector2(50, -2), Vector2(50, 2), Vector2(0, 4)])
-	whip_poly.visible = false
-	whip_poly.position = Vector2(0, 4)
-	visual_root.add_child(whip_poly)
+	whip_visual = Line2D.new()
+	whip_visual.default_color = Color(0.55, 0.27, 0.07)
+	whip_visual.width = 4.5
+	whip_visual.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	whip_visual.end_cap_mode = Line2D.LINE_CAP_ROUND
+	whip_visual.add_point(Vector2(0, 0))
+	whip_visual.add_point(Vector2(20, -18))
+	whip_visual.add_point(Vector2(45, -22))
+	whip_visual.add_point(Vector2(70, -5))
+	whip_visual.add_point(Vector2(85, 15))
+	whip_visual.visible = false
+	whip_visual.position = Vector2(0, 4)
+	visual_root.add_child(whip_visual)
 
 func _on_hazard_entered(area: Area2D) -> void:
 	if dead: return
@@ -209,15 +216,15 @@ func _process(delta: float) -> void:
 		
 	if whip_timer > 0.0:
 		whip_timer -= delta
-		whip_poly.visible = true
+		whip_visual.visible = true
 		var dir = 1.0 if eyes.position.x >= 0 else -1.0
-		whip_poly.scale.x = dir
+		whip_visual.scale.x = dir
 		if whip_timer > 0.2:
-			whip_poly.rotation = lerp_angle(whip_poly.rotation, -PI/2 * dir, 30.0 * delta)
+			whip_visual.rotation = lerp_angle(whip_visual.rotation, -PI/2 * dir, 30.0 * delta)
 		else:
-			whip_poly.rotation = lerp_angle(whip_poly.rotation, PI/8 * dir, 50.0 * delta)
+			whip_visual.rotation = lerp_angle(whip_visual.rotation, PI/12 * dir, 50.0 * delta)
 	else:
-		whip_poly.visible = false
+		whip_visual.visible = false
 		
 	shadow.color.a = clampf(0.4 - (abs(velocity.y) / JUMP_VELOCITY) * 0.4, 0.0, 0.4)
 	
@@ -278,9 +285,9 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
 	var is_grabbing_wall = false
-	if is_on_wall() and velocity.y > 0 and move_axis != 0:
+	if is_on_wall() and velocity.y > 0 and move_axis != 0 and whip_timer > 0.0:
 		is_grabbing_wall = true
-		velocity.y = min(velocity.y, 40.0) # Wall slide
+		velocity.y = min(velocity.y, 40.0) # Wall slide with whip
 		has_double_jumped = false
 
 	if jump_buffer_timer > 0.0:
