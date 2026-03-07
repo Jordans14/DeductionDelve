@@ -9,14 +9,14 @@ var flash_timer := 0.0
 func rpc_explode(pos: Vector2) -> void:
 	var rb = get_node_or_null("/root/Game/Rooms")
 	if rb and rb.has_method("carve_hole"):
-		rb.carve_hole(pos, 60.0) # approx 2 tiles radius
-	
+		rb.carve_hole(pos, 130.0) # ~4 tile radius — destroys a big traversal hole
+
 	# Blast physics / Damage
 	var parent = get_parent()
 	if parent:
 		var blast = Polygon2D.new()
 		blast.color = Color(1.0, 0.5, 0.1, 0.8)
-		blast.polygon = _build_circle(60)
+		blast.polygon = _build_circle(100)
 		blast.position = pos
 		parent.add_child(blast)
 		var tween = blast.create_tween()

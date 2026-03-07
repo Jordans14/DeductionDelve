@@ -402,56 +402,54 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		var cw = is_on_floor()
 		move_and_slide()
 		return
-
-	# Climbing Logic
+	# ─── Climbing the rope ───────────────────────────────────────────────────
 	var overlapping_rope = false
-	var rope_x = 0.0
+	var rope_x_pos = 0.0
 	for area in hazard_detector.get_overlapping_areas():
 		if area.collision_layer == 8:
 			overlapping_rope = true
-			rope_x = area.global_position.x
+			rope_x_pos = area.global_position.x
 			break
-			
 	if is_climbing and not overlapping_rope:
 		is_climbing = false
-		
 	if overlapping_rope and not is_climbing and Input.is_key_pressed(KEY_UP):
 		is_climbing = true
-		climb_x = rope_x
+		climb_x = rope_x_pos
 		velocity = Vector2.ZERO
-		
 	if is_climbing:
 		global_position.x = lerpf(global_position.x, climb_x, 20.0 * delta)
 		if jump_pressed and not was_jump_pressed:
 			is_climbing = false
 			velocity.y = JUMP_VELOCITY
 		else:
-			var vert_move = 0.0
+			var vert_move: float = 0.0
 			if Input.is_key_pressed(KEY_UP): vert_move = -1.0
 			elif Input.is_key_pressed(KEY_DOWN): vert_move = 1.0
 			velocity.y = vert_move * MOVE_SPEED * 0.8
-			velocity.x = 0
+			velocity.x = 0.0
 			move_and_slide()
 			was_jump_pressed = jump_pressed
 			return
 
+	# ─── Coyote / jump buffer ─────────────────────────────────────────────────
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
 		has_double_jumped = false
 	else:
 		coyote_timer -= delta
-		
+
 	if jump_pressed and not was_jump_pressed:
 		jump_buffer_timer = JUMP_BUFFER_TIME
 	else:
 		jump_buffer_timer -= delta
-		
-	var just_released_jump = not jump_pressed and was_jump_pressed
+
+	var just_released_jump: bool = not jump_pressed and was_jump_pressed
 	was_jump_pressed = jump_pressed
 
-	# Crawl
+	# ─── Crawl (Duck) ────────────────────────────────────────────────────────
 	var col_shape_node = get_node_or_null("CollisionShape2D")
-	if is_on_floor() and Input.is_key_pressed(KEY_DOWN) and not is_climbing:
+	var want_crawl: bool = is_on_floor() and Input.is_key_pressed(KEY_DOWN) and not is_climbing
+	if want_crawl:
 		if not is_crawling:
 			is_crawling = true
 			if col_shape_node and col_shape_node.shape is RectangleShape2D:
@@ -460,16 +458,67 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 				col_shape_node.position.y = 9.5
 	else:
 		if is_crawling:
-			var space = get_world_2d().direct_space_state
-			var head_check = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, 9), global_position + Vector2(0, -9))
-			head_check.collision_mask = 1
-			if not space.intersect_ray(head_check):
+			# Only un-duck if there's head clearance above
+			var space2 = get_world_2d().direct_space_state
+			var hq = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, 9), global_position + Vector2(0, -28))
+			hq.collision_mask = 1
+			if not space2.intersect_ray(hq):
 				is_crawling = false
 				if col_shape_node and col_shape_node.shape is RectangleShape2D:
 					col_shape_node.shape = col_shape_node.shape.duplicate()
 					col_shape_node.shape.size.y = 38
 					col_shape_node.position.y = 0
 
+	# ─── Crawl-over-ledge → hang (Spelunky) ──────────────────────────────────
+	# While crawling and moving toward a ledge on the floor, the player should
+	# transition to ledge-hang instead of just dropping off.
+	if is_crawling and is_on_floor() and move_axis != 0 and not is_ledge_hanging:
+		var ledge_space = get_world_2d().direct_space_state
+		var check_dir: float = sign(move_axis)
+		# Floor check ahead: if the ground disappears in front of us, it's a ledge
+		var floor_ahead = PhysicsRayQueryParameters2D.create(
+			global_position + Vector2(check_dir * 18, 0),
+			global_position + Vector2(check_dir * 18, 20)
+		)
+		floor_ahead.collision_mask = 1
+		var floor_hit = ledge_space.intersect_ray(floor_ahead)
+		if not floor_hit:
+			is_ledge_hanging = true
+			ledge_hang_dir = check_dir
+			is_crawling = false
+			# Restore collider immediately
+			if col_shape_node and col_shape_node.shape is RectangleShape2D:
+				col_shape_node.shape = col_shape_node.shape.duplicate()
+				col_shape_node.shape.size.y = 38
+				col_shape_node.position.y = 0
+			# Snap player to ledge lip
+			global_position.x += check_dir * 14.0
+			velocity = Vector2.ZERO
+
+	# ─── Gap-running (Spelunky: glide over 1-tile gaps at speed) ─────────────
+	# While running fast and floor disappears for < 1 tile ahead, don't fall.
+	var is_fast_running: bool = absf(velocity.x) > MOVE_SPEED * 0.65 and is_on_floor()
+	var sprint_bridge: bool = false
+	if is_fast_running:
+		var space3 = get_world_2d().direct_space_state
+		var gap_dir: float = sign(velocity.x)
+		# Check floor 1 tile ahead
+		var gap_q = PhysicsRayQueryParameters2D.create(
+			global_position + Vector2(gap_dir * 20, 0),
+			global_position + Vector2(gap_dir * 20, 28)
+		)
+		gap_q.collision_mask = 1
+		if not space3.intersect_ray(gap_q):
+			# Check floor 2 tiles ahead — if there IS ground there, it's ≤2-tile gap
+			var land_q = PhysicsRayQueryParameters2D.create(
+				global_position + Vector2(gap_dir * 56, 0),
+				global_position + Vector2(gap_dir * 56, 28)
+			)
+			land_q.collision_mask = 1
+			if space3.intersect_ray(land_q):
+				sprint_bridge = true
+
+	# ─── Speed / acceleration ─────────────────────────────────────────────────
 	var spd_multiplier: float = 0.3 if is_crawling else 1.0
 	var move_target: float = move_axis * MOVE_SPEED * spd_multiplier
 	if absf(move_target) > 0.01:
@@ -477,51 +526,63 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
-	# Ledge Grab
-	if not is_on_floor() and velocity.y > 0 and not is_ledge_hanging and not is_crawling and not is_climbing:
-		var space = get_world_2d().direct_space_state
-		var look_dir = sign(eyes.position.x)
+	# ─── Ledge Grab (falling toward a ledge) ─────────────────────────────────
+	if not is_on_floor() and velocity.y > 50 and not is_ledge_hanging and not is_crawling and not is_climbing:
+		var lspace = get_world_2d().direct_space_state
+		var look_dir: float = sign(move_axis) if move_axis != 0 else sign(eyes.position.x)
 		if look_dir == 0: look_dir = 1.0
-		if move_axis != 0: look_dir = sign(move_axis)
-		# Upper Ray (chest), Lower Ray (feet)
-		var top_q = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, -10), global_position + Vector2(look_dir * 18, -10))
+		# Two horizontal rays — clear at torso, blocked at knees → ledge detected
+		var top_q = PhysicsRayQueryParameters2D.create(
+			global_position + Vector2(0, -12),
+			global_position + Vector2(look_dir * 18, -12)
+		)
 		top_q.collision_mask = 1
-		var bot_q = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, 15), global_position + Vector2(look_dir * 18, 15))
+		var bot_q = PhysicsRayQueryParameters2D.create(
+			global_position + Vector2(0, 12),
+			global_position + Vector2(look_dir * 18, 12)
+		)
 		bot_q.collision_mask = 1
-		var top_hit = space.intersect_ray(top_q)
-		var bot_hit = space.intersect_ray(bot_q)
-		if not top_hit and bot_hit:
+		if not lspace.intersect_ray(top_q) and lspace.intersect_ray(bot_q):
 			is_ledge_hanging = true
 			ledge_hang_dir = look_dir
-			velocity.y = 0
-			velocity.x = 0
+			velocity = Vector2.ZERO
 			has_double_jumped = false
 			wall_grab_latch = 0.0
-	
+
+	# ─── Ledge hang physics ───────────────────────────────────────────────────
 	if is_ledge_hanging:
-		velocity.y = 0
-		velocity.x = 0
-		var fall_off = false
-		if move_axis != 0 and sign(move_axis) != sign(ledge_hang_dir): fall_off = true
-		if Input.is_key_pressed(KEY_DOWN): fall_off = true
-		if fall_off:
+		velocity = Vector2.ZERO
+		# Drop off: press away or down
+		if (move_axis != 0 and sign(move_axis) != ledge_hang_dir) or Input.is_key_pressed(KEY_DOWN):
 			is_ledge_hanging = false
-		
-	# Wall grab latch timer
+		# Vault up: press toward ledge or jump
+		elif jump_pressed and not was_jump_pressed or \
+			 (move_axis != 0 and sign(move_axis) == ledge_hang_dir and is_on_floor()):
+			is_ledge_hanging = false # handled by jump logic below
+
+	# ─── Wall latch timer ─────────────────────────────────────────────────────
 	if wall_grab_latch > 0.0:
 		wall_grab_latch -= delta
 
-	var is_grabbing_wall = false
+	var is_grabbing_wall: bool = false
 	if is_ledge_hanging:
 		is_grabbing_wall = true
 	elif is_on_wall() and velocity.y > -50 and move_axis != 0 and wall_grab_latch > 0.0:
 		is_grabbing_wall = true
-		# "Hang" effect: very slow descent if pressing towards wall during latch
-		velocity.y = min(velocity.y, 20.0) 
+		velocity.y = min(velocity.y, 20.0)
 		has_double_jumped = false
 
+	# ─── Jump ────────────────────────────────────────────────────────────────
 	if jump_buffer_timer > 0.0:
-		if coyote_timer > 0.0:
+		if is_ledge_hanging:
+			# Vault up: pull up onto the ledge
+			is_ledge_hanging = false
+			velocity.y = JUMP_VELOCITY * 0.7
+			velocity.x = ledge_hang_dir * MOVE_SPEED * 0.5
+			jump_buffer_timer = 0.0
+			visual_root.scale = Vector2(0.7, 1.3)
+			dust.restart()
+		elif coyote_timer > 0.0:
 			velocity.y = JUMP_VELOCITY
 			jump_buffer_timer = 0.0
 			coyote_timer = 0.0
@@ -540,15 +601,17 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			has_double_jumped = true
 			visual_root.scale = Vector2(0.5, 1.5)
 			dust.restart()
-		
-	if just_released_jump and velocity.y < 0:
-		velocity.y *= 0.5 
 
-	var was_on_floor = is_on_floor()
-	if not is_grabbing_wall:
+	if just_released_jump and velocity.y < 0:
+		velocity.y *= 0.5
+
+	# ─── Gravity + move ───────────────────────────────────────────────────────
+	var was_on_floor: bool = is_on_floor()
+	var skip_gravity: bool = is_grabbing_wall or sprint_bridge or is_ledge_hanging
+	if not skip_gravity:
 		velocity.y += GRAVITY * delta
 	move_and_slide()
-	
+
 	if not was_on_floor and is_on_floor():
 		visual_root.scale = Vector2(1.3, 0.7)
 		dust.restart()
