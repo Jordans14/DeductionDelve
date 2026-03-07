@@ -140,6 +140,25 @@ func _ready() -> void:
 	if help_label:
 		help_label.text = _build_help_overlay_text()
 
+	var custom_theme = Theme.new()
+	var bg_style = StyleBoxFlat.new()
+	bg_style.bg_color = Color(0.06, 0.05, 0.08, 0.95)
+	bg_style.border_width_bottom = 2
+	bg_style.border_width_right = 2
+	bg_style.border_color = Color(0.4, 0.1, 0.4, 0.7)
+	bg_style.corner_radius_bottom_right = 8
+	bg_style.corner_radius_bottom_left = 8
+	bg_style.corner_radius_top_left = 8
+	bg_style.corner_radius_top_right = 8
+	custom_theme.set_stylebox("panel", "PanelContainer", bg_style)
+	
+	if notebook_panel:
+		notebook_panel.theme = custom_theme
+	if help_panel:
+		help_panel.theme = custom_theme
+	if end_screen:
+		end_screen.theme = custom_theme
+
 	warden_ghost = Area2D.new()
 	warden_ghost.position = Vector2(-2000, 300)
 	var col = CollisionShape2D.new()
@@ -260,7 +279,8 @@ func _spawn_players() -> void:
 		var actor = player_scene.instantiate()
 		actor.name = "Player_%d" % peer_id
 		player_root.add_child(actor)
-		actor.global_position = Vector2(80 + SPAWN_X_STEP * i, 300)
+		var spawn_slot = i % max(1, RunState.room_chain.size())
+		actor.global_position = Vector2(140.0 + float(spawn_slot * ROOM_WIDTH), -300.0)
 		if actor.has_method("configure_for_peer"):
 			actor.configure_for_peer(peer_id)
 		players[peer_id] = actor

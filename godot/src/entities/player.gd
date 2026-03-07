@@ -1,10 +1,10 @@
 extends CharacterBody2D
 
-const MOVE_SPEED := 220.0
-const ACCEL := 1400.0
+const MOVE_SPEED := 400.0
+const ACCEL := 1800.0
 const FRICTION := 1800.0
-const JUMP_VELOCITY := -430.0
-const GRAVITY := 1100.0
+const JUMP_VELOCITY := -650.0
+const GRAVITY := 1300.0
 const COYOTE_TIME := 0.1
 const JUMP_BUFFER_TIME := 0.1
 
@@ -40,7 +40,20 @@ func _ready() -> void:
 	add_child(visual_root)
 	
 	remove_child(body_poly)
+	
+	# Remodel body into character shape
+	body_poly.polygon = PackedVector2Array([
+		Vector2(-9, -12), Vector2(9, -12), Vector2(13, -2), Vector2(13, 8), 
+		Vector2(10, 16), Vector2(-10, 16), Vector2(-13, 8), Vector2(-13, -2)
+	])
 	visual_root.add_child(body_poly)
+	
+	var head = Polygon2D.new()
+	head.polygon = PackedVector2Array([
+		Vector2(-10, -26), Vector2(10, -26), Vector2(14, -18), Vector2(14, -10), 
+		Vector2(10, -2), Vector2(-10, -2), Vector2(-14, -10), Vector2(-14, -18)
+	])
+	body_poly.add_child(head)
 	
 	shadow = Polygon2D.new()
 	shadow.color = Color(0, 0, 0, 0.3)
@@ -145,6 +158,10 @@ func configure_for_peer(id_value: int) -> void:
 	var base_color = Color.from_hsv(hue, 0.75, 0.95)
 	body_poly.color = base_color
 	
+	var head = body_poly.get_child(0)
+	if head:
+		head.color = base_color.lightened(0.15)
+		
 	var limb_color = base_color.darkened(0.2)
 	hand_l.color = limb_color
 	hand_r.color = limb_color

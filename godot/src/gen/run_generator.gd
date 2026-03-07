@@ -18,7 +18,7 @@ const ROOM_VARIANTS: Array = [
 	{"id": "risk_narrow", "type": "traversal", "hazard": "push"}
 ]
 
-func generate_layout(seed_value: int, room_count: int = 8) -> Array:
+func generate_layout(seed_value: int, room_count: int = 15) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var chain: Array = []

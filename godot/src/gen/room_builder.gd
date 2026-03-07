@@ -1,7 +1,7 @@
 extends Node2D
 
 const ROOM_WIDTH := 520.0
-const ROOM_HEIGHT := 320.0
+const ROOM_HEIGHT := 800.0
 
 var indicator_by_slot: Dictionary = {}
 var indicator_time_left_by_slot: Dictionary = {}
@@ -32,33 +32,23 @@ func build_from_chain(room_chain: Array) -> void:
 			Vector2(ROOM_WIDTH, 0), Vector2(0, 0)
 		])
 		room_node.add_child(bg)
-		
-		# Grid overlay
-		var grid := Line2D.new()
-		grid.default_color = Color(1.0, 1.0, 1.0, 0.15)
-		grid.width = 2.0
-		for i in range(1, int(ROOM_WIDTH / 40)):
-			grid.add_point(Vector2(i * 40.0, -ROOM_HEIGHT))
-			grid.add_point(Vector2(i * 40.0, 0))
-			grid.add_point(Vector2((i + 1) * 40.0, -ROOM_HEIGHT))
-		room_node.add_child(grid)
 
 		# Add solid floor
 		_add_solid_box(room_node, base_color, 0, -16, ROOM_WIDTH, 16)
 		
 		# Procedural platforms
 		var p_seed = slot * 7919 + 12345
-		var platform_count = (p_seed % 4) + 2
+		var platform_count = (p_seed % 8) + 3
 		for i in range(platform_count):
-			var px = 40.0 + float((p_seed + i * 11) % int(ROOM_WIDTH - 120.0))
+			var px = 20.0 + float((p_seed + i * 11) % int(ROOM_WIDTH - 120.0))
 			var py = -80.0 - float((p_seed + i * 17) % int(ROOM_HEIGHT - 120.0))
-			var pw = 60.0 + float((p_seed + i * 23) % 80)
+			var pw = 60.0 + float((p_seed + i * 23) % 120)
 			_add_solid_box(room_node, base_color.lightened(0.2), px, py, pw, 20)
 
 		# Lethal Hazards (Spikes)
 		if str(room.get("hazard", "")) == "spikes":
 			var sx = 60.0 + float((p_seed * 31) % int(ROOM_WIDTH - 200.0))
-			_add_spikes(room_node, sx, -24, 80)
+			_add_spikes(room_node, sx, -24, 120)
 
 		var label := Label.new()
 		label.position = Vector2(14, -ROOM_HEIGHT + 24)
@@ -76,6 +66,10 @@ func build_from_chain(room_chain: Array) -> void:
 		room_node.add_child(indicator)
 		indicator_by_slot[slot] = indicator
 		indicator_time_left_by_slot[slot] = 0.0
+
+	# Add Map Boundaries
+	_add_solid_box(self, Color(0.2, 0.2, 0.2), -40, -1500, 40, 2000)
+	_add_solid_box(self, Color(0.2, 0.2, 0.2), float(room_chain.size()) * ROOM_WIDTH, -1500, 40, 2000)
 
 func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, h: float) -> void:
 	var body = StaticBody2D.new()

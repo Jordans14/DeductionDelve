@@ -14,10 +14,10 @@ signal connected_peers_changed(peers: Array)
 signal host_endpoint_changed(bind: String, port: int)
 
 const DEFAULT_PORT := 2456
-const SABOTAGE_COOLDOWN_TICKS := 180
-const RUN_TICK_LIMIT := 1800
+const SABOTAGE_COOLDOWN_TICKS := 400
+const RUN_TICK_LIMIT := 7200
 const CAMERA_JAM_MAX_WARDEN_SCORE := 84
-const EXTRACTION_WINDOW_TICKS := 180
+const EXTRACTION_WINDOW_TICKS := 600
 const NETWORK_CONFIG_SCRIPT = preload("res://src/net/network_config.gd")
 const RUN_GENERATOR_SCRIPT = preload("res://src/gen/run_generator.gd")
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
@@ -289,7 +289,7 @@ func set_local_ready(ready_flag: bool) -> void:
 		return
 	client_set_ready.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, uid, ready_flag)
 
-func start_run(seed_override: int = 0, room_count: int = 8) -> void:
+func start_run(seed_override: int = 0, room_count: int = 15) -> void:
 	var mp := _mp()
 	var connected := mp != null and mp.multiplayer_peer != null
 	_nm_log("START_RUN_REQUEST local=%d connected=%s is_host=%s peers=%s ready=%s run_active=%s seed=%d room_count=%d" % [

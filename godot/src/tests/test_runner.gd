@@ -43,16 +43,16 @@ func _init() -> void:
 
 func _test_seed_determinism(failures: Array[String]) -> void:
 	var generator := RUN_GENERATOR_SCRIPT.new()
-	var a := generator.generate_layout(424242, 8)
-	var b := generator.generate_layout(424242, 8)
+	var a := generator.generate_layout(424242, 15)
+	var b := generator.generate_layout(424242, 15)
 	if JSON.stringify(a) != JSON.stringify(b):
 		failures.append("same seed produced different room chains")
 
 func _test_room_count_bounds(failures: Array[String]) -> void:
 	var generator := RUN_GENERATOR_SCRIPT.new()
-	var chain := generator.generate_layout(99, 8)
-	if chain.size() != 8:
-		failures.append("room chain size expected 8 got %d" % chain.size())
+	var chain := generator.generate_layout(99, 15)
+	if chain.size() != 15:
+		failures.append("room chain size expected 15 got %d" % chain.size())
 
 func _test_role_secrecy_payload(failures: Array[String]) -> void:
 	var service := ROLE_SERVICE_SCRIPT.new()
@@ -75,7 +75,7 @@ func _test_artifact_signature_determinism(failures: Array[String]) -> void:
 	if sig_a != sig_b:
 		failures.append("real signature not deterministic")
 
-	var chain := RUN_GENERATOR_SCRIPT.new().generate_layout(777, 8)
+	var chain := RUN_GENERATOR_SCRIPT.new().generate_layout(777, 15)
 	var artifacts_a := evidence.spawn_for_chain(777, chain)
 	var artifacts_b := evidence.spawn_for_chain(777, chain)
 	if JSON.stringify(artifacts_a) != JSON.stringify(artifacts_b):
@@ -242,7 +242,7 @@ func _test_room_builder_indicator_visual_only(failures: Array[String]) -> void:
 
 func _test_run_end_tick_determinism(failures: Array[String]) -> void:
 	var manager = NETWORK_MANAGER_SCRIPT.new()
-	var progression: Array[int] = [100, 450, 999, 1400, 1799, 1800, 1850]
+	var progression: Array[int] = [100, 450, 999, 1400, 7199, 7200, 7250]
 	var trigger_a := -1
 	var trigger_b := -1
 	for tick in progression:
@@ -253,7 +253,7 @@ func _test_run_end_tick_determinism(failures: Array[String]) -> void:
 		if manager.should_end_run_for_tick(tick):
 			trigger_b = tick
 			break
-	if trigger_a != 1800 or trigger_b != 1800:
+	if trigger_a != 7200 or trigger_b != 7200:
 		failures.append("run end should deterministically trigger at tick limit")
 	manager.free()
 
@@ -524,7 +524,7 @@ func _test_run_report_stats_action_summary_and_hint_logic(failures: Array[String
 		"actor_peer_id": -1,
 		"event_type": "extraction_window_started",
 		"visibility": "public",
-		"meta": {"duration_ticks": 180}
+		"meta": {"duration_ticks": 600}
 	})
 	event_log.add_event({
 		"event_id": 5,
