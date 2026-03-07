@@ -120,8 +120,8 @@ func _ready() -> void:
 	if notebook_copy_button:
 		notebook_copy_button.pressed.connect(_on_copy_notes_pressed)
 	_apply_cli_args()
+	_build_rooms()   # Must happen first so spawn_points[] is populated
 	_spawn_players()
-	_build_rooms()
 	_prepare_run_state()
 	_refresh_timeline()
 	_refresh_notebook_panel()
@@ -279,10 +279,8 @@ func _spawn_players() -> void:
 		var actor = player_scene.instantiate()
 		actor.name = "Player_%d" % peer_id
 		player_root.add_child(actor)
-		var spawn_slot = int(i % max(1, RunState.room_chain.size()))
-		var gx = spawn_slot % 5
-		var gy = spawn_slot / 5
-		actor.global_position = Vector2(260.0 + float(gx) * ROOM_WIDTH, 60.0 + float(gy) * 600.0)
+		var spawn_slot = int(i % max(1, 5))
+		actor.global_position = room_builder.get_spawn_point(spawn_slot)
 		if actor.has_method("configure_for_peer"):
 			actor.configure_for_peer(peer_id)
 		players[peer_id] = actor

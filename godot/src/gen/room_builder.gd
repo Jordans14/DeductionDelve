@@ -6,6 +6,8 @@ const T_SIZE := 40.0
 
 var indicator_by_slot: Dictionary = {}
 var indicator_time_left_by_slot: Dictionary = {}
+# Filled during build_from_chain — guaranteed-open world positions for spawning
+var spawn_points: Array[Vector2] = []
 
 func _ready() -> void:
 	set_process(true)
@@ -16,17 +18,18 @@ func build_from_chain(room_chain: Array) -> void:
 		child.queue_free()
 	indicator_by_slot.clear()
 	indicator_time_left_by_slot.clear()
+	spawn_points.clear()
 
 	# Global Background
 	var global_bg := Polygon2D.new()
-	global_bg.color = Color(0.12, 0.08, 0.08) # Cohesive dark cave background
+	global_bg.color = Color(0.12, 0.08, 0.08)
 	global_bg.polygon = PackedVector2Array([
 		Vector2(0, 0), Vector2(5.0 * ROOM_WIDTH, 0),
 		Vector2(5.0 * ROOM_WIDTH, 3.0 * ROOM_HEIGHT), Vector2(0, 3.0 * ROOM_HEIGHT)
 	])
 	add_child(global_bg)
 
-	# Global Cave Generation (65x45 tiles)
+	# Global Cave Generation using FastNoiseLite
 	var g_cells_w = int(5.0 * ROOM_WIDTH / T_SIZE)
 	var g_cells_h = int(3.0 * ROOM_HEIGHT / T_SIZE)
 	var grid := []
@@ -44,34 +47,49 @@ func build_from_chain(room_chain: Array) -> void:
 		for y in range(g_cells_h):
 			var n_val = noise.get_noise_2d(float(x), float(y))
 			var is_wall = n_val > -0.1
-			
+
+			# Guaranteed vertical shafts every 13 tiles (3 tiles wide)
 			if x % 13 > 4 and x % 13 < 8:
-				if y % 15 < 4 or y % 15 > 13: # Widen the drop shafts slightly
+				if y % 15 < 5 or y % 15 > 12:
 					is_wall = false
-					
-			if y % 15 > 10 and y % 15 < 14: # Tunneling near floor
+
+			# Guaranteed horizontal tunnels every 15 tile rows (3 tiles tall)
+			if y % 15 > 10 and y % 15 < 14:
 				if x % 13 < 4 or x % 13 > 9:
 					is_wall = false
 
-			if x == 0 or x == g_cells_w - 1: is_wall = true
-			if y == 0 or y == g_cells_h - 1: is_wall = true
+			# Hard borders
+			if x == 0 or x == g_cells_w - 1:
+				is_wall = true
+			if y == 0 or y == g_cells_h - 1:
+				is_wall = true
 			col.append(is_wall)
 		grid.append(col)
+
+	# Collect safe spawn points: for each column in the guaranteed shaft zone,
+	# find the first open cell from the top and record its world position.
+	for shaft_col in range(0, 5):
+		var tile_x = shaft_col * int(ROOM_WIDTH / T_SIZE) + 6  # tile x=6 sits inside x%13∈(4,8)
+		for tile_y in range(1, g_cells_h - 1):
+			if not grid[tile_x][tile_y] and not grid[tile_x][tile_y + 1]:
+				# Found an open cell — convert to world position (relative to this node)
+				spawn_points.append(global_position + Vector2(tile_x * T_SIZE + T_SIZE * 0.5, tile_y * T_SIZE + T_SIZE * 0.5))
+				break
 
 	for room in room_chain:
 		var slot := int(room.get("slot", 0))
 		var grid_x := slot % 5
 		var grid_y := slot / 5
-		
+
 		var room_node := Node2D.new()
 		room_node.position = Vector2(float(grid_x) * ROOM_WIDTH, float(grid_y) * ROOM_HEIGHT)
 		add_child(room_node)
 
 		var base_color = _color_for_type(str(room.get("type", "traversal")))
-		
-		# Subtle chunk tint
+
+		# Subtle biome tint (very low alpha so cave feels unified)
 		var bg_tint := Polygon2D.new()
-		bg_tint.color = Color(base_color, 0.05)
+		bg_tint.color = Color(base_color.r, base_color.g, base_color.b, 0.06)
 		bg_tint.polygon = PackedVector2Array([
 			Vector2(0, 0), Vector2(ROOM_WIDTH, 0),
 			Vector2(ROOM_WIDTH, ROOM_HEIGHT), Vector2(0, ROOM_HEIGHT)
@@ -90,10 +108,10 @@ func build_from_chain(room_chain: Array) -> void:
 
 		if str(room.get("hazard", "")) == "spikes":
 			var gap_spikes_x = 80.0 + float(((slot * 7919 + 12345) * 31) % int(ROOM_WIDTH - 200.0))
+			var clamped_x = int(clampf(gap_spikes_x / T_SIZE, 0, room_w_cells - 1))
 			var spike_y = ROOM_HEIGHT - T_SIZE - 8.0
-			# place on highest lower ground
 			for local_y in range(room_h_cells - 2, room_h_cells / 2, -1):
-				if grid[start_x + int(gap_spikes_x / T_SIZE)][start_y + local_y]:
+				if grid[start_x + clamped_x][start_y + local_y]:
 					spike_y = local_y * T_SIZE - 8.0
 					break
 			_add_spikes(room_node, gap_spikes_x, spike_y, 120.0)
@@ -115,6 +133,12 @@ func build_from_chain(room_chain: Array) -> void:
 		indicator_by_slot[slot] = indicator
 		indicator_time_left_by_slot[slot] = 0.0
 
+func get_spawn_point(index: int) -> Vector2:
+	if spawn_points.is_empty():
+		# Fallback: return a reasonable position inside the node
+		return global_position + Vector2(260.0, 120.0)
+	return spawn_points[index % spawn_points.size()]
+
 func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, h: float) -> void:
 	var body = StaticBody2D.new()
 	body.position = Vector2(x, y)
@@ -124,7 +148,7 @@ func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, 
 		Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)
 	])
 	body.add_child(poly)
-	
+
 	var col = CollisionPolygon2D.new()
 	col.polygon = poly.polygon
 	body.add_child(col)
@@ -134,7 +158,7 @@ func _add_spikes(parent: Node2D, x: float, y: float, w: float) -> void:
 	var area = Area2D.new()
 	area.position = Vector2(x, y)
 	area.add_to_group("hazards")
-	
+
 	var poly = Polygon2D.new()
 	poly.color = Color(0.8, 0.1, 0.1)
 	var points := PackedVector2Array()
@@ -145,7 +169,7 @@ func _add_spikes(parent: Node2D, x: float, y: float, w: float) -> void:
 		points.append(Vector2(float(i + 1) * 10.0, 8))
 	poly.polygon = points
 	area.add_child(poly)
-	
+
 	var col = CollisionShape2D.new()
 	var rect = RectangleShape2D.new()
 	rect.size = Vector2(w, 8)
