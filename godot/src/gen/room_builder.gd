@@ -317,11 +317,11 @@ func _collect_spawn_points(grid: Array) -> void:
 			if not bool(grid[tx][ty]) and not bool(grid[tx][ty - 1]) and bool(grid[tx][ty + 1]):
 				spawn_points.append(global_position + Vector2(float(tx) * T_SIZE + T_SIZE * 0.5, float(ty) * T_SIZE + T_SIZE))
 				break
-		# Fallback if no spot found near floor: use global top
+		# Fallback if no spot found near floor: use world center
 		if spawn_points.size() <= col:
-			spawn_points.append(global_position + Vector2(float(tx) * T_SIZE + T_SIZE * 0.5, 120.0))
+			spawn_points.append(global_position + Vector2(float(tx) * T_SIZE + T_SIZE * 0.5, float(GH) * 0.5 * T_SIZE))
 	if spawn_points.is_empty():
-		spawn_points.append(global_position + Vector2(ROOM_WIDTH * 0.5, 120.0))
+		spawn_points.append(global_position + Vector2(float(GW)*0.5*T_SIZE, float(GH)*0.5*T_SIZE))
 
 # ============================================================
 # STAGE 9: ATMOSPHERIC BACKGROUND (layers + cave darkness)
@@ -556,7 +556,7 @@ func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 # PUBLIC API
 # ============================================================
 func get_spawn_point(index: int) -> Vector2:
-	if spawn_points.is_empty(): return global_position + Vector2(ROOM_WIDTH*0.5, 120.0)
+	if spawn_points.is_empty(): return global_position + Vector2(float(GW)*0.5*T_SIZE, float(GH)*0.5*T_SIZE)
 	return spawn_points[index % spawn_points.size()]
 
 func flash_hazard_indicator(room_slot: int, duration_sec: float = 0.3) -> void:
