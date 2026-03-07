@@ -449,13 +449,25 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
 		has_double_jumped = false
-		if absf(velocity.x) > MOVE_SPEED * 0.6:
-			sprint_bridge_timer = 0.12
-		else:
-			sprint_bridge_timer = 0.0
+		sprint_bridge_timer = 0.0
 	else:
 		coyote_timer -= delta
-		sprint_bridge_timer -= delta
+		
+		# Gap-running: Check once when stepping off the edge (coyote_timer just started)
+		# Trigger if moving decently fast and there's a landing spot precisely 1 gap away
+		if coyote_timer > 0.0 and absf(velocity.x) > 100.0 and sprint_bridge_timer <= 0.0:
+			var space3 = get_world_2d().direct_space_state
+			var gap_dir = sign(velocity.x)
+			var land_q = PhysicsRayQueryParameters2D.create(
+				global_position + Vector2(gap_dir * 40.0, 0),
+				global_position + Vector2(gap_dir * 40.0, 24.0)
+			)
+			land_q.collision_mask = 1
+			if space3.intersect_ray(land_q):
+				sprint_bridge_timer = 0.18
+				
+		if sprint_bridge_timer > 0.0:
+			sprint_bridge_timer -= delta
 
 	if jump_pressed and not was_jump_pressed:
 		jump_buffer_timer = JUMP_BUFFER_TIME
@@ -501,22 +513,28 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		)
 		floor_ahead.collision_mask = 1
 		if not ledge_space.intersect_ray(floor_ahead):
-			is_ledge_hanging = true
-			ledge_hang_dir = -check_dir # Once falling, we grab facing backward
-			is_crawling = false
-			wall_grab_latch = 0.3 # Prevent instantly dropping from holding KEY_DOWN
-			if col_shape_node and col_shape_node.shape is RectangleShape2D:
-				col_shape_node.shape = col_shape_node.shape.duplicate()
-				col_shape_node.shape.size.y = 38
-				col_shape_node.position.y = 0
-			# Fall around the corner: Drop perfectly so hands hit the previous floor geometric line
-			global_position.x += check_dir * 16.0
-			global_position.y += 36.0 
-			velocity = Vector2.ZERO
+			# If there's floor right below (e.g. 1-tile stair), just fall to it.
+			# Otherwise, their new 36px teleported hang position would clip the lower floor.
+			var drop_check = PhysicsRayQueryParameters2D.create(
+				global_position + Vector2(check_dir * 16, 0.0),
+				global_position + Vector2(check_dir * 16, 60.0)
+			)
+			drop_check.collision_mask = 1
+			if not ledge_space.intersect_ray(drop_check):
+				is_ledge_hanging = true
+				ledge_hang_dir = -check_dir # Once falling, we grab facing backward
+				is_crawling = false
+				wall_grab_latch = 0.4 # Prevent instantly dropping from holding KEY_DOWN
+				if col_shape_node and col_shape_node.shape is RectangleShape2D:
+					col_shape_node.shape = col_shape_node.shape.duplicate()
+					col_shape_node.shape.size.y = 38
+					col_shape_node.position.y = 0
+				# Fall around the corner: Drop perfectly so hands hit the previous floor geometric line
+				global_position.x += check_dir * 16.0
+				global_position.y += 36.0 
+				velocity = Vector2.ZERO
 
 	# ─── Gap-running (Spelunky: glide over 1-tile gaps at speed) ─────────────
-	# Replaces fragile raycasting with authentic Spelunky "Wile E. Coyote" 
-	# horizontal float. Persists exactly 0.12s when sprinting off any drop!
 	var sprint_bridge: bool = sprint_bridge_timer > 0.0 and not is_on_floor()
 	if sprint_bridge:
 		velocity.y = 0.0 # Force horizontal glide, removing residual frame-1 gravity
@@ -556,10 +574,11 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	if is_ledge_hanging:
 		velocity = Vector2.ZERO
 		var drop = false
-		if move_axis != 0 and sign(move_axis) != ledge_hang_dir:
-			drop = true
-		elif Input.is_key_pressed(KEY_DOWN) and wall_grab_latch <= 0.0:
-			drop = true
+		if wall_grab_latch <= 0.0:
+			if move_axis != 0 and sign(move_axis) != ledge_hang_dir:
+				drop = true
+			elif Input.is_key_pressed(KEY_DOWN):
+				drop = true
 			
 		# Drop off: press away or down
 		if drop:
