@@ -286,7 +286,12 @@ func _spawn_players() -> void:
 		players[peer_id] = actor
 
 func _build_rooms() -> void:
+	if RunState.room_chain.is_empty():
+		print("WARN: room_chain empty at _build_rooms — generating fallback layout")
+		var gen = RunGenerator.new()
+		RunState.room_chain = gen.generate_layout(RunState.run_seed if RunState.run_seed != 0 else randi(), 15)
 	if room_builder and room_builder.has_method("build_from_chain"):
+		print("BUILD_ROOMS chain_size=%d" % RunState.room_chain.size())
 		room_builder.build_from_chain(RunState.room_chain)
 
 func _update_authoritative_sim(delta: float, local_id: int) -> void:

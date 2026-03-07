@@ -33,6 +33,11 @@ func build_from_chain(room_chain: Array) -> void:
 	indicator_time_left_by_slot.clear()
 	spawn_points.clear()
 
+	if room_chain.is_empty():
+		push_warning("build_from_chain called with empty room_chain")
+		spawn_points.append(global_position + Vector2(512, 120))
+		return
+
 	CHUNK_W = int(ROOM_WIDTH  / T_SIZE)
 	CHUNK_H = int(ROOM_HEIGHT / T_SIZE)
 	GW      = COLS * CHUNK_W
