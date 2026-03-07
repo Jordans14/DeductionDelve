@@ -36,19 +36,37 @@ func build_from_chain(room_chain: Array) -> void:
 		# Add solid floor
 		_add_solid_box(room_node, base_color, 0, -16, ROOM_WIDTH, 16)
 		
-		# Procedural platforms
-		var p_seed = slot * 7919 + 12345
-		var platform_count = (p_seed % 8) + 3
-		for i in range(platform_count):
-			var px = 20.0 + float((p_seed + i * 11) % int(ROOM_WIDTH - 120.0))
-			var py = -80.0 - float((p_seed + i * 17) % int(ROOM_HEIGHT - 120.0))
-			var pw = 60.0 + float((p_seed + i * 23) % 120)
-			_add_solid_box(room_node, base_color.lightened(0.2), px, py, pw, 20)
+		# Procedural Cave Generation
+		var p_seed: int = slot * 7919 + 12345
+		
+		# Generate jagged cave walls scaling all the way down
+		for i in range(12):
+			var wy = -int(ROOM_HEIGHT) + i * 80.0
+			var wxl = 20.0 + float((p_seed + i * 3) % 60)
+			_add_solid_box(room_node, base_color.darkened(0.3), 0, wy, wxl, 85)
+			
+			var wxr = float(ROOM_WIDTH) - 20.0 - float((p_seed + i * 7) % 60)
+			var w_w = float(ROOM_WIDTH) - wxr
+			_add_solid_box(room_node, base_color.darkened(0.3), wxr, wy, w_w, 85)
+
+		# Generate floors with drop-through gaps every 150px
+		for y_level in range(int(-ROOM_HEIGHT + 150), -50, 150):
+			var gap_start = 80.0 + float((p_seed + y_level * 11) % int(ROOM_WIDTH - 260.0))
+			var gap_width = 80.0 + float((p_seed + y_level * 17) % 100)
+			
+			if (p_seed + y_level) % 10 > 2: # 80% chance for a floor layer
+				_add_solid_box(room_node, base_color.lightened(0.1), 0, float(y_level), gap_start, 24)
+				_add_solid_box(room_node, base_color.lightened(0.1), gap_start + gap_width, float(y_level), float(ROOM_WIDTH) - (gap_start + gap_width), 24)
+				
+				# Occasional floating isolated block
+				if (p_seed + y_level) % 10 > 7:
+					var isolated_x = gap_start + gap_width / 2.0 - 20.0
+					_add_solid_box(room_node, base_color.lightened(0.2), isolated_x, float(y_level) - 50.0, 40, 20)
 
 		# Lethal Hazards (Spikes)
 		if str(room.get("hazard", "")) == "spikes":
-			var sx = 60.0 + float((p_seed * 31) % int(ROOM_WIDTH - 200.0))
-			_add_spikes(room_node, sx, -24, 120)
+			var gap_spikes_x = 80.0 + float((p_seed * 31) % int(ROOM_WIDTH - 200.0))
+			_add_spikes(room_node, gap_spikes_x, -24, 120)
 
 		var label := Label.new()
 		label.position = Vector2(14, -ROOM_HEIGHT + 24)

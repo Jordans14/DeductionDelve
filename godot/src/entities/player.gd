@@ -26,6 +26,7 @@ var foot_r: Polygon2D
 var coyote_timer := 0.0
 var jump_buffer_timer := 0.0
 var was_jump_pressed := false
+var has_double_jumped := false
 
 var health: int = 3
 var dead: bool = false
@@ -114,7 +115,8 @@ func _ready() -> void:
 	light = PointLight2D.new()
 	light.texture = tex
 	light.color = Color(0.9, 0.8, 0.6)
-	light.energy = 1.0
+	light.energy = 0.5
+	light.scale = Vector2(1.5, 1.5)
 	light.shadow_enabled = true
 	add_child(light)
 
@@ -232,6 +234,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
+		has_double_jumped = false
 	else:
 		coyote_timer -= delta
 		
@@ -249,12 +252,19 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
-	if jump_buffer_timer > 0.0 and coyote_timer > 0.0:
-		velocity.y = JUMP_VELOCITY
-		jump_buffer_timer = 0.0
-		coyote_timer = 0.0
-		visual_root.scale = Vector2(0.7, 1.3)
-		dust.restart()
+	if jump_buffer_timer > 0.0:
+		if coyote_timer > 0.0:
+			velocity.y = JUMP_VELOCITY
+			jump_buffer_timer = 0.0
+			coyote_timer = 0.0
+			visual_root.scale = Vector2(0.7, 1.3)
+			dust.restart()
+		elif not has_double_jumped and not is_on_floor():
+			velocity.y = JUMP_VELOCITY * 0.9
+			jump_buffer_timer = 0.0
+			has_double_jumped = true
+			visual_root.scale = Vector2(0.5, 1.5)
+			dust.restart()
 		
 	if just_released_jump and velocity.y < 0:
 		velocity.y *= 0.5 
