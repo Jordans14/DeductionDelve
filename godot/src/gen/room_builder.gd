@@ -164,7 +164,7 @@ func _carve_critical_path(grid: Array, run_seed: int) -> void:
 		var bx := rng.randi_range(6, GW - 7)
 		var by := rng.randi_range(4, GH - 5)
 		var blen := rng.randi_range(8, 22)
-		var bdir := 1 if rng.randb() else -1
+		var bdir := 1 if (rng.randi() % 2 == 0) else -1
 		for b in range(blen): _carve_circle(grid, bx + b * bdir, by, 3)
 
 func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
@@ -258,8 +258,8 @@ func _widen_narrow_passages(grid: Array) -> void:
 			if grid[x][y]:
 				continue  # only care about open cells
 			# Check if neighbors on both sides are too close
-			var left_wall := grid[x-1][y] or grid[x-2][y]
-			var right_wall := grid[x+1][y] or grid[x+2][y]
+			var left_wall = grid[x-1][y] or grid[x-2][y]
+			var right_wall = grid[x+1][y] or grid[x+2][y]
 			if left_wall and right_wall:
 				# Force 2-tile clearance on both sides
 				for dx in range(-2, 3):
@@ -267,8 +267,8 @@ func _widen_narrow_passages(grid: Array) -> void:
 					if nx > 0 and nx < GW - 1:
 						grid[nx][y] = false
 			# Vertical: check above and below
-			var top_wall := grid[x][y-1] or grid[x][y-2]
-			var bot_wall := grid[x][y+1] or grid[x][y+2]
+			var top_wall = grid[x][y-1] or grid[x][y-2]
+			var bot_wall = grid[x][y+1] or grid[x][y+2]
 			if top_wall and bot_wall:
 				for dy in range(-2, 3):
 					var ny := y + dy
