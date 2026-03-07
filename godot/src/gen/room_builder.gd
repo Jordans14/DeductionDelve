@@ -336,23 +336,37 @@ func _draw_background() -> void:
 	bg0.polygon = PackedVector2Array([Vector2(0,0), Vector2(world_w,0), Vector2(world_w,world_h), Vector2(0,world_h)])
 	add_child(bg0)
 
-	# Mid-distance suggestion: slightly lighter, offset — depth parallax feel
+	# Deep-distance suggestion: slightly lighter, offset — depth parallax feel
 	var bg1 := Polygon2D.new()
-	bg1.color = Color(0.07, 0.05, 0.08, 0.6)
+	bg1.color = Color(0.06, 0.05, 0.07, 1.0)
 	bg1.polygon = bg0.polygon.duplicate()
 	bg1.position = Vector2(1, 1) # Parallax suggestion
 	add_child(bg1)
 
-	var bg2 := Polygon2D.new()
-	bg2.color = Color(0.10, 0.07, 0.10, 0.4)
-	bg2.polygon = bg0.polygon.duplicate()
-	bg2.position = Vector2(5, 7)
-	add_child(bg2)
+	# Parallax silhouettes: suggested depth with distant giant rock arches
+	var parallax_root := Node2D.new()
+	parallax_root.name = "ParallaxBack"
+	add_child(parallax_root)
+	
+	var p_rng := RandomNumberGenerator.new(); p_rng.seed = run_seed + 12345
+	for i in range(16):
+		var px := p_rng.randf_range(0, world_w)
+		var py := p_rng.randf_range(0, world_h)
+		var pw := p_rng.randf_range(400, 1000)
+		var ph := p_rng.randf_range(300, 600)
+		var sil := Polygon2D.new()
+		sil.color = Color(0.08, 0.07, 0.10, 0.5)
+		sil.polygon = PackedVector2Array([
+			Vector2(0, 0), Vector2(pw, 0), Vector2(pw*1.3, ph), 
+			Vector2(pw*0.5, ph*1.6), Vector2(-pw*0.3, ph)
+		])
+		sil.position = Vector2(px, py)
+		sil.rotation = p_rng.randf_range(-0.5, 0.5)
+		parallax_root.add_child(sil)
 
-	# Cave darkness modulate — PointLight2D on players illuminates local area
-	# CanvasLayer nodes (the HUD) are immune to CanvasModulate
+	# Cave darkness modulate — Truly dark exploration!
 	var darkness := CanvasModulate.new()
-	darkness.color = Color(0.18, 0.14, 0.18)
+	darkness.color = Color(0.12, 0.10, 0.13)
 	add_child(darkness)
 
 # ============================================================
@@ -420,8 +434,20 @@ func _render_room_decorations(room: Dictionary, grid: Array, run_seed: int) -> v
 	tint.polygon = PackedVector2Array([Vector2(0,0), Vector2(ROOM_WIDTH,0), Vector2(ROOM_WIDTH,ROOM_HEIGHT), Vector2(0,ROOM_HEIGHT)])
 	room_node.add_child(tint)
 
+	# Bioluminescence / Glowing Flora
+	_add_bioluminescence(room_node, grid, sx, sy, amb)
+
+	# Glowing Crystals
+	_add_crystals(room_node, grid, sx, sy, amb)
+
+	# Hanging Bioluminescent Vines
+	_add_vines(room_node, grid, sx, sy, amb)
+
+	# Ambient Atmosphere: floating cave dust motes
+	_add_ambient_atmosphere(room_node)
+
 	# Stalactites / stalagmites
-	_add_formations(room_node, grid, sx, sy)
+	_add_formations(room_node, grid, sx, sy, amb)
 
 	# Hazard spikes
 	if str(room.get("hazard", "")) == "spikes":
@@ -474,12 +500,136 @@ func _add_rim(parent: Node2D, x: float, y: float, w: float, color: Color) -> voi
 	parent.add_child(shine)
 
 # ============================================================
+# BIOLUMINESCENT FLORA (The "Glow")
+# ============================================================
+func _add_bioluminescence(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = sx * 31 + sy * 53
+	# Colorful flora: Magenta, Lime-green, Cyan blue
+	var colors := [Color(0.8, 0.3, 1.0), Color(0.1, 0.9, 0.4), Color(0.0, 0.8, 1.0)]
+	var glow_col : Color = colors[rng.randi() % colors.size()]
+	
+	# Scatters cluster nodes on solid surfaces
+	for lx in range(CHUNK_W):
+		for ly in range(CHUNK_H):
+			if bool(grid[sx + lx][sy + ly]):
+				# Only grow on surfaces (exposed to air)
+				var exposed := false
+				for dx in range(-1, 2):
+					for dy in range(-1, 2):
+						var ex := sx + lx + dx; var ey := sy + ly + dy
+						if ex >= 0 and ey >= 0 and ex < GW and ey < GH:
+							if not bool(grid[ex][ey]): exposed = true; break
+				
+				if exposed and rng.randf() < 0.03:
+					var world_pos := Vector2(float(lx)*T_SIZE + T_SIZE*0.5, float(ly)*T_SIZE + T_SIZE*0.5)
+					
+					# Light node (PointLight2D for the actual aura)
+					var light := PointLight2D.new()
+					light.color = glow_col
+					light.energy = 0.8
+					light.texture = _create_radial_gradient(160)
+					light.position = world_pos
+					parent.add_child(light)
+					
+					# Flora visual (cluster of 3-5 tiny glowing dots)
+					for _j in range(rng.randi_range(3, 6)):
+						var dot := Polygon2D.new()
+						dot.color = glow_col.lightened(0.2)
+						dot.polygon = PackedVector2Array([Vector2(-2,-2), Vector2(2,-2), Vector2(2,2), Vector2(-2,2)])
+						dot.position = world_pos + Vector2(rng.randf_range(-8, 8), rng.randf_range(-8, 8))
+						parent.add_child(dot)
+
+func _add_crystals(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = sx * 13 + sy * 37
+	var crystal_cols := [Color(0.2, 0.6, 1.0), Color(1.0, 0.2, 0.6), Color(0.9, 0.9, 0.1)]
+	
+	for lx in range(CHUNK_W):
+		for ly in range(CHUNK_H):
+			if bool(grid[sx + lx][sy + ly]):
+				# Check if exposed above (on the floor)
+				if ly > 0 and not bool(grid[sx + lx][sy + ly - 1]) and rng.randf() < 0.015:
+					var world_pos := Vector2(float(lx)*T_SIZE + T_SIZE*0.5, float(ly)*T_SIZE)
+					var col := crystal_cols[rng.randi() % crystal_cols.size()]
+					
+					# Crystal shard
+					var shard := Polygon2D.new()
+					shard.color = col
+					shard.polygon = PackedVector2Array([Vector2(-4,0), Vector2(4,0), Vector2(0,-16)])
+					shard.position = world_pos
+					shard.rotation = rng.randf_range(-0.4, 0.4)
+					parent.add_child(shard)
+					
+					# Light aura
+					var clight := PointLight2D.new()
+					clight.color = col; clight.energy = 0.5
+					clight.texture = _create_radial_gradient(100)
+					clight.position = world_pos + Vector2(0, -8)
+					parent.add_child(clight)
+
+func _add_vines(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = sx * 7 + sy * 19
+	for lx in range(CHUNK_W):
+		if rng.randf() < 0.1: # 10% chance per column
+			# Find ceiling
+			for ly in range(1, CHUNK_H - 1):
+				if bool(grid[sx + lx][sy + ly]) and not bool(grid[sx + lx][sy + ly + 1]):
+					if rng.randf() < 0.2:
+						var v_len := rng.randi_range(2, 5)
+						var world_x := float(lx) * T_SIZE + T_SIZE * 0.5
+						var world_y := float(ly + 1) * T_SIZE
+						
+						var l2d := Line2D.new()
+						l2d.default_color = Color(0.1, 0.35, 0.15)
+						l2d.width = 2.0
+						l2d.antialiased = true
+						for i in range(v_len):
+							l2d.add_point(Vector2(sin(i * 0.5) * 4.0, i * 16.0))
+						l2d.position = Vector2(world_x, world_y)
+						parent.add_child(l2d)
+						
+						# Glowing tips
+						var glow := Polygon2D.new()
+						glow.color = Color(0.3, 0.9, 0.3)
+						glow.polygon = PackedVector2Array([Vector2(-3,-3), Vector2(3,-3), Vector2(3,3), Vector2(-3,3)])
+						glow.position = Vector2(world_x + sin((v_len-1) * 0.5) * 4.0, world_y + (v_len-1) * 16.0)
+						parent.add_child(glow)
+					break
+
+func _create_radial_gradient(size: int) -> GradientTexture2D:
+	var tex := GradientTexture2D.new()
+	tex.gradient = Gradient.new()
+	tex.gradient.colors = [Color.WHITE, Color(1,1,1,0)]
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.width = size; tex.height = size
+	return tex
+
+func _add_ambient_atmosphere(parent: Node2D) -> void:
+	var dust := CPUParticles2D.new()
+	dust.amount = 12
+	dust.lifetime = 6.0
+	dust.preprocess = 10.0
+	dust.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	dust.emission_rect_extents = Vector2(ROOM_WIDTH/2, ROOM_HEIGHT/2)
+	dust.position = Vector2(ROOM_WIDTH/2, ROOM_HEIGHT/2)
+	dust.gravity = Vector2(0, 2)
+	dust.direction = Vector2(1, 0.5)
+	dust.spread = 180.0
+	dust.initial_velocity_min = 5.0; dust.initial_velocity_max = 15.0
+	dust.scale_amount_min = 1.0; dust.scale_amount_max = 3.0
+	dust.color = Color(0.7, 0.8, 1.0, 0.15)
+	parent.add_child(dust)
+
+# ============================================================
 # STALACTITES & STALAGMITES (decorative only)
 # ============================================================
-func _add_formations(room_node: Node2D, grid: Array, sx: int, sy: int) -> void:
+func _add_formations(room_node: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color) -> void:
 	# Scan every-other column for ceiling and floor exposure
 	for lx in range(1, CHUNK_W - 1, 2):
-		# Stalactite: first solid from top where cell below is open
+		# Stalactite: blended with biome ambient
 		for ly in range(1, CHUNK_H - 2):
 			if grid[sx + lx][sy + ly] and not grid[sx + lx][sy + ly + 1]:
 				var h := T_SIZE * randf_range(0.6, 2.2)
@@ -487,12 +637,12 @@ func _add_formations(room_node: Node2D, grid: Array, sx: int, sy: int) -> void:
 				var cx := float(lx) * T_SIZE + T_SIZE * 0.5 + randf_range(-4, 4)
 				var cy := float(ly + 1) * T_SIZE
 				var p := Polygon2D.new()
-				p.color = Color(0.12, 0.09, 0.10, 0.88)
+				p.color = biome_amb.darkened(0.6)
 				p.polygon = PackedVector2Array([Vector2(-w, 0), Vector2(w, 0), Vector2(0, h)])
 				p.position = Vector2(cx, cy)
 				room_node.add_child(p)
 				break
-		# Stalagmite: first solid from bottom where cell above is open (30% chance)
+		# Stalagmite: blended with biome
 		for ly in range(CHUNK_H - 3, 2, -1):
 			if grid[sx + lx][sy + ly] and not grid[sx + lx][sy + ly - 1]:
 				if randf() < 0.30:
@@ -580,6 +730,21 @@ func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, 
 	var poly := Polygon2D.new(); poly.color = color
 	poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(w,0), Vector2(w,h), Vector2(0,h)])
 	body.add_child(poly)
+	
+	# Micro-noise pass: Millions of tiny simulated rock grains for surface texture
+	# We'll use 8-12 randomized "rock spots" per segment to add depth
+	var spot_rng := RandomNumberGenerator.new()
+	spot_rng.seed = int(x * 71 + y * 97)
+	var spot_count := int(clampf(w / 16.0, 4.0, 16.0))
+	for _i in range(spot_count):
+		var spot := Polygon2D.new()
+		var s_size := spot_rng.randf_range(1.0, 4.0)
+		var shade = spot_rng.randf_range(-0.15, 0.15)
+		spot.color = Color(color.r + shade, color.g + shade, color.b + shade, 0.3)
+		spot.polygon = PackedVector2Array([Vector2(0,0), Vector2(s_size,0), Vector2(s_size,s_size), Vector2(0,s_size)])
+		spot.position = Vector2(spot_rng.randf_range(0, w - s_size), spot_rng.randf_range(0, h - s_size))
+		body.add_child(spot)
+
 	var col := CollisionPolygon2D.new(); col.polygon = poly.polygon
 	body.add_child(col); parent.add_child(body)
 
