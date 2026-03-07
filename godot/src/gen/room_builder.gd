@@ -22,28 +22,54 @@ func build_from_chain(room_chain: Array) -> void:
 		room_node.position = Vector2(float(slot) * ROOM_WIDTH, 0.0)
 		add_child(room_node)
 
+		var base_color = _color_for_type(str(room.get("type", "traversal")))
+		
+		# Outline/Shadow
+		var outline := Polygon2D.new()
+		outline.color = Color(0.1, 0.1, 0.1, 0.6)
+		outline.polygon = PackedVector2Array([
+			Vector2(-4, -ROOM_HEIGHT - 4),
+			Vector2(ROOM_WIDTH - 4.0, -ROOM_HEIGHT - 4),
+			Vector2(ROOM_WIDTH - 4.0, 4),
+			Vector2(-4, 4)
+		])
+		room_node.add_child(outline)
+
+		# Main panel
 		var panel := Polygon2D.new()
-		panel.color = _color_for_type(str(room.get("type", "traversal")))
-		panel.polygon = PackedVector2Array([
+		panel.color = base_color
+		var panel_poly = PackedVector2Array([
 			Vector2(0, -ROOM_HEIGHT),
 			Vector2(ROOM_WIDTH - 8.0, -ROOM_HEIGHT),
 			Vector2(ROOM_WIDTH - 8.0, 0),
 			Vector2(0, 0)
 		])
+		panel.polygon = panel_poly
 		room_node.add_child(panel)
+		
+		# Grid overlay
+		var grid := Line2D.new()
+		grid.default_color = Color(1.0, 1.0, 1.0, 0.15)
+		grid.width = 2.0
+		for i in range(1, int(ROOM_WIDTH / 40)):
+			grid.add_point(Vector2(i * 40.0, -ROOM_HEIGHT))
+			grid.add_point(Vector2(i * 40.0, 0))
+			grid.add_point(Vector2((i + 1) * 40.0, -ROOM_HEIGHT))
+		room_node.add_child(grid)
 
 		var label := Label.new()
 		label.position = Vector2(14, -ROOM_HEIGHT + 24)
 		label.text = "%d:%s [%s]" % [slot, str(room.get("id", "?")), str(room.get("hazard", "none"))]
-		label.modulate = Color(0.1, 0.1, 0.1)
+		label.add_theme_color_override("font_color", Color(0.15, 0.15, 0.15, 0.8))
+		label.add_theme_font_size_override("font_size", 16)
 		room_node.add_child(label)
 
 		var indicator := Label.new()
 		indicator.position = Vector2(ROOM_WIDTH - 48.0, -ROOM_HEIGHT + 28.0)
 		indicator.text = "!"
 		indicator.visible = false
-		indicator.modulate = Color(0.88, 0.18, 0.20, 1.0)
-		indicator.scale = Vector2(1.35, 1.35)
+		indicator.modulate = Color(1.0, 0.18, 0.20, 1.0)
+		indicator.add_theme_font_size_override("font_size", 32)
 		room_node.add_child(indicator)
 		indicator_by_slot[slot] = indicator
 		indicator_time_left_by_slot[slot] = 0.0
