@@ -228,15 +228,16 @@ func _process(delta: float) -> void:
 		camera.offset = Vector2.ZERO
 
 	if not is_multiplayer_authority() and net_initialized:
-		# Smoothly interpolate remote players toward their target position
-		var alpha = 18.0 * delta # responsive lerp
+		# Dynamic interpolation: adjust and buffer targets for fluid network motion
 		var dist = global_position.distance_to(net_pos)
-		if dist > 350.0:
+		if dist > 400.0:
 			global_position = net_pos
 			velocity = net_vel
-		elif dist > 0.1:
-			global_position = global_position.lerp(net_pos, alpha)
-			velocity = velocity.lerp(net_vel, alpha * 0.5)
+		elif dist > 1.0:
+			var lerp_alpha = 14.0 * delta
+			# Soften the position lerp to absorb jitter
+			global_position = global_position.lerp(net_pos, lerp_alpha)
+			velocity = velocity.lerp(net_vel, lerp_alpha * 0.8)
 
 	visual_root.scale.x = lerpf(visual_root.scale.x, 1.0, 10.0 * delta)
 	visual_root.scale.y = lerpf(visual_root.scale.y, 1.0, 10.0 * delta)
