@@ -515,7 +515,7 @@ func _add_bioluminescence(parent: Node2D, grid: Array, sx: int, sy: int, biome_a
 	var rng := RandomNumberGenerator.new()
 	rng.seed = sx * 31 + sy * 53
 	# Colorful flora: Magenta, Lime-green, Cyan blue
-	var colors := [Color(0.8, 0.3, 1.0), Color(0.1, 0.9, 0.4), Color(0.0, 0.8, 1.0)]
+	var colors : Array[Color] = [Color(0.8, 0.3, 1.0), Color(0.1, 0.9, 0.4), Color(0.0, 0.8, 1.0)]
 	var glow_col : Color = colors[rng.randi() % colors.size()]
 	
 	# Scatters cluster nodes on solid surfaces
@@ -552,7 +552,7 @@ func _add_bioluminescence(parent: Node2D, grid: Array, sx: int, sy: int, biome_a
 func _add_crystals(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Color) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = sx * 13 + sy * 37
-	var crystal_cols := [Color(0.2, 0.6, 1.0), Color(1.0, 0.2, 0.6), Color(0.9, 0.9, 0.1)]
+	var crystal_cols : Array[Color] = [Color(0.2, 0.6, 1.0), Color(1.0, 0.2, 0.6), Color(0.9, 0.9, 0.1)]
 	
 	for lx in range(CHUNK_W):
 		for ly in range(CHUNK_H):
@@ -560,7 +560,7 @@ func _add_crystals(parent: Node2D, grid: Array, sx: int, sy: int, biome_amb: Col
 				# Check if exposed above (on the floor)
 				if ly > 0 and not bool(grid[sx + lx][sy + ly - 1]) and rng.randf() < 0.015:
 					var world_pos := Vector2(float(lx)*T_SIZE + T_SIZE*0.5, float(ly)*T_SIZE)
-					var col := crystal_cols[rng.randi() % crystal_cols.size()]
+					var col : Color = crystal_cols[rng.randi() % crystal_cols.size()]
 					
 					# Crystal shard
 					var shard := Polygon2D.new()
