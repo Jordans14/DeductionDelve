@@ -268,8 +268,8 @@ func _process(delta: float) -> void:
 		if dist > 400.0:
 			global_position = net_pos
 			velocity = net_vel
-		elif dist > 1.0:
-			var lerp_alpha = 14.0 * delta
+		else:
+			var lerp_alpha = min(18.0 * delta, 1.0)
 			# Soften the position lerp to absorb jitter
 			global_position = global_position.lerp(net_pos, lerp_alpha)
 			velocity = velocity.lerp(net_vel, lerp_alpha * 0.8)
@@ -504,19 +504,22 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			is_ledge_hanging = true
 			ledge_hang_dir = -check_dir # Once falling, we grab facing backward
 			is_crawling = false
+			wall_grab_latch = 0.3 # Prevent instantly dropping from holding KEY_DOWN
 			if col_shape_node and col_shape_node.shape is RectangleShape2D:
 				col_shape_node.shape = col_shape_node.shape.duplicate()
 				col_shape_node.shape.size.y = 38
 				col_shape_node.position.y = 0
-			# Fall around the corner: Drop 30px so hands perfectly interlock block top!
+			# Fall around the corner: Drop perfectly so hands hit the previous floor geometric line
 			global_position.x += check_dir * 16.0
-			global_position.y += 30.0 
+			global_position.y += 36.0 
 			velocity = Vector2.ZERO
 
 	# ─── Gap-running (Spelunky: glide over 1-tile gaps at speed) ─────────────
 	# Replaces fragile raycasting with authentic Spelunky "Wile E. Coyote" 
 	# horizontal float. Persists exactly 0.12s when sprinting off any drop!
 	var sprint_bridge: bool = sprint_bridge_timer > 0.0 and not is_on_floor()
+	if sprint_bridge:
+		velocity.y = 0.0 # Force horizontal glide, removing residual frame-1 gravity
 
 	# ─── Speed / acceleration ─────────────────────────────────────────────────
 	var spd_multiplier: float = 0.3 if is_crawling else 1.0
@@ -552,8 +555,14 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	# ─── Ledge hang physics ───────────────────────────────────────────────────
 	if is_ledge_hanging:
 		velocity = Vector2.ZERO
+		var drop = false
+		if move_axis != 0 and sign(move_axis) != ledge_hang_dir:
+			drop = true
+		elif Input.is_key_pressed(KEY_DOWN) and wall_grab_latch <= 0.0:
+			drop = true
+			
 		# Drop off: press away or down
-		if (move_axis != 0 and sign(move_axis) != ledge_hang_dir) or Input.is_key_pressed(KEY_DOWN):
+		if drop:
 			is_ledge_hanging = false
 		# Vault up: press toward ledge or jump
 		elif jump_pressed and not was_jump_pressed or \

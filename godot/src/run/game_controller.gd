@@ -310,9 +310,9 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 				if input_pack.has("pos") and typeof(input_pack["pos"]) == TYPE_VECTOR2:
 					var client_pos: Vector2 = input_pack["pos"]
 					if client_pos != Vector2.ZERO:
-						# Use apply_snapshot so _process interpolation handles smoothing.
-						# This avoids fighting CharacterBody2D physics directly.
-						actor.apply_snapshot(client_pos, actor.velocity)
+						# Estimate velocity so animations play correctly on host screen.
+						var est_vel = (client_pos - actor.global_position) / max(delta, 0.001)
+						actor.apply_snapshot(client_pos, est_vel)
 			var room_slot := _room_slot_for_position(actor.global_position)
 			NetworkManager.update_authoritative_player_state(peer_id, actor.global_position, room_slot)
 			if NetworkManager.has_method("track_noise_trace") and actor.has_method("is_carrying_artifact"):
