@@ -110,30 +110,34 @@ func _build_noise_grid(run_seed: int) -> Array:
 	var cave_noise := FastNoiseLite.new()
 	cave_noise.seed = run_seed
 	cave_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	cave_noise.frequency = 0.045
+	cave_noise.frequency = 0.04
 	cave_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	cave_noise.fractal_octaves = 4
-	cave_noise.fractal_lacunarity = 2.0
-	cave_noise.fractal_gain = 0.5
-	cave_noise.domain_warp_enabled = true
-	cave_noise.domain_warp_amplitude = 45.0
-	cave_noise.domain_warp_frequency = 0.03
-
-	var detail := FastNoiseLite.new()
-	detail.seed = run_seed + 1337
-	detail.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	detail.frequency = 0.12
-	detail.fractal_octaves = 2
+	cave_noise.fractal_octaves = 3
+	
+	var chamber_noise := FastNoiseLite.new()
+	chamber_noise.seed = run_seed + 1337
+	chamber_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	chamber_noise.frequency = 0.025
+	chamber_noise.fractal_octaves = 2
 
 	var grid := []
 	for x in range(GW):
 		var col := []
 		for y in range(GH):
-			var n1 : float = cave_noise.get_noise_2d(float(x), float(y))
-			var n2 : float = detail.get_noise_2d(float(x), float(y)) * 0.2
-			var depth_bias : float = float(y) / float(GH) * 0.15
-			# Lower check ensures we are mostly dense rock (60%+ solid)
-			var is_wall : bool = (n1 + n2) < (0.2 + depth_bias)
+			var n : float = cave_noise.get_noise_2d(float(x), float(y))
+			var nc : float = chamber_noise.get_noise_2d(float(x), float(y))
+			
+			# 0-crossing worm noise generates a deeply interconnected, sprawling maze of tunnels!
+			var is_tunnel : bool = abs(n) < 0.16
+			
+			# Secondary noise carves out large, organic cave rooms
+			var is_chamber : bool = nc > 0.35
+			
+			# Introduce a bit of organic roughness before smoothing
+			if randf() < 0.03:
+				is_tunnel = not is_tunnel
+				
+			var is_wall : bool = not (is_tunnel or is_chamber)
 			col.append(is_wall)
 		grid.append(col)
 	return grid
@@ -163,7 +167,7 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int, radius: float = 4.5) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 2.8) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
 	var cx : int = GW / 2; var cy : int = 3
