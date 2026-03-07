@@ -4,7 +4,7 @@ var type := "bomb" # "bomb" or "rope"
 var amount := 3
 var life_timer := 60.0 # despawns after 60s
 var velocity := Vector2(0, -150)
-var gravity := 600.0
+var fall_gravity := 600.0
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_collect() -> void:
@@ -36,7 +36,7 @@ func _ready() -> void:
 	monitoring = true
 
 func _physics_process(delta: float) -> void:
-	velocity.y += gravity * delta
+	velocity.y += fall_gravity * delta
 	global_position += velocity * delta
 	
 	# Basic floor stop
