@@ -163,13 +163,13 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int, radius: float = 3.6) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 4.5) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
 	var cx : int = GW / 2; var cy : int = 3
 	while cy < GH - 4:
 		var r_var := rng.randf_range(0.8, 1.4)
-		_carve_circle(grid, cx, cy, int(radius * r_var)) # Natural radius variation
+		_carve_circle(grid, cx, cy, int(radius * r_var)) # Clear wide main pathway
 		var r := rng.randf()
 		if r < 0.65:   cy += 1 # Increased vertical bias
 		elif r < 0.70: cy = max(cy - 1, 2)
@@ -204,9 +204,10 @@ func _carve_chunk_connectors(grid: Array, run_seed: int) -> void:
 			for py in range(sy - 2, sy + 3):
 				for px in range(tx - 1, tx + 2):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
-	# Horizontal passages — 3 tiles tall
+	# Horizontal passages — 3 tiles tall (Skip 50% to preserve vertical walls!)
 	for col in range(COLS - 1):
 		for row in range(ROWS):
+			if rng.randf() < 0.5: continue
 			var oy : int = rng.randi_range(CHUNK_H / 4, 3 * CHUNK_H / 4)
 			var sx2 : int = (col + 1) * CHUNK_W; var ty : int = row * CHUNK_H + oy
 			for px in range(sx2 - 2, sx2 + 3):
@@ -218,13 +219,14 @@ func _carve_chunk_connectors(grid: Array, run_seed: int) -> void:
 # ============================================================
 func _carve_pathways(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 54321
-	for _i in range(35):
+	# 8 Horizontal Worms (Wide, spanning sections)
+	for _i in range(8):
 		var cx : int = rng.randi_range(6, GW - 6)
 		var cy : int = rng.randi_range(6, GH - 6)
-		var length : int = rng.randi_range(15, 30)
-		var thickness : int = rng.randi_range(2, 4)
+		var length : int = rng.randi_range(25, 45)
+		var thickness : int = rng.randi_range(3, 5)
 		var y_drift : float = 0.0
-		var slope : float = rng.randf_range(-0.3, 0.3)
+		var slope : float = rng.randf_range(-0.4, 0.4)
 		for i in range(length):
 			var px : int = cx + i
 			if px >= GW - 1: break
@@ -236,8 +238,30 @@ func _carve_pathways(grid: Array, run_seed: int) -> void:
 						if fx > 0 and fy > 0 and fx < GW - 1 and fy < GH - 1:
 							grid[fx][fy] = false
 			y_drift += slope
+			slope += rng.randf_range(-0.15, 0.15)
+			slope = clamp(slope, -0.8, 0.8)
+
+	# 8 Vertical Worms (Ascending shafts between horizontal platforms)
+	for _i in range(8):
+		var cx : int = rng.randi_range(6, GW - 6)
+		var cy : int = rng.randi_range(GH / 2, GH - 6)
+		var length : int = rng.randi_range(20, 35)
+		var thickness : int = rng.randi_range(3, 5)
+		var x_drift : float = 0.0
+		var slope : float = rng.randf_range(-0.3, 0.3)
+		for i in range(length):
+			var py : int = cy - i
+			if py <= 1: break
+			var px : int = int(cx + x_drift)
+			for dx in range(-thickness, thickness):
+				for dy in range(-thickness, thickness):
+					if dx*dx + dy*dy <= thickness * thickness:
+						var fx : int = px + dx; var fy : int = py + dy
+						if fx > 0 and fy > 0 and fx < GW - 1 and fy < GH - 1:
+							grid[fx][fy] = false
+			x_drift += slope
 			slope += rng.randf_range(-0.1, 0.1)
-			slope = clamp(slope, -0.6, 0.6)
+			slope = clamp(slope, -0.5, 0.5)
 
 # ============================================================
 # STAGE 6: SETTLEMENT POCKETS — flat-floored meeting areas
