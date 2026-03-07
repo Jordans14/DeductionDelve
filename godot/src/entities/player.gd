@@ -213,14 +213,16 @@ func add_spelunky_item(type: String, amt: int) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_spawn_bomb(pos: Vector2, vel: Vector2) -> void:
-	var b = preload("res://src/items/bomb.gd").new()
+	var SpelunkyBombCls = load("res://src/items/bomb.gd")
+	var b = SpelunkyBombCls.new()
 	b.global_position = pos
 	b.linear_velocity = vel
 	get_parent().add_child(b)
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_spawn_rope(pos: Vector2) -> void:
-	var r = preload("res://src/items/rope.gd").new()
+	var SpelunkyRopeCls = load("res://src/items/rope.gd")
+	var r = SpelunkyRopeCls.new()
 	r.global_position = pos
 	get_parent().add_child(r)
 
@@ -468,10 +470,10 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 					col_shape_node.shape.size.y = 38
 					col_shape_node.position.y = 0
 
-	var spd_multiplier = 0.3 if is_crawling else 1.0
-	var target := move_axis * MOVE_SPEED * spd_multiplier
-	if absf(target) > 0.01:
-		velocity.x = move_toward(velocity.x, target, ACCEL * delta)
+	var spd_multiplier: float = 0.3 if is_crawling else 1.0
+	var move_target: float = move_axis * MOVE_SPEED * spd_multiplier
+	if absf(move_target) > 0.01:
+		velocity.x = move_toward(velocity.x, move_target, ACCEL * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 

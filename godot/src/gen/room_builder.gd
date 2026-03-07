@@ -737,7 +737,7 @@ func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 	parent.add_child(body)
 	
 	if randf() < 0.1: # 10% chance per platform block to spawn a loot box
-		var box = preload("res://src/items/loot_box.gd").new()
+		var box = load("res://src/items/loot_box.gd").new()
 		box.position = Vector2(x + T_SIZE/2, y - 12)
 		parent.add_child(box)
 
