@@ -172,7 +172,9 @@ func _ready() -> void:
 	whip_ray.collision_mask = 1 # World layer
 	add_child(whip_ray)
 
-	set_multiplayer_authority(int(name) if name.is_valid_int() else 1)
+	# Initialize network targets to prevent dragging to (0,0)
+	net_pos = global_position
+	net_vel = Vector2.ZERO
 
 func _on_hazard_entered(area: Area2D) -> void:
 	if dead: return
@@ -193,6 +195,7 @@ func _on_hazard_entered(area: Area2D) -> void:
 
 func configure_for_peer(id_value: int) -> void:
 	peer_id = id_value
+	set_multiplayer_authority(id_value) # CRITICAL: Ensure player controls themselves
 	name_label.text = "P%d" % id_value
 	var hue := float((id_value * 47) % 255) / 255.0
 	var base_color = Color.from_hsv(hue, 0.75, 0.95)
