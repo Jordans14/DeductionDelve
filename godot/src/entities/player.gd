@@ -51,6 +51,7 @@ var item_latch := false
 var is_crawling := false
 var is_ledge_hanging := false
 var ledge_hang_dir := 1.0
+var _spawn_seq := 0  # increments per throw; passed to RPCs for deterministic node naming
 
 func _ready() -> void:
 	visual_root = Node2D.new()
@@ -212,17 +213,19 @@ func add_spelunky_item(type: String, amt: int) -> void:
 	if type == "rope": inventory_ropes += amt
 
 @rpc("any_peer", "call_local", "reliable")
-func rpc_spawn_bomb(pos: Vector2, vel: Vector2) -> void:
+func rpc_spawn_bomb(pos: Vector2, vel: Vector2, node_name: String) -> void:
 	var SpelunkyBombCls = load("res://src/items/bomb.gd")
 	var b = SpelunkyBombCls.new()
+	b.name = node_name          # deterministic on both peers — fixes RPC routing
 	b.global_position = pos
 	b.linear_velocity = vel
 	get_parent().add_child(b)
 
 @rpc("any_peer", "call_local", "reliable")
-func rpc_spawn_rope(pos: Vector2) -> void:
+func rpc_spawn_rope(pos: Vector2, node_name: String) -> void:
 	var SpelunkyRopeCls = load("res://src/items/rope.gd")
 	var r = SpelunkyRopeCls.new()
+	r.name = node_name          # deterministic on both peers — fixes RPC routing
 	r.global_position = pos
 	get_parent().add_child(r)
 
@@ -301,13 +304,17 @@ func _process(delta: float) -> void:
 		if Input.is_key_pressed(KEY_C):
 			if not item_latch and inventory_bombs > 0:
 				inventory_bombs -= 1
-				rpc_spawn_bomb.rpc(global_position + Vector2(dir * 10, -5), velocity + Vector2(dir * 250, -250))
+				_spawn_seq += 1
+				var bname := "Bomb_p%d_s%d" % [peer_id, _spawn_seq]
+				rpc_spawn_bomb.rpc(global_position + Vector2(dir * 10, -5), velocity + Vector2(dir * 250, -250), bname)
 				item_latch = true
 		# Throw Rope
 		elif Input.is_key_pressed(KEY_V):
 			if not item_latch and inventory_ropes > 0:
 				inventory_ropes -= 1
-				rpc_spawn_rope.rpc(global_position + Vector2(dir * 12, -10))
+				_spawn_seq += 1
+				var rname := "Rope_p%d_s%d" % [peer_id, _spawn_seq]
+				rpc_spawn_rope.rpc(global_position + Vector2(dir * 12, -10), rname)
 				item_latch = true
 		else:
 			item_latch = false
