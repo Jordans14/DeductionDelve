@@ -9,7 +9,7 @@ var flash_timer := 0.0
 func rpc_explode(pos: Vector2) -> void:
 	var rb = get_node_or_null("/root/Game/Rooms")
 	if rb and rb.has_method("carve_hole"):
-		rb.carve_hole(pos, 130.0) # ~4 tile radius — destroys a big traversal hole
+		rb.carve_hole(pos, 65.0) # ~2 tile radius — destructive but not overwhelming
 
 	# Blast physics / Damage
 	var parent = get_parent()

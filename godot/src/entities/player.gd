@@ -477,53 +477,42 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 					col_shape_node.position.y = 0
 
 	# ─── Crawl-over-ledge → hang (Spelunky) ──────────────────────────────────
-	# While crawling and moving toward a ledge on the floor, the player should
-	# transition to ledge-hang instead of just dropping off.
+	# While crawling and moving toward a ledge on the floor, transition to hang.
 	if is_crawling and is_on_floor() and move_axis != 0 and not is_ledge_hanging:
 		var ledge_space = get_world_2d().direct_space_state
 		var check_dir: float = sign(move_axis)
-		# Floor check ahead: if the ground disappears in front of us, it's a ledge
+		# Cast from foot level (center + ~14px) forward and downward to detect ledge edges
 		var floor_ahead = PhysicsRayQueryParameters2D.create(
-			global_position + Vector2(check_dir * 18, 0),
-			global_position + Vector2(check_dir * 18, 20)
+			global_position + Vector2(check_dir * 16, 14.0),
+			global_position + Vector2(check_dir * 28, 28.0)
 		)
 		floor_ahead.collision_mask = 1
-		var floor_hit = ledge_space.intersect_ray(floor_ahead)
-		if not floor_hit:
+		if not ledge_space.intersect_ray(floor_ahead):
 			is_ledge_hanging = true
 			ledge_hang_dir = check_dir
 			is_crawling = false
-			# Restore collider immediately
 			if col_shape_node and col_shape_node.shape is RectangleShape2D:
 				col_shape_node.shape = col_shape_node.shape.duplicate()
 				col_shape_node.shape.size.y = 38
 				col_shape_node.position.y = 0
-			# Snap player to ledge lip
-			global_position.x += check_dir * 14.0
+			global_position.x += check_dir * 10.0
 			velocity = Vector2.ZERO
 
 	# ─── Gap-running (Spelunky: glide over 1-tile gaps at speed) ─────────────
-	# While running fast and floor disappears for < 1 tile ahead, don't fall.
-	var is_fast_running: bool = absf(velocity.x) > MOVE_SPEED * 0.65 and is_on_floor()
+	# Activates while airborne but still within coyote window (just stepped off edge),
+	# and moving fast. Suppresses gravity for a moment if ground exists just ahead.
+	var is_fast_running: bool = absf(velocity.x) > MOVE_SPEED * 0.6 and coyote_timer > 0.0
 	var sprint_bridge: bool = false
-	if is_fast_running:
+	if is_fast_running and not is_on_floor():
 		var space3 = get_world_2d().direct_space_state
 		var gap_dir: float = sign(velocity.x)
-		# Check floor 1 tile ahead
-		var gap_q = PhysicsRayQueryParameters2D.create(
-			global_position + Vector2(gap_dir * 20, 0),
-			global_position + Vector2(gap_dir * 20, 28)
+		var land_q = PhysicsRayQueryParameters2D.create(
+			global_position + Vector2(gap_dir * 64, 0),
+			global_position + Vector2(gap_dir * 64, 28)
 		)
-		gap_q.collision_mask = 1
-		if not space3.intersect_ray(gap_q):
-			# Check floor 2 tiles ahead — if there IS ground there, it's ≤2-tile gap
-			var land_q = PhysicsRayQueryParameters2D.create(
-				global_position + Vector2(gap_dir * 56, 0),
-				global_position + Vector2(gap_dir * 56, 28)
-			)
-			land_q.collision_mask = 1
-			if space3.intersect_ray(land_q):
-				sprint_bridge = true
+		land_q.collision_mask = 1
+		if space3.intersect_ray(land_q):
+			sprint_bridge = true
 
 	# ─── Speed / acceleration ─────────────────────────────────────────────────
 	var spd_multiplier: float = 0.3 if is_crawling else 1.0

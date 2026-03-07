@@ -300,16 +300,22 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 	if NetworkManager.is_host and NetworkManager.is_run_active():
 		for peer_id in players.keys():
 			var actor = players[peer_id]
-			var input_pack: Dictionary = NetworkManager.consume_peer_input(peer_id)
 			if peer_id == local_id:
-				input_pack = {"move": move_axis, "jump": jump_pressed, "seq": tick_counter}
-			actor.simulate_step(float(input_pack.get("move", 0.0)), bool(input_pack.get("jump", false)), delta)
-			
-			if peer_id != local_id and input_pack.has("pos") and typeof(input_pack["pos"]) == TYPE_VECTOR2:
-				var client_pos : Vector2 = input_pack["pos"]
-				if client_pos != Vector2.ZERO and actor.global_position.distance_to(client_pos) < 800.0:
-					actor.global_position = actor.global_position.lerp(client_pos, 0.5)
-					
+				# Host owns their own player — simulate normally
+				actor.simulate_step(move_axis, jump_pressed, delta)
+			else:
+				# Remote player on host: client is authoritative for its own position.
+				# DO NOT run simulate_step — it creates a physics conflict that causes lag.
+				var input_pack: Dictionary = NetworkManager.consume_peer_input(peer_id)
+				if input_pack.has("pos") and typeof(input_pack["pos"]) == TYPE_VECTOR2:
+					var client_pos: Vector2 = input_pack["pos"]
+					if client_pos != Vector2.ZERO:
+						var dist: float = actor.global_position.distance_to(client_pos)
+						if dist > 500.0:
+							actor.global_position = client_pos   # snap on large desync
+						else:
+							# Fast lerp — stays tightly synced without jitter
+							actor.global_position = actor.global_position.lerp(client_pos, min(18.0 * delta, 1.0))
 			var room_slot := _room_slot_for_position(actor.global_position)
 			NetworkManager.update_authoritative_player_state(peer_id, actor.global_position, room_slot)
 			if NetworkManager.has_method("track_noise_trace") and actor.has_method("is_carrying_artifact"):
