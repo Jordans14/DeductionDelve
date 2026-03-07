@@ -444,13 +444,22 @@ func _find_nearest_artifact_for_check(local_id: int, max_range: float) -> int:
 func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 	if NetworkManager.is_host:
 		return
+	var local_id := _local_peer_id()
 	for key in snapshot.keys():
 		var peer_id := int(key)
 		if not players.has(peer_id):
 			continue
 		var actor = players[peer_id]
 		var state: Dictionary = snapshot[key]
-		actor.apply_snapshot(state.get("p", actor.global_position), state.get("v", actor.velocity))
+		
+		if peer_id == local_id:
+			# Soft reconciliation: only snap if error is significant
+			var target_p : Vector2 = state.get("p", actor.global_position)
+			if actor.global_position.distance_to(target_p) > 64.0:
+				actor.global_position = target_p
+			continue
+			
+		actor.apply_snapshot(state.get("p", actor.global_position), state.get("v", actor.velocity), 0.25)
 
 func _on_evidence_state_changed(evidence_by_id: Dictionary) -> void:
 	_sync_evidence_nodes(evidence_by_id)

@@ -59,7 +59,7 @@ func build_from_chain(room_chain: Array) -> void:
 	grid = _smooth_ca(grid, 2)
 
 	# ── Stage 3: Spelunky biased critical path ─────────────
-	_carve_critical_path(grid, run_seed)
+	_carve_critical_path(grid, run_seed, 10.0) # Massive radius for guaranteed traversal
 
 	# ── Stage 4: Guaranteed chunk-boundary connectors ──────
 	_carve_chunk_connectors(grid, run_seed)
@@ -151,7 +151,7 @@ func _smooth_ca(grid: Array, passes: int) -> Array:
 # ============================================================
 # STAGE 3: SPELUNKY DRUNKARD-WALK CRITICAL PATH
 # ============================================================
-func _carve_critical_path(grid: Array, run_seed: int) -> void:
+func _carve_critical_path(grid: Array, run_seed: int, radius: float = 6.0) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed + 7777
 	var cx := GW / 2; var cy := 3
@@ -255,25 +255,25 @@ func _carve_settlement_pockets(grid: Array, run_seed: int) -> void:
 # STAGE 6b: REMOVE CHOKEPOINTS — widen any passage < 3 tiles
 # ============================================================
 func _widen_narrow_passages(grid: Array) -> void:
-	# Two passes: first horizontal, then vertical. Each pass clears 3 tiles on each side.
-	for _pass in range(2):
-		for x in range(3, GW - 3):
-			for y in range(3, GH - 3):
+	# Three passes for extreme clearance. Each pass clears 4 tiles on each side.
+	for _pass in range(3):
+		for x in range(4, GW - 4):
+			for y in range(4, GH - 4):
 				if grid[x][y]:
 					continue
-				# Horizontal bottleneck: walls within 2 tiles on both sides
-				var lw = bool(grid[x-1][y]) or bool(grid[x-2][y])
-				var rw = bool(grid[x+1][y]) or bool(grid[x+2][y])
+				# Horizontal bottleneck
+				var lw = bool(grid[x-1][y]) or bool(grid[x-2][y]) or bool(grid[x-3][y])
+				var rw = bool(grid[x+1][y]) or bool(grid[x+2][y]) or bool(grid[x+3][y])
 				if lw and rw:
-					for dx in range(-3, 4):
+					for dx in range(-4, 5):
 						var nx := x + dx
 						if nx > 0 and nx < GW - 1:
 							grid[nx][y] = false
-				# Vertical bottleneck: walls within 2 tiles above and below
-				var tw = bool(grid[x][y-1]) or bool(grid[x][y-2])
-				var bw = bool(grid[x][y+1]) or bool(grid[x][y+2])
+				# Vertical bottleneck
+				var tw = bool(grid[x][y-1]) or bool(grid[x][y-2]) or bool(grid[x][y-3])
+				var bw = bool(grid[x][y+1]) or bool(grid[x][y+2]) or bool(grid[x][y+3])
 				if tw and bw:
-					for dy in range(-3, 4):
+					for dy in range(-4, 5):
 						var ny := y + dy
 						if ny > 0 and ny < GH - 1:
 							grid[x][ny] = false
@@ -291,33 +291,40 @@ func _enforce_borders(grid: Array) -> void:
 		grid[1][y]      = true
 		grid[GW - 1][y] = true
 		grid[GW - 2][y] = true
-	# Global floor: solid base with rocky height variation
+	# Global floor: solid base significantly RAISED (higher than absolute bottom)
+	var floor_top = GH - 12 # Raised by approx 400px (12 tiles * 32px)
 	var floor_rng := RandomNumberGenerator.new()
-	floor_rng.seed = 4224 # Deterministic floor look
+	floor_rng.seed = 4224 
 	for x in range(GW):
-		# Base floor row
-		grid[x][GH - 1] = true
-		grid[x][GH - 2] = true
-		# Rocky variation: height 1 to 3
-		var h := floor_rng.randi_range(1, 4)
-		for fy in range(GH - h, GH):
+		# Solid footer
+		for fy in range(floor_top + 1, GH):
+			grid[x][fy] = true
+		# Rocky surface variation
+		var h := floor_rng.randi_range(0, 3)
+		for fy in range(floor_top - h, floor_top + 1):
 			grid[x][fy] = true
 			
-	# Ensure clearance: clear 5 rows above the maximum possible floor height (GH-4)
+	# Ensure massive clearance above the global floor
 	for x in range(2, GW - 2):
-		for cy in range(GH - 9, GH - 4):
+		for cy in range(floor_top - 12, floor_top - 3):
 			grid[x][cy] = false
 
 # ============================================================
-# STAGE 8: SPAWN POINTS
+# STAGE 8: SPAWN POINTS (Search from Floor UPWARDS)
 # ============================================================
 func _collect_spawn_points(grid: Array) -> void:
+	# Search for air gaps starting from just above the floor level
+	var floor_search_start = GH - 14
 	for col in range(COLS):
 		var tx := col * CHUNK_W + CHUNK_W / 2
-		for ty in range(1, GH - 4):
-			if not grid[tx][ty] and not grid[tx][ty + 1]:
+		for ty in range(floor_search_start, 5, -1):
+			# If we find 2 air blocks above a solid block, that's a good spawn
+			if not bool(grid[tx][ty]) and not bool(grid[tx][ty - 1]) and bool(grid[tx][ty + 1]):
 				spawn_points.append(global_position + Vector2(float(tx) * T_SIZE + T_SIZE * 0.5, float(ty) * T_SIZE + T_SIZE))
 				break
+		# Fallback if no spot found near floor: use global top
+		if spawn_points.size() <= col:
+			spawn_points.append(global_position + Vector2(float(tx) * T_SIZE + T_SIZE * 0.5, 120.0))
 	if spawn_points.is_empty():
 		spawn_points.append(global_position + Vector2(ROOM_WIDTH * 0.5, 120.0))
 
@@ -375,9 +382,9 @@ func _render_all_walls(grid: Array) -> void:
 
 func _render_wall_segment(parent: Node2D, tx: int, ty: int, length: int, grid: Array) -> void:
 	var wc := _wall_color_at(tx, ty)
-	var is_global_floor = ty >= GH - 4
+	var is_global_floor = ty >= GH - 14 # Match new raised floor level
 	if is_global_floor:
-		wc = wc.darkened(0.2).lerp(Color(0.2, 0.2, 0.25), 0.5)
+		wc = wc.darkened(0.2).lerp(Color(0.2, 0.2, 0.25), 0.55) # Dark Shale
 	
 	var world_x := float(tx) * T_SIZE
 	var world_y := float(ty) * T_SIZE
