@@ -290,6 +290,7 @@ func _process(delta: float) -> void:
 
 	visual_hang_offset = visual_hang_offset.lerp(Vector2.ZERO, 15.0 * delta)
 	visual_root.position = Vector2(visual_hang_offset.x, _base_visual_y + visual_hang_offset.y)
+	visual_root.rotation = lerp_angle(visual_root.rotation, 0.0, 15.0 * delta)
 
 	
 	if velocity.x > 10:
@@ -464,17 +465,12 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	else:
 		coyote_timer -= delta
 
-		# Gap-running: Check if exactly 1-tile gap and running fast
-		if coyote_timer > 0.0 and absf(velocity.x) > MOVE_SPEED * 0.5 and sprint_bridge_timer <= 0.0:
-			var space3 = get_world_2d().direct_space_state
-			var gap_dir = sign(velocity.x)
-			var land_q = PhysicsRayQueryParameters2D.create(
-				global_position + Vector2(gap_dir * 42.0, 0),
-				global_position + Vector2(gap_dir * 42.0, 32.0)
-			)
-			land_q.collision_mask = 1
-			if space3.intersect_ray(land_q):
-				sprint_bridge_timer = 0.15 # Just enough time to glide 1 tile purely horizontal
+		# Gap-running: Spelunky style native float. If we run off an edge quickly without jumping, we float horizontally!
+		# 0.11s float gives exactly enough time to blindly cross a 32px 1-tile gap at 420px/s (which takes ~0.08s to cross).
+		# At 0.11s they travel ~46 pixels out. It guarantees they easily cross 1-tile gaps (32px), 
+		# but guarantees they fall perfectly into the abyss for 2-tile wide gaps (64px) exactly like Spelunky! No raycasts needed!
+		if coyote_timer > 0.0 and absf(velocity.x) > MOVE_SPEED * 0.70 and sprint_bridge_timer <= 0.0:
+			sprint_bridge_timer = 0.11
 				
 		if sprint_bridge_timer > 0.0:
 			sprint_bridge_timer -= delta
@@ -542,8 +538,9 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 					col_shape_node.shape = col_shape_node.shape.duplicate()
 					col_shape_node.shape.size.y = 38
 					col_shape_node.position.y = 0
-				# Fall around the corner: Drop perfectly so hands hit the previous floor geometric line
+				# Fall around the corner: Animate a "face plant twist" perfectly down into the hang posture 
 				visual_hang_offset = Vector2(-check_dir * 16.0, -36.0)
+				visual_root.rotation = check_dir * (PI / 2.0)
 				global_position.x += check_dir * 16.0
 				global_position.y += 36.0 
 				velocity = Vector2.ZERO
