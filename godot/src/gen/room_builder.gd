@@ -64,28 +64,27 @@ func build_from_chain(room_chain: Array) -> void:
 	# ── Stage 1: Domain-warped noise grid ──────────────────
 	var grid := _build_noise_grid(run_seed)
 
-	# ── Stage 2: Smooth with cellular automata ─────────────
-	grid = _smooth_ca(grid, 2)
+	# ── Stage 2: Spelunky biased critical path ─────────────
+	_carve_critical_path(grid, run_seed, 2.8) # Tighter narrative tunnels
 
-	# ── Stage 3: Spelunky biased critical path ─────────────
-	_carve_critical_path(grid, run_seed, 4.5) # Narrative tight tunnels
-
-	# ── Stage 4: Guaranteed chunk-boundary connectors ──────
+	# ── Stage 3: Guaranteed chunk-boundary connectors ──────
 	_carve_chunk_connectors(grid, run_seed)
 
-	# ── Stage 5: Open chambers per chunk ──────────────────
-	_carve_chambers(grid, run_seed)
+	# ── Stage 4: Winding horizontal pathways ──────────────
+	_carve_pathways(grid, run_seed)
+
+	# ── Stage 5: Smooth with cellular automata ─────────────
+	# Smoothing AFTER carving makes tunnels look naturally eroded!
+	grid = _smooth_ca(grid, 3)
 
 	# ── Stage 6: Settlement pockets — flat-floored rooms ───
+	# Carved strictly AFTER smoothing so they keep their hard angles
 	_carve_settlement_pockets(grid, run_seed)
 
-	# ── Stage 6b: Remove chokepoints — any passage < 3 tiles wide ──
-	_widen_narrow_passages(grid)
-
-	# ── Stage 6c: Cleanup floating rock fragments ──────────
+	# ── Stage 7: Cleanup floating rock fragments ──────────
 	_cleanup_floating_islands(grid)
 
-	# ── Stage 7: Enforce hard borders + global floor ───────
+	# ── Stage 8: Enforce hard borders + global floor ───────
 	_enforce_borders(grid)
 
 	# ── Stage 8: Collect spawn points ─────────────────────
@@ -133,8 +132,8 @@ func _build_noise_grid(run_seed: int) -> Array:
 			var n1 : float = cave_noise.get_noise_2d(float(x), float(y))
 			var n2 : float = detail.get_noise_2d(float(x), float(y)) * 0.2
 			var depth_bias : float = float(y) / float(GH) * 0.15
-			# Higher threshold (0.4) ensures very thick, solid rock walls
-			var is_wall : bool = (n1 + n2) > (0.4 + depth_bias)
+			# Lower check ensures we are mostly dense rock (60%+ solid)
+			var is_wall : bool = (n1 + n2) < (0.2 + depth_bias)
 			col.append(is_wall)
 		grid.append(col)
 	return grid
@@ -197,40 +196,48 @@ func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
 # ============================================================
 func _carve_chunk_connectors(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 99
-	# Vertical passages — 5 tiles wide
+	# Vertical passages — 3 tiles wide
 	for col in range(COLS):
 		for row in range(ROWS - 1):
 			var ox : int = rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
 			var tx : int = col * CHUNK_W + ox; var sy : int = (row + 1) * CHUNK_H
-			for py in range(sy - 3, sy + 4):
-				for px in range(tx - 2, tx + 3):
+			for py in range(sy - 2, sy + 3):
+				for px in range(tx - 1, tx + 2):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
-	# Horizontal passages — 5 tiles tall
+	# Horizontal passages — 3 tiles tall
 	for col in range(COLS - 1):
 		for row in range(ROWS):
 			var oy : int = rng.randi_range(CHUNK_H / 4, 3 * CHUNK_H / 4)
 			var sx2 : int = (col + 1) * CHUNK_W; var ty : int = row * CHUNK_H + oy
-			for px in range(sx2 - 3, sx2 + 4):
-				for py in range(ty - 2, ty + 3):
+			for px in range(sx2 - 2, sx2 + 3):
+				for py in range(ty - 1, ty + 2):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
 
 # ============================================================
-# STAGE 5: OPEN CHAMBERS
+# STAGE 4b: WINDING PATHWAYS (Replaces huge chambers)
 # ============================================================
-func _carve_chambers(grid: Array, run_seed: int) -> void:
+func _carve_pathways(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 54321
-	for col in range(COLS):
-		for row in range(ROWS):
-			if rng.randf() > 0.5: continue # 50% fewer chambers for less 'openness'
-			var cx := col * CHUNK_W + rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
-			var cy := row * CHUNK_H + rng.randi_range(CHUNK_H / 3, 2 * CHUNK_H / 3)
-			var rx := rng.randi_range(5, CHUNK_W / 3)
-			var ry := rng.randi_range(3, CHUNK_H / 3)
-			for dx in range(-rx, rx + 1):
-				for dy in range(-ry, ry + 1):
-					if float(dx*dx)/float(rx*rx) + float(dy*dy)/float(ry*ry) <= 1.0:
-						var nx := cx + dx; var ny := cy + dy
-						if nx > 0 and ny > 0 and nx < GW - 1 and ny < GH - 1: grid[nx][ny] = false
+	for _i in range(35):
+		var cx : int = rng.randi_range(6, GW - 6)
+		var cy : int = rng.randi_range(6, GH - 6)
+		var length : int = rng.randi_range(15, 30)
+		var thickness : int = rng.randi_range(2, 4)
+		var y_drift : float = 0.0
+		var slope : float = rng.randf_range(-0.3, 0.3)
+		for i in range(length):
+			var px : int = cx + i
+			if px >= GW - 1: break
+			var py : int = int(cy + y_drift)
+			for dx in range(-thickness, thickness):
+				for dy in range(-thickness, thickness):
+					if dx*dx + dy*dy <= thickness * thickness:
+						var fx : int = px + dx; var fy : int = py + dy
+						if fx > 0 and fy > 0 and fx < GW - 1 and fy < GH - 1:
+							grid[fx][fy] = false
+			y_drift += slope
+			slope += rng.randf_range(-0.1, 0.1)
+			slope = clamp(slope, -0.6, 0.6)
 
 # ============================================================
 # STAGE 6: SETTLEMENT POCKETS — flat-floored meeting areas
@@ -265,29 +272,6 @@ func _carve_settlement_pockets(grid: Array, run_seed: int) -> void:
 					var tx := px0 + lx; var ty := py0
 					if tx > 0 and tx < GW - 1 and ty > 0:
 						grid[tx][ty] = true
-
-# ============================================================
-# STAGE 6b: REMOVE CHOKEPOINTS — widen any passage < 3 tiles
-# ============================================================
-func _widen_narrow_passages(grid: Array) -> void:
-	# Subtle widening: 3 tiles wide for actual cave paths
-	for _pass in range(2):
-		for x in range(3, GW - 3):
-			for y in range(3, GH - 3):
-				if grid[x][y]: continue
-				var lw : bool = bool(grid[x-1][y]) or bool(grid[x-2][y])
-				var rw : bool = bool(grid[x+1][y]) or bool(grid[x+2][y])
-				if lw and rw:
-					for dx in range(-2, 3):
-						var nx : int = x + dx
-						if nx > 0 and nx < GW - 1: grid[nx][y] = false
-				var tw : bool = bool(grid[x][y-1]) or bool(grid[x][y-2])
-				var bw : bool = bool(grid[x][y+1]) or bool(grid[x][y+2])
-				if tw and bw:
-					for dy in range(-2, 3):
-						var ny : int = y + dy
-						if ny > 0 and ny < GH - 1: grid[x][ny] = false
-
 
 
 func _cleanup_floating_islands(grid: Array) -> void:
