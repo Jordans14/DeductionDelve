@@ -151,17 +151,16 @@ func _ready() -> void:
 	add_child(dust)
 
 	whip_visual = Line2D.new()
-	whip_visual.default_color = Color(0.55, 0.27, 0.07)
-	whip_visual.width = 4.5
+	whip_visual.default_color = Color(0.45, 0.22, 0.06)
+	whip_visual.width = 3.0
 	whip_visual.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	whip_visual.end_cap_mode = Line2D.LINE_CAP_ROUND
-	whip_visual.add_point(Vector2(0, 0))
-	whip_visual.add_point(Vector2(20, -18))
-	whip_visual.add_point(Vector2(45, -22))
-	whip_visual.add_point(Vector2(70, -5))
-	whip_visual.add_point(Vector2(85, 15))
+	whip_visual.antialiased = true
+	# 8 segments for smooth curve during animation
+	for _i in range(8):
+		whip_visual.add_point(Vector2.ZERO)
 	whip_visual.visible = false
-	whip_visual.position = Vector2(0, 4)
+	whip_visual.position = Vector2(8, 0)
 	visual_root.add_child(whip_visual)
 
 func _on_hazard_entered(area: Area2D) -> void:
@@ -224,17 +223,42 @@ func _process(delta: float) -> void:
 
 	var local_uid = get_node_or_null("/root/NetworkManager").get_multiplayer().get_unique_id() if get_node_or_null("/root/NetworkManager") and get_node_or_null("/root/NetworkManager").get_multiplayer().has_multiplayer_peer() else 0
 	if Input.is_key_pressed(KEY_X) and whip_timer <= 0.0 and peer_id == local_uid and not dead:
-		whip_timer = 0.35
+		whip_timer = 0.45  # longer duration for unroll+snap
 		
 	if whip_timer > 0.0:
 		whip_timer -= delta
 		whip_visual.visible = true
 		var dir = 1.0 if eyes.position.x >= 0 else -1.0
-		whip_visual.scale.x = dir
-		if whip_timer > 0.2:
-			whip_visual.rotation = lerp_angle(whip_visual.rotation, -PI/2 * dir, 30.0 * delta)
-		else:
-			whip_visual.rotation = lerp_angle(whip_visual.rotation, PI/12 * dir, 50.0 * delta)
+		var progress : float = 1.0 - (whip_timer / 0.45)  # 0→1 over lifetime
+		
+		# Animate each of the 8 points based on progress
+		var seg_count := whip_visual.get_point_count()
+		var total_reach := 90.0   # max horizontal extent
+		for i in range(seg_count):
+			var frac = float(i) / float(seg_count - 1)
+			
+			# How far along has THIS segment unrolled?
+			var seg_progress = clampf((progress - frac * 0.4) / 0.5, 0.0, 1.0)
+			
+			# X: starts coiled behind, extends forward
+			var base_x = lerpf(-10.0, total_reach * frac, seg_progress) * dir
+			
+			# Y: starts low (coiled), rises to wave shape, then snaps flat
+			var wave = sin(frac * PI * 2.5 - progress * PI * 3.0) * (1.0 - seg_progress) * 20.0
+			var snap_y = 0.0
+			if progress > 0.7:
+				# Snap phase — tip whips downward then rebounds
+				var snap_t = (progress - 0.7) / 0.3
+				snap_y = sin(snap_t * PI) * 14.0 * frac
+			var base_y = wave + snap_y - frac * 4.0
+			
+			whip_visual.set_point_position(i, Vector2(base_x, base_y))
+		
+		# Width tapers toward tip
+		var curve := Curve.new()
+		curve.add_point(Vector2(0.0, 3.5))
+		curve.add_point(Vector2(1.0, 0.8))
+		whip_visual.width_curve = curve
 	else:
 		whip_visual.visible = false
 		

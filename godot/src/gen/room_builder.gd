@@ -65,6 +65,9 @@ func build_from_chain(room_chain: Array) -> void:
 	# ── Stage 6: Settlement pockets — flat-floored rooms ───
 	_carve_settlement_pockets(grid, run_seed)
 
+	# ── Stage 6b: Remove chokepoints — any passage < 3 tiles wide ──
+	_widen_narrow_passages(grid)
+
 	# ── Stage 7: Enforce hard borders + global floor ───────
 	_enforce_borders(grid)
 
@@ -145,19 +148,19 @@ func _carve_critical_path(grid: Array, run_seed: int) -> void:
 	rng.seed = run_seed + 7777
 	var cx := GW / 2; var cy := 3
 	while cy < GH - 4:
-		_carve_circle(grid, cx, cy, 4)
+		_carve_circle(grid, cx, cy, 6)  # Wide enough for comfortable play
 		var r := rng.randf()
 		if r < 0.55:   cy += 1
 		elif r < 0.65: cy = max(cy - 1, 2)
 		elif r < 0.80: cx = clamp(cx + rng.randi_range(1, 3), 2, GW - 3)
 		else:          cx = clamp(cx - rng.randi_range(1, 3), 2, GW - 3)
-	# Horizontal exploration branches
-	for _b in range(8):
-		var bx := rng.randi_range(4, GW - 5)
+	# Horizontal exploration branches — also wide
+	for _b in range(12):
+		var bx := rng.randi_range(6, GW - 7)
 		var by := rng.randi_range(4, GH - 5)
-		var blen := rng.randi_range(6, 18)
+		var blen := rng.randi_range(8, 22)
 		var bdir := 1 if rng.randb() else -1
-		for b in range(blen): _carve_circle(grid, bx + b * bdir, by, 2)
+		for b in range(blen): _carve_circle(grid, bx + b * bdir, by, 3)
 
 func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
 	for dx in range(-radius, radius + 1):
@@ -172,19 +175,21 @@ func _carve_circle(grid: Array, cx: int, cy: int, radius: int) -> void:
 # ============================================================
 func _carve_chunk_connectors(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 99
+	# Vertical passages between chunk rows — 9 tiles wide
 	for col in range(COLS):
 		for row in range(ROWS - 1):
 			var ox := rng.randi_range(CHUNK_W / 4, 3 * CHUNK_W / 4)
 			var tx := col * CHUNK_W + ox; var sy := (row + 1) * CHUNK_H
-			for py in range(sy - 3, sy + 4):
-				for px in range(tx - 2, tx + 3):
+			for py in range(sy - 5, sy + 6):
+				for px in range(tx - 4, tx + 5):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
+	# Horizontal passages between chunk columns — 9 tiles tall
 	for col in range(COLS - 1):
 		for row in range(ROWS):
 			var oy := rng.randi_range(CHUNK_H / 4, 3 * CHUNK_H / 4)
 			var sx2 := (col + 1) * CHUNK_W; var ty := row * CHUNK_H + oy
-			for px in range(sx2 - 3, sx2 + 4):
-				for py in range(ty - 2, ty + 3):
+			for px in range(sx2 - 5, sx2 + 6):
+				for py in range(ty - 4, ty + 5):
 					if px > 0 and py > 0 and px < GW - 1 and py < GH - 1: grid[px][py] = false
 
 # ============================================================
@@ -237,6 +242,33 @@ func _carve_settlement_pockets(grid: Array, run_seed: int) -> void:
 					var tx := px0 + lx; var ty := py0
 					if tx > 0 and tx < GW - 1 and ty > 0:
 						grid[tx][ty] = true
+
+# ============================================================
+# STAGE 6b: REMOVE CHOKEPOINTS — widen any passage < 3 tiles
+# ============================================================
+func _widen_narrow_passages(grid: Array) -> void:
+	# Horizontal chokepoints: open tile with wall-or-edge within 1 tile left AND right
+	for x in range(2, GW - 2):
+		for y in range(2, GH - 2):
+			if grid[x][y]:
+				continue  # only care about open cells
+			# Check if neighbors on both sides are too close
+			var left_wall := grid[x-1][y] or grid[x-2][y]
+			var right_wall := grid[x+1][y] or grid[x+2][y]
+			if left_wall and right_wall:
+				# Force 2-tile clearance on both sides
+				for dx in range(-2, 3):
+					var nx := x + dx
+					if nx > 0 and nx < GW - 1:
+						grid[nx][y] = false
+			# Vertical: check above and below
+			var top_wall := grid[x][y-1] or grid[x][y-2]
+			var bot_wall := grid[x][y+1] or grid[x][y+2]
+			if top_wall and bot_wall:
+				for dy in range(-2, 3):
+					var ny := y + dy
+					if ny > 0 and ny < GH - 1:
+						grid[x][ny] = false
 
 # ============================================================
 # STAGE 7: BORDERS + GLOBAL FLOOR
