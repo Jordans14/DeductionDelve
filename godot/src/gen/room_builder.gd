@@ -690,11 +690,12 @@ func _add_formations(room_node: Node2D, grid: Array, sx: int, sy: int, biome_amb
 				break
 
 # ============================================================
-# STAGE 11: FLOATING PLATFORMS
+# STAGE 12: FLOATING PLATFORMS (VERTICAL TRAVERSAL ESCAPE)
 # ============================================================
 func _place_platforms(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 8888
-	for x in range(2, GW - 2, 3):
+	# Scan every 4th column to find large vertical drops
+	for x in range(3, GW - 3, 4):
 		var open_start := -1
 		for y in range(1, GH - 1):
 			if not grid[x][y]:
@@ -702,20 +703,24 @@ func _place_platforms(grid: Array, run_seed: int) -> void:
 			else:
 				if open_start >= 0:
 					var drop := y - open_start
-					if drop >= 9:
-						var plat_y := open_start + drop / 2
-						var plat_len := 3 + rng.randi() % 5
-						var plat_off := rng.randi_range(-2, 0)
-						for px in range(plat_len):
-							var tx := x + px + plat_off
-							if tx > 0 and tx < GW - 1 and plat_y < GH - 3:
-								var chunk_col := tx / CHUNK_W
-								var chunk_row := plat_y / CHUNK_H
-								var rn := _room_node_for_chunk(chunk_col, chunk_row)
-								if rn:
-									var lx2 := float(tx - chunk_col * CHUNK_W) * T_SIZE
-									var ly2 := float(plat_y - chunk_row * CHUNK_H) * T_SIZE
-									_add_platform_tile(rn, lx2, ly2)
+					if drop >= 7:
+                        # Massive drop! Place a platform every 4 blocks so players can jump back up.
+						var num_plats : int = int(drop) / 4
+						for i in range(1, num_plats + 1):
+							var plat_y : int = open_start + (i * 4)
+							if plat_y >= GH - 4: continue # Don't place right on the floor
+							var plat_len : int = rng.randi_range(3, 5)
+							var plat_off : int = rng.randi_range(-2, 0)
+							for px in range(plat_len):
+								var tx : int = x + px + plat_off
+								if tx > 0 and tx < GW - 1 and not grid[tx][plat_y]:
+									var chunk_col : int = tx / CHUNK_W
+									var chunk_row : int = plat_y / CHUNK_H
+									var rn = _room_node_for_chunk(chunk_col, chunk_row)
+									if rn:
+										var lx2 := float(tx - chunk_col * CHUNK_W) * T_SIZE
+										var ly2 := float(plat_y - chunk_row * CHUNK_H) * T_SIZE
+										_add_platform_tile(rn, lx2, ly2)
 				open_start = -1
 
 func _room_node_for_chunk(grid_x: int, grid_y: int) -> Node2D:
@@ -727,12 +732,17 @@ func _room_node_for_chunk(grid_x: int, grid_y: int) -> Node2D:
 
 func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 	var body := StaticBody2D.new(); body.position = Vector2(x, y)
+	
 	var poly := Polygon2D.new()
-	poly.color = Color(0.42, 0.32, 0.22)
-	poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(T_SIZE,0), Vector2(T_SIZE,T_SIZE*0.32), Vector2(0,T_SIZE*0.32)])
+	poly.color = Color(0.42, 0.32, 0.22, 0.8) # Wooden board visual
+	poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(T_SIZE,0), Vector2(T_SIZE,T_SIZE*0.3), Vector2(0,T_SIZE*0.3)])
 	body.add_child(poly)
-	var col := CollisionPolygon2D.new(); col.polygon = poly.polygon
-	body.add_child(col); parent.add_child(body)
+	
+	var col := CollisionPolygon2D.new()
+	col.polygon = poly.polygon
+	col.one_way_collision = true # CRITICAL: Allows players to jump UP through the platforms!
+	body.add_child(col)
+	parent.add_child(body)
 
 # ============================================================
 # PUBLIC API
