@@ -322,7 +322,7 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 				snapshot[str(peer_id)] = {"p": actor.global_position, "v": actor.velocity}
 			NetworkManager.broadcast_state(snapshot, tick_counter)
 	elif not NetworkManager.is_host and not run_ended:
-		var send_pos := players[local_id].global_position if players.has(local_id) else Vector2.ZERO
+		var send_pos : Vector2 = players[local_id].global_position if players.has(local_id) else Vector2.ZERO
 		NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos)
 		if players.has(local_id):
 			players[local_id].simulate_step(move_axis, jump_pressed, delta)
