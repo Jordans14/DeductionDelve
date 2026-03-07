@@ -2,7 +2,7 @@ extends Node2D
 
 const SNAPSHOT_INTERVAL := 0.08
 const SPAWN_X_STEP := 80.0
-const ROOM_WIDTH := 520.0
+const ROOM_WIDTH := 1024.0
 const WARDEN_CHECK_RANGE := 96.0
 const NOTEBOOK_RECENT_LIMIT := 8
 const NOTEBOOK_MAX_LEN := 120
