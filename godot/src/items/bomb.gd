@@ -7,7 +7,7 @@ var flash_timer := 0.0
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_explode(pos: Vector2) -> void:
-	var rb = get_node_or_null("/root/Game/RoomBuilder")
+	var rb = get_node_or_null("/root/Game/Rooms")
 	if rb and rb.has_method("carve_hole"):
 		rb.carve_hole(pos, 60.0) # approx 2 tiles radius
 	

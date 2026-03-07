@@ -4,8 +4,8 @@ class_name SpelunkyRope
 var velocity := Vector2(0, -600.0)
 var state := 0 # 0 = flying, 1 = attached
 var hook_pos := Vector2.ZERO
-var max_up := 180.0 # ~5.6 tiles up
-var max_down := 240.0 # ~7.5 tiles down
+var max_up := 300.0 # ~9.3 tiles up
+var max_down := 540.0 # ~16.8 tiles down
 var start_y := 0.0
 var line: Line2D
 var climb_area: Area2D

@@ -48,6 +48,9 @@ var inventory_ropes := 4
 var is_climbing := false
 var climb_x := 0.0
 var item_latch := false
+var is_crawling := false
+var is_ledge_hanging := false
+var ledge_hang_dir := 1.0
 
 func _ready() -> void:
 	visual_root = Node2D.new()
@@ -266,7 +269,14 @@ func _process(delta: float) -> void:
 			velocity = velocity.lerp(net_vel, lerp_alpha * 0.8)
 
 	visual_root.scale.x = lerpf(visual_root.scale.x, 1.0, 10.0 * delta)
-	visual_root.scale.y = lerpf(visual_root.scale.y, 1.0, 10.0 * delta)
+	
+	if is_crawling:
+		visual_root.scale.y = lerpf(visual_root.scale.y, 0.5, 12.0 * delta)
+		visual_root.position.y = lerpf(visual_root.position.y, 9.5, 12.0 * delta)
+	else:
+		visual_root.scale.y = lerpf(visual_root.scale.y, 1.0, 12.0 * delta)
+		visual_root.position.y = lerpf(visual_root.position.y, 0.0, 12.0 * delta)
+
 	
 	if velocity.x > 10:
 		eyes.position.x = lerpf(eyes.position.x, 4.0, 15.0 * delta)
@@ -437,18 +447,72 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	var just_released_jump = not jump_pressed and was_jump_pressed
 	was_jump_pressed = jump_pressed
 
-	var target := move_axis * MOVE_SPEED
+	# Crawl
+	var col_shape_node = get_node_or_null("CollisionShape2D")
+	if is_on_floor() and Input.is_key_pressed(KEY_DOWN) and not is_climbing:
+		if not is_crawling:
+			is_crawling = true
+			if col_shape_node and col_shape_node.shape is RectangleShape2D:
+				col_shape_node.shape = col_shape_node.shape.duplicate()
+				col_shape_node.shape.size.y = 19
+				col_shape_node.position.y = 9.5
+	else:
+		if is_crawling:
+			var space = get_world_2d().direct_space_state
+			var head_check = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, 9), global_position + Vector2(0, -9))
+			head_check.collision_mask = 1
+			if not space.intersect_ray(head_check):
+				is_crawling = false
+				if col_shape_node and col_shape_node.shape is RectangleShape2D:
+					col_shape_node.shape = col_shape_node.shape.duplicate()
+					col_shape_node.shape.size.y = 38
+					col_shape_node.position.y = 0
+
+	var spd_multiplier = 0.3 if is_crawling else 1.0
+	var target := move_axis * MOVE_SPEED * spd_multiplier
 	if absf(target) > 0.01:
 		velocity.x = move_toward(velocity.x, target, ACCEL * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
+	# Ledge Grab
+	if not is_on_floor() and velocity.y > 0 and not is_ledge_hanging and not is_crawling and not is_climbing:
+		var space = get_world_2d().direct_space_state
+		var look_dir = sign(eyes.position.x)
+		if look_dir == 0: look_dir = 1.0
+		if move_axis != 0: look_dir = sign(move_axis)
+		# Upper Ray (chest), Lower Ray (feet)
+		var top_q = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, -10), global_position + Vector2(look_dir * 18, -10))
+		top_q.collision_mask = 1
+		var bot_q = PhysicsRayQueryParameters2D.create(global_position + Vector2(0, 15), global_position + Vector2(look_dir * 18, 15))
+		bot_q.collision_mask = 1
+		var top_hit = space.intersect_ray(top_q)
+		var bot_hit = space.intersect_ray(bot_q)
+		if not top_hit and bot_hit:
+			is_ledge_hanging = true
+			ledge_hang_dir = look_dir
+			velocity.y = 0
+			velocity.x = 0
+			has_double_jumped = false
+			wall_grab_latch = 0.0
+	
+	if is_ledge_hanging:
+		velocity.y = 0
+		velocity.x = 0
+		var fall_off = false
+		if move_axis != 0 and sign(move_axis) != sign(ledge_hang_dir): fall_off = true
+		if Input.is_key_pressed(KEY_DOWN): fall_off = true
+		if fall_off:
+			is_ledge_hanging = false
+		
 	# Wall grab latch timer
 	if wall_grab_latch > 0.0:
 		wall_grab_latch -= delta
 
 	var is_grabbing_wall = false
-	if is_on_wall() and velocity.y > -50 and move_axis != 0 and wall_grab_latch > 0.0:
+	if is_ledge_hanging:
+		is_grabbing_wall = true
+	elif is_on_wall() and velocity.y > -50 and move_axis != 0 and wall_grab_latch > 0.0:
 		is_grabbing_wall = true
 		# "Hang" effect: very slow descent if pressing towards wall during latch
 		velocity.y = min(velocity.y, 20.0) 
@@ -462,6 +526,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			visual_root.scale = Vector2(0.7, 1.3)
 			dust.restart()
 		elif is_grabbing_wall:
+			is_ledge_hanging = false
 			velocity.y = JUMP_VELOCITY * 0.9
 			velocity.x = -sign(move_axis) * 350.0
 			jump_buffer_timer = 0.0
