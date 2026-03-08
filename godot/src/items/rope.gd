@@ -64,18 +64,18 @@ func _physics_process(delta: float) -> void:
 		if result:
 			top_p = result.position
 			deployed = true
-		elif start_y - global_position.y >= 380.0:
+		elif start_y - global_position.y >= 2000.0:
 			# If we fly high enough without hitting a ceiling, just hang in the air
 			top_p = global_position
 			deployed = true
 			
 		if deployed:
-			# Raycast downward from the ceiling hook to the first floor (up to 800px down)
+			# Raycast downward from the ceiling hook to the first floor (up to 3000px down)
 			# This ensures rope reaches the platform below if available.
-			var bot_q = PhysicsRayQueryParameters2D.create(top_p + Vector2(0, 10), top_p + Vector2(0, 750))
+			var bot_q = PhysicsRayQueryParameters2D.create(top_p + Vector2(0, 10), top_p + Vector2(0, 3000))
 			bot_q.collision_mask = 1
 			var bot_res = space_state.intersect_ray(bot_q)
-			var bot_y = bot_res.position.y if bot_res else top_p.y + 750
+			var bot_y = bot_res.position.y if bot_res else top_p.y + 3000
 			rpc_deploy.rpc(top_p, bot_y)
 			
 	elif state == 0:

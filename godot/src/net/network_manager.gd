@@ -583,8 +583,35 @@ func request_check_artifact(artifact_id: int) -> void:
 		return
 	if is_host:
 		_host_check_artifact(mp.get_unique_id(), artifact_id)
-		return
 	client_check_artifact_request.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, artifact_id)
+
+func request_enter_door(door_id: int) -> void:
+	var mp := _mp()
+	if mp == null:
+		return
+	if is_host:
+		_host_enter_door(mp.get_unique_id(), door_id)
+		return
+	client_enter_door_request.rpc_id(MultiplayerPeer.TARGET_PEER_SERVER, door_id)
+
+@rpc("any_peer", "call_remote", "reliable")
+func client_enter_door_request(door_id: int) -> void:
+	if not is_host:
+		return
+	var mp := _mp()
+	if mp == null:
+		return
+	var sender := mp.get_remote_sender_id()
+	_host_enter_door(sender, door_id)
+
+func _host_enter_door(peer_id: int, door_id: int) -> void:
+	var scene_tree = get_tree()
+	if scene_tree:
+		var root = scene_tree.root
+		if root.has_node("Game"):
+			var game = root.get_node("Game")
+			if game.has_method("execute_door_teleport"):
+				game.execute_door_teleport(peer_id, door_id)
 
 func can_local_use_sabotage(_room_slot: int) -> bool:
 	var run_state := _run_state()

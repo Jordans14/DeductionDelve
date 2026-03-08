@@ -27,7 +27,7 @@ func _ready() -> void:
 # ============================================================
 # MAIN ENTRY POINT
 # ============================================================
-func build_from_chain(room_chain: Array) -> void:
+func build_from_chain(room_chain: Array, run_seed: int = 99991) -> void:
 	set_process(true)
 	for child in get_children():
 		child.queue_free()
@@ -45,8 +45,6 @@ func build_from_chain(room_chain: Array) -> void:
 	GW      = COLS * CHUNK_W
 	GH      = ROWS * CHUNK_H
 
-	var run_seed : int = int(room_chain[0].get("slot", 0) + 1) * 31337 if not room_chain.is_empty() else 99991
-
 	# Organic area-based biome noise — very low frequency so regions are large blobs
 	biome_noise = FastNoiseLite.new()
 	biome_noise.seed = run_seed + 555
@@ -61,6 +59,11 @@ func build_from_chain(room_chain: Array) -> void:
 	cached_glow_tex.fill = GradientTexture2D.FILL_RADIAL
 	cached_glow_tex.fill_from = Vector2(0.5, 0.5)
 	cached_glow_tex.width = 128; cached_glow_tex.height = 128
+	
+	# Aesthetic Lighting Pass
+	var env_night := CanvasModulate.new()
+	env_night.color = Color(0.08, 0.05, 0.12) # Deep creepy cavern purple
+	add_child(env_night)
 
 	# ── Stage 1: Domain-warped noise grid ──────────────────
 	var grid := _build_noise_grid(run_seed)
@@ -97,12 +100,25 @@ func build_from_chain(room_chain: Array) -> void:
 	# ── Stage 10: Render GLOBAL walls with horizontal merging ──
 	_render_all_walls(grid)
 
-	# ── Stage 11: Render specific room decorations ────────
+	# ── Stage 11: Render generic room decorations for ALL chunks ──
+	for cy in range(ROWS):
+		for cx in range(COLS):
+			var sx = cx * CHUNK_W
+			var sy = cy * CHUNK_H
+			_render_global_decorations(cx, cy, sx, sy, grid, run_seed)
+
+	# ── Stage 11b: Render specific critical path room triggers ──
 	for room in room_chain:
-		_render_room_decorations(room, grid, run_seed)
+		_render_room_specifics(room, grid, run_seed)
 
 	# ── Stage 12: Floating platforms in vertical drops ─────
 	_place_platforms(grid, run_seed)
+
+	# ── Stage 13: Procedural Scaffolding Buildings ─────────
+	_place_scaffolding(grid, run_seed)
+
+	# ── Stage 14: Spelunky 2 Style Background Doors ────────
+	_place_background_doors(grid, run_seed)
 	
 	world_grid = grid
 
@@ -432,9 +448,13 @@ func _render_wall_segment(parent: Node2D, tx: int, ty: int, length: int, grid: A
 	
 	_add_solid_box(parent, wc, world_x, world_y, world_w, T_SIZE)
 	
-	# Add rims for the whole segment
+	# Add rims and ores for the whole segment
 	for i in range(length):
 		var cur_x := tx + i
+		# Render embedded ores randomly in walls
+		if randf() < 0.04:
+			_add_ore(parent, float(cur_x) * T_SIZE, world_y)
+			
 		# Check if air above
 		if ty > 0 and not bool(grid[cur_x][ty - 1]):
 			var rim_col := _biome_rim_at(cur_x, ty)
@@ -443,15 +463,9 @@ func _render_wall_segment(parent: Node2D, tx: int, ty: int, length: int, grid: A
 			_add_rim(parent, float(cur_x) * T_SIZE, world_y, T_SIZE, rim_col)
 
 # ============================================================
-# STAGE 11: ROOM-SPECIFIC DECORATIONS
+# STAGE 11: GLOBAL CHUNK DECORATIONS
 # ============================================================
-func _render_room_decorations(room: Dictionary, grid: Array, run_seed: int) -> void:
-	var slot   : int = int(room.get("slot", 0))
-	var grid_x : int = slot % COLS
-	var grid_y : int = slot / COLS
-	var sx     : int = grid_x * CHUNK_W
-	var sy     : int = grid_y * CHUNK_H
-
+func _render_global_decorations(grid_x: int, grid_y: int, sx: int, sy: int, grid: Array, run_seed: int) -> void:
 	var room_node := Node2D.new()
 	room_node.position = Vector2(float(grid_x) * ROOM_WIDTH, float(grid_y) * ROOM_HEIGHT)
 	add_child(room_node)
@@ -465,34 +479,48 @@ func _render_room_decorations(room: Dictionary, grid: Array, run_seed: int) -> v
 	tint.polygon = PackedVector2Array([Vector2(0,0), Vector2(ROOM_WIDTH,0), Vector2(ROOM_WIDTH,ROOM_HEIGHT), Vector2(0,ROOM_HEIGHT)])
 	room_node.add_child(tint)
 
-	# Bioluminescence / Glowing Flora
 	_add_bioluminescence(room_node, grid, sx, sy, amb)
-
-	# Glowing Crystals
 	_add_crystals(room_node, grid, sx, sy, amb)
-
-	# Hanging Bioluminescent Vines
 	_add_vines(room_node, grid, sx, sy, amb)
-
-	# Ambient Atmosphere: floating cave dust motes
 	_add_ambient_atmosphere(room_node)
-
-	# Stalactites / stalagmites
 	_add_formations(room_node, grid, sx, sy, amb)
+
+# ============================================================
+# STAGE 11b: ROOM-SPECIFIC TRIGGERS / SPIKES
+# ============================================================
+func _render_room_specifics(room: Dictionary, grid: Array, run_seed: int) -> void:
+	var slot   : int = int(room.get("slot", 0))
+	var grid_x : int = slot % COLS
+	var grid_y : int = slot / COLS
+	var sx     : int = grid_x * CHUNK_W
+	var sy     : int = grid_y * CHUNK_H
+
+	var room_node = _room_node_for_chunk(grid_x, grid_y)
+	if not room_node: return
 
 	# Hazard spikes
 	if str(room.get("hazard", "")) == "spikes":
 		var rng := RandomNumberGenerator.new(); rng.seed = slot * 7919 + run_seed
-		var stx : int = CHUNK_W / 4 + rng.randi() % (CHUNK_W / 2)
-		var spy : float = ROOM_HEIGHT - T_SIZE - 8.0
-		for ly in range(CHUNK_H - 2, CHUNK_H / 2, -1):
-			if grid[sx + stx][sy + ly]: spy = float(ly)*T_SIZE - 8.0; break
-		_add_spikes(room_node, float(stx)*T_SIZE - 60.0, spy, 120.0)
+		var valid_x = -1; var valid_y = -1
+		for attempt in range(30):
+			var rx = rng.randi_range(2, CHUNK_W - 6)
+			var ry = rng.randi_range(CHUNK_H / 2, CHUNK_H - 2)
+			var flat = true
+			for i in range(4):
+				if not grid[sx + rx + i][sy + ry]: flat = false
+				if grid[sx + rx + i][sy + ry - 1]: flat = false
+			if flat:
+				valid_x = rx; valid_y = ry - 1; break
+		if valid_x != -1:
+			_add_spikes(room_node, float(valid_x)*T_SIZE, float(valid_y)*T_SIZE + T_SIZE - 8.0, 4.0 * T_SIZE)
 
 	# Labels and Indicators
 	var type_str : String = str(room.get("type", "?"))
 	var label := Label.new(); label.position = Vector2(10, 10)
 	label.text = type_str[0].to_upper()
+	var cx_t : int = sx + CHUNK_W / 2
+	var cy_t : int = sy + CHUNK_H / 2
+	var amb := _biome_ambient_at(cx_t, cy_t)
 	label.add_theme_color_override("font_color", Color(amb.r, amb.g, amb.b, 0.4))
 	label.add_theme_font_size_override("font_size", 11)
 	room_node.add_child(label)
@@ -686,8 +714,8 @@ func _add_formations(room_node: Node2D, grid: Array, sx: int, sy: int, biome_amb
 # ============================================================
 func _place_platforms(grid: Array, run_seed: int) -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 8888
-	# Scan every 4th column to find large vertical drops
-	for x in range(3, GW - 3, 4):
+	# Scan every 8th column to find massively vertical drops (more sparse, less clutter)
+	for x in range(3, GW - 3, 8):
 		var open_start := -1
 		for y in range(1, GH - 1):
 			if not grid[x][y]:
@@ -695,14 +723,14 @@ func _place_platforms(grid: Array, run_seed: int) -> void:
 			else:
 				if open_start >= 0:
 					var drop := y - open_start
-					if drop >= 7:
-                        # Massive drop! Place a platform every 4 blocks so players can jump back up.
-						var num_plats : int = int(drop) / 4
+					if drop >= 12:
+                        # Massive drop! Place a platform every 6 blocks so players can jump out
+						var num_plats : int = int(drop) / 6
 						for i in range(1, num_plats + 1):
-							var plat_y : int = open_start + (i * 4)
+							var plat_y : int = open_start + (i * 6)
 							if plat_y >= GH - 4: continue # Don't place right on the floor
-							var plat_len : int = rng.randi_range(3, 5)
-							var plat_off : int = rng.randi_range(-2, 0)
+							var plat_len : int = rng.randi_range(3, 4)
+							var plat_off : int = rng.randi_range(-1, 0)
 							for px in range(plat_len):
 								var tx : int = x + px + plat_off
 								if tx > 0 and tx < GW - 1 and not grid[tx][plat_y]:
@@ -724,10 +752,19 @@ func _room_node_for_chunk(grid_x: int, grid_y: int) -> Node2D:
 
 func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 	var body := StaticBody2D.new(); body.position = Vector2(x, y)
+	body.collision_layer = 2 # Scaffold / One-Way Platform layer
+	body.collision_mask = 0
+	
+	# Background wooden anchor / scaffold chain hooking it to the wall behind it
+	var anchor := ColorRect.new()
+	anchor.size = Vector2(4, T_SIZE * 1.5)
+	anchor.position = Vector2(T_SIZE/2 - 2, -T_SIZE * 0.5)
+	anchor.color = Color(0.12, 0.08, 0.06, 0.5)
+	body.add_child(anchor)
 	
 	var poly := Polygon2D.new()
-	poly.color = Color(0.42, 0.32, 0.22, 0.8) # Wooden board visual
-	poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(T_SIZE,0), Vector2(T_SIZE,T_SIZE*0.3), Vector2(0,T_SIZE*0.3)])
+	poly.color = Color(0.42, 0.32, 0.22, 1.0) # Wooden board visual
+	poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(T_SIZE,0), Vector2(T_SIZE,6), Vector2(0,6)])
 	body.add_child(poly)
 	
 	var col := CollisionPolygon2D.new()
@@ -742,6 +779,154 @@ func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 		parent.add_child(box)
 
 # ============================================================
+# STAGE 13: PROCEDURAL SCAFFOLDING BUILDINGS
+# ============================================================
+func _place_scaffolding(grid: Array, run_seed: int) -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = run_seed + 11111
+	var num_towers = rng.randi_range(8, 14) # Scaled back from 16-24 so they feel special and un-cluttered
+	var placed = 0
+	for _attempt in range(2500):
+		if placed >= num_towers: break
+		var x = rng.randi_range(6, GW - 8)
+		# Spread heavily across the bottom half as well as the top
+		var y = rng.randi_range(16, GH - 5)
+		var w = min(rng.randi_range(4, 9), GW - x - 1) # Structure width in tiles clamped
+		var h = min(rng.randi_range(4, 7), y - 1) # Structure height in tiles clamped
+		
+		var block_count = 0
+		var total_cells = w * h
+		for cx in range(x, x + w):
+			for cy in range(y - h, y):
+				if cx >= 0 and cx < GW and cy >= 0 and cy < GH:
+					if grid[cx][cy]: block_count += 1
+		
+		# Allow it to carve out huge chunks of rock (up to 75% solid block)
+		if block_count > total_cells * 0.75:
+			continue
+			
+		var floor_support = 0
+		for cx in range(x, x + w):
+			if y < GH and grid[cx][y]:
+				floor_support += 1
+		
+		# Extremely forgiving, only 25% floor support needed
+		if floor_support < w / 4:
+			continue
+
+		# Precalculate continuous flat floors for the building
+		var has_floor_by_y = {}
+		for cy in range(y - h, y):
+			has_floor_by_y[cy] = false
+		has_floor_by_y[y - h] = true # Solid Roof
+		
+		# Platform every 3 units down
+		for cy in range(y - h + 3, y, 3):
+			has_floor_by_y[cy] = true
+
+		# Cleanly carve out the new room's airspace, avoiding clipping into rock unnecessarily
+		for cx in range(x, x + w):
+			for cy in range(y - h, y):
+				grid[cx][cy] = false 
+				
+		for cx in range(x, x + w):
+			# Determine how far down the "legs" need to stretch into the cave abyss to hit floor
+			var base_y = y
+			while base_y < GH - 2 and not grid[cx][base_y]:
+				base_y += 1
+				
+			for cy in range(y - h, base_y):
+				var chunk_col: int = cx / CHUNK_W
+				var chunk_row: int = cy / CHUNK_H
+				var rn = _room_node_for_chunk(chunk_col, chunk_row)
+				if rn:
+					var lx := float(cx - chunk_col * CHUNK_W) * T_SIZE
+					var ly := float(cy - chunk_row * CHUNK_H) * T_SIZE
+					var is_left = (cx == x)
+					var is_right = (cx == x + w - 1)
+					var has_plat = false
+					var is_base = (cy >= y)
+					if not is_base and has_floor_by_y.has(cy):
+						has_plat = has_floor_by_y[cy]
+					_add_scaffold_tile(rn, lx, ly, has_plat, is_left, is_right, is_base)
+		placed += 1
+
+func _add_scaffold_tile(parent: Node2D, x: float, y: float, has_platform: bool, is_left: bool, is_right: bool, is_base_leg: bool = false) -> void:
+	var vis := Node2D.new()
+	vis.position = Vector2(x, y)
+	
+	if not is_base_leg:
+		# Solid dark wooden backwall backing like a constructed cabin inside the cave
+		var bg := ColorRect.new()
+		bg.size = Vector2(T_SIZE, T_SIZE)
+		bg.color = Color(0.14, 0.10, 0.08)
+		vis.add_child(bg)
+		
+		# Background vertical wood panels
+		for i in range(4):
+			var plank = ColorRect.new()
+			plank.size = Vector2(6, T_SIZE)
+			plank.position = Vector2(i * 8, 0)
+			plank.color = Color(0.18, 0.12, 0.09)
+			vis.add_child(plank)
+			var plank_sh = ColorRect.new()
+			plank_sh.size = Vector2(1, T_SIZE)
+			plank_sh.position = Vector2(i * 8, 0)
+			plank_sh.color = Color(0.10, 0.06, 0.04)
+			vis.add_child(plank_sh)
+	
+	# Big structural pillars on the outer edges OR holding up the base legs
+	var draw_pillar = false
+	var px = 0
+	if is_left:
+		draw_pillar = true; px = 0
+	elif is_right:
+		draw_pillar = true; px = T_SIZE - 12
+	elif is_base_leg and randf() < 0.3:
+		draw_pillar = true; px = T_SIZE / 2 - 6
+
+	if draw_pillar:
+		var pillar := ColorRect.new()
+		pillar.size = Vector2(12, T_SIZE)
+		pillar.position = Vector2(px, 0)
+		pillar.color = Color(0.28, 0.18, 0.12)
+		vis.add_child(pillar)
+		
+		# Edge highlight
+		var highl := ColorRect.new()
+		highl.size = Vector2(2, T_SIZE)
+		highl.position = Vector2(px, 0)
+		highl.color = Color(0.35, 0.25, 0.18)
+		vis.add_child(highl)
+
+	# Small decorative structural corner brace beneath platforms
+	if not is_left and not is_right and not is_base_leg and has_platform and randf() < 0.6:
+		var brace := Polygon2D.new()
+		brace.color = Color(0.20, 0.14, 0.08)
+		brace.polygon = PackedVector2Array([Vector2(0,0), Vector2(T_SIZE,0), Vector2(T_SIZE/2, 10)])
+		vis.add_child(brace)
+	
+	parent.add_child(vis)
+	
+	if has_platform:
+		var body := StaticBody2D.new(); body.position = Vector2(x, y)
+		body.collision_layer = 2 # Scaffold layer map
+		body.collision_mask = 0
+		
+		var poly := Polygon2D.new()
+		poly.color = Color(0.40, 0.28, 0.18) # Solid continuous wood floor
+		poly.polygon = PackedVector2Array([Vector2(0,0), Vector2(T_SIZE,0), Vector2(T_SIZE,8), Vector2(0,8)])
+		body.add_child(poly)
+		
+		var trim := ColorRect.new()
+		trim.size = Vector2(T_SIZE, 2)
+		trim.color = Color(0.50, 0.38, 0.24)
+		poly.add_child(trim)
+		
+		var col := CollisionPolygon2D.new()
+		col.polygon = poly.polygon
+		col.one_way_collision = true # CRITICAL! Allows players to jump through the solid floor seamlessly
+		body.add_child(col)
+		parent.add_child(body)
 # PUBLIC API
 # ============================================================
 func get_spawn_point(index: int) -> Vector2:
@@ -773,15 +958,42 @@ func _add_solid_box(parent: Node2D, color: Color, x: float, y: float, w: float, 
 	var col := CollisionPolygon2D.new(); col.polygon = poly.polygon
 	body.add_child(col); parent.add_child(body)
 
+func _add_ore(parent: Node2D, x: float, y: float) -> void:
+	# Spelunky style gold/diamond chunks embedded in caverock
+	var colors = [Color(1.0, 0.84, 0.0), Color(0.8, 0.95, 1.0), Color(0.2, 0.8, 0.4)]
+	var col = colors[randi() % colors.size()]
+	
+	var num_chunks = randi_range(3, 5)
+	for j in range(num_chunks):
+		var chunk = Polygon2D.new()
+		chunk.color = col.darkened(randf_range(0.0, 0.3))
+		# Irregular jewels instead of blocks
+		var cx = randf_range(4.0, T_SIZE - 8.0)
+		var cy = randf_range(4.0, T_SIZE - 8.0)
+		var rad = randf_range(2.0, 6.0)
+		var pts = PackedVector2Array()
+		for a in range(5):
+			var ang = float(a) * TAU / 5.0 + randf_range(-0.2, 0.2)
+			pts.append(Vector2(cos(ang) * rad, sin(ang) * rad))
+		chunk.polygon = pts
+		chunk.position = Vector2(x + cx, y + cy)
+		parent.add_child(chunk)
+
 func _add_spikes(parent: Node2D, x: float, y: float, w: float) -> void:
 	var area := Area2D.new(); area.position = Vector2(x, y); area.add_to_group("hazards")
-	var poly := Polygon2D.new(); poly.color = Color(0.72, 0.08, 0.08)
+	var base := ColorRect.new(); base.size = Vector2(w, 8); base.position = Vector2(0, 0)
+	base.color = Color(0.15, 0.1, 0.12); area.add_child(base)
+	
+	var poly := Polygon2D.new(); poly.color = Color(0.72, 0.15, 0.15)
 	var pts := PackedVector2Array(); pts.append(Vector2(0, 8))
-	for i in range(int(w / 10.0)):
-		pts.append(Vector2(float(i)*10.0+5.0, 0.0)); pts.append(Vector2(float(i+1)*10.0, 8.0))
+	var count = int(w / 10.0)
+	for i in range(count):
+		pts.append(Vector2(float(i)*10.0+5.0, -8.0))
+		pts.append(Vector2(float(i+1)*10.0, 8.0))
 	poly.polygon = pts; area.add_child(poly)
+	
 	var col := CollisionShape2D.new(); var rect := RectangleShape2D.new()
-	rect.size = Vector2(w, 8.0); col.shape = rect; col.position = Vector2(w*0.5, 4.0)
+	rect.size = Vector2(w, 12.0); col.shape = rect; col.position = Vector2(w*0.5, 2.0)
 	area.add_child(col); parent.add_child(area)
 
 # ============================================================
@@ -812,3 +1024,87 @@ func _biome_rim_at(tile_x: int, tile_y: int) -> Color:
 	elif n < 0.15:  return Color(0.50, 0.40, 0.28, 0.55)
 	elif n < 0.55:  return Color(0.55, 0.28, 0.25, 0.55)
 	else:           return Color(0.60, 0.52, 0.22, 0.55)
+
+func _place_background_doors(grid: Array, run_seed: int) -> void:
+	var p_rng := RandomNumberGenerator.new()
+	p_rng.seed = run_seed + 99999
+	
+	var num_doors = p_rng.randi_range(3, 5)
+	var placed = 0
+	var door_script = load("res://src/items/door.gd")
+	if not door_script: return
+	
+	for _attempt in range(150):
+		if placed >= num_doors: break
+		
+		var x = p_rng.randi_range(10, GW - 10)
+		var y = p_rng.randi_range(5, GH - 10)
+		
+		if not grid[x][y] and grid[x][y+1]: # Empty space with solid floor below
+			var is_clear = true
+			for cx in range(x-1, x+2):
+				for cy in range(y-2, y+1):
+					if grid[cx][cy]: is_clear = false
+			if is_clear:
+				var front_door = door_script.new()
+				var back_door = door_script.new()
+				
+				var door_id = p_rng.randi()
+				
+				var bg_x = x * T_SIZE
+				var bg_y = (y + 500) * T_SIZE
+				
+				front_door.global_position = Vector2(x * T_SIZE + 16, y * T_SIZE + 16)
+				back_door.global_position = Vector2(bg_x + 16, bg_y + 16)
+				
+				_build_backroom_box(x, y + 500)
+				
+				front_door.set_link(back_door.global_position, door_id, false)
+				back_door.set_link(front_door.global_position, door_id, true)
+				
+				add_child(front_door)
+				add_child(back_door)
+				placed += 1
+
+func _build_backroom_box(cx: int, cy: int) -> void:
+	var sb = StaticBody2D.new()
+	var coll = CollisionPolygon2D.new()
+	
+	var r = 5.0
+	var t = T_SIZE
+	var pts = PackedVector2Array([
+		Vector2((cx-r)*t, (cy-r)*t),
+		Vector2((cx+r)*t, (cy-r)*t),
+		Vector2((cx+r)*t, (cy+r)*t),
+		Vector2((cx-r)*t, (cy+r)*t)
+	])
+	
+	coll.polygon = pts
+	coll.build_mode = CollisionPolygon2D.BUILD_SEGMENTS
+	
+	var poly = Polygon2D.new()
+	poly.polygon = pts
+	poly.color = Color(0.12, 0.08, 0.15)
+	
+	sb.add_child(poly)
+	sb.add_child(coll)
+	
+	var wall_phys = CollisionPolygon2D.new()
+	wall_phys.polygon = PackedVector2Array([
+		Vector2((cx-r)*t - 100, (cy-r)*t - 100),
+		Vector2((cx+r)*t + 100, (cy-r)*t - 100),
+		Vector2((cx+r)*t + 100, (cy+r)*t + 100),
+		Vector2((cx-r)*t - 100, (cy+r)*t + 100)
+	])
+	wall_phys.build_mode = CollisionPolygon2D.BUILD_SEGMENTS
+	sb.add_child(wall_phys)
+	
+	var pl := PointLight2D.new()
+	pl.texture = cached_glow_tex
+	pl.color = Color(0.9, 0.7, 0.5)
+	pl.energy = 0.5
+	pl.global_position = Vector2(cx*t + 16, (cy-2)*t)
+	pl.scale = Vector2(6.0, 6.0)
+	
+	sb.add_child(pl)
+	add_child(sb)

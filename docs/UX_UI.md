@@ -1,51 +1,25 @@
-# UX and UI
+# UX and UI Design
 
-## Lobby UI
-- Host/Join controls and transport selection label.
-- Player list with ready states.
-- Seed display before launch.
+## Core Philosophy
+The UI must be radically minimalist to keep the player's cognitive focus on the physical platforming space and traversable terrain. Suspicion tools must support play without stopping the run. Deduction happens by reading ambiguous traces in the cavern, not the HUD.
 
-## In-Run HUD (Slice)
-- Health/resource strip.
-- Carried evidence indicator.
-- Ping wheel shortcut + quick emote buttons.
-- Suspicion notebook toggle.
-- Current debug HUD implementation:
-  - `Your role: ...`
-  - `Carrying: E#` or `None`
-  - status line keeps seed/player/extraction info visible and appends `Extraction stabilizing...` during the extraction readiness hold
-  - interaction prompt line near carry HUD:
-    - `Q: Pick up E#`
-    - `E: Drop`
-    - `R: Steal E#`
-    - `F: Forge`, `G: Sabotage` (Veil)
-    - `T: Check` (Warden)
-  - scrolling timeline event list (sorted by tick + event_id)
-  - private Warden check results shown as timeline entries with score
-  - local-only denial feedback in status bar for rejected actions (about 1.2s), e.g. `Denied: wrong_room`
+## What is On-Screen During Traversal
+- **Vitals & Resources:** Clean, highly readable health pips and resource trackers (Ropes, Bombs). 
+- **Physical Evidence:** A subtle visual indicator of the currently carried artifact (if any), adhering to the one-carry mechanic to visually confirm squad roles and burdens. 
+- **Socially Readable Clues (In-World):** Diegetic tells like footprint decals in dust layers, fluctuating lantern light radiuses, bomb blast scorching, and faint corruption traces on artifacts that exist purely in the physical world.
 
-## Suspicion Tools
-- Lightweight notebook rows:
-  - `event`, `who`, `where`, `confidence`, `notes`.
-- Supports uncertainty flags (possible/likely/contested).
-- Timeline bookmarks from major events (death, sabotage trace, artifact pickup).
-- Current v0 slice: press `N` to toggle a local-only notebook panel, type a short note, and press `Enter` to add a private note entry to `YOUR NOTES`.
+## What Stays Lightweight During Platforming
+The action layer must never obscure traversal vision. Contextual interactive prompts (`[Q] Pick up`, `[R] Steal`, `[F] Forge`) appear functionally as floating text exactly near the object, disappearing the moment the player changes trajectory.
 
-## Non-Verbal Tell Presentation
-- Footprint decals in certain terrain.
-- Glow/noise aura overlays from item effects.
-- Evidence-carrying silhouette marker within short range.
-- Current implementation: players carrying evidence show a visible `EV` marker above avatar.
-- Hazard readability upgrade: each room now has a small hazard indicator that flashes (`!`) on hazard pulse events for that slot.
-- Indicator is network-driven by pulse events and visual-only (does not alter simulation).
-- Reliability: indicator decay processing is explicitly enabled in room builder `_ready`.
+## The Suspicion Notebook (Private vs Public vs Contextual)
+- **Private & Local:** The notebook tracking suspects, locations, and odd trap timings is kept entirely private to the local client's RAM.
+- **Non-blocking Flow:** Invoked as a highly transparent, non-blocking screen overlay. Players utilize rapid "macro quick-tagging" (e.g., tagging a player as "Alibi" or "Suspect" hitting single shortcut keys) to instantly annotate without interrupting platforming momentum for more than a fraction of a second.
 
-## End-of-Run Screen
-- Outcome: extraction success/failure.
-- Event timeline (timestamped critical actions).
-- Role reveal and personal performance summary.
-- "What was known vs guessed" recap cues.
-- Current v0 implementation:
-  - hidden during run, shown after host-authoritative end trigger.
-  - displays `RUN COMPLETE`, run seed, end reason (`extraction_objective` or `tick_limit`), role reveal list, and per-player evidence summary.
-  - compact timeline shown with a simple "show more/less" toggle via `TAB`.
+## Information Bounds & Tool Availability
+- **Public & Contextual:** The radial ping wheel allows for "Trust Me" or "Danger Here" diegetic pings. Placed physically in the space and heavily contextual based on line of sight.
+
+## End-of-Run Review Experience
+- **Sudden Halt:** A dramatic, impactful transition stopping the chaotic cavern run once extraction completes or failure occurs.
+- **The Revealing Timeline:** A deeply satisfying, scrollable physical reconstruction (e.g., `Tick 4022: Hazard spike triggered. Tick 4028: P4 died. Tick 4035: P2 picked up Artifact 1.`).
+- **Preserving the Mystery:** The timeline clarifies *outcomes* and *major interactions*, but it does NOT perfectly solve every moment. It reveals that a trap fired, but not *why* it fired. It reveals an artifact was forged, but not *where* or *by whom*.
+- **Resolution Debate:** Roles are revealed natively alongside the Timeline data. Players use the objective facts to fuel heated debates over ambiguous intent, resulting in wildly different interpretations of the exact same event log.

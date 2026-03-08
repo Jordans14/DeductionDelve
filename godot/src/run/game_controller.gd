@@ -191,7 +191,11 @@ func _physics_process(delta: float) -> void:
 	snapshot_timer += delta
 	var local_id := _local_peer_id()
 	if not run_ended:
-		_run_cli_automation(local_id)
+		if NetworkManager.is_host:
+			for peer_id in players.keys():
+				_run_cli_automation(peer_id)
+		else:
+			_run_cli_automation(local_id)
 		_handle_local_actions(local_id)
 	_update_authoritative_sim(delta, local_id)
 	_update_evidence_visuals()
@@ -292,7 +296,7 @@ func _build_rooms() -> void:
 		RunState.room_chain = gen.generate_layout(RunState.run_seed if RunState.run_seed != 0 else randi(), 15)
 	if room_builder and room_builder.has_method("build_from_chain"):
 		print("BUILD_ROOMS chain_size=%d" % RunState.room_chain.size())
-		room_builder.build_from_chain(RunState.room_chain)
+		room_builder.build_from_chain(RunState.room_chain, RunState.run_seed)
 
 func _update_authoritative_sim(delta: float, local_id: int) -> void:
 	var move_axis := Input.get_axis("ui_left", "ui_right")
@@ -359,24 +363,43 @@ func _handle_local_actions(local_id: int) -> void:
 		if check_id > 0:
 			NetworkManager.request_check_artifact(check_id)
 
-func _run_cli_automation(local_id: int) -> void:
-	if local_id <= 0 or not players.has(local_id):
+func _run_cli_automation(target_id: int) -> void:
+	if target_id <= 0 or not players.has(target_id):
 		return
-	if cli_auto_pickup and not cli_auto_pickup_done and NetworkManager.is_run_active():
-		if NetworkManager.get_local_carried_artifact_id() > 0:
+		
+	# Check if this player has already picked up their item and ported
+	# We use a dictionary to track multiple players if we are the host
+	var is_ported: bool = players[target_id].get_meta("cli_auto_ported", false)
+	
+	if cli_auto_pickup and not is_ported and NetworkManager.is_run_active():
+		var artifact_id := _find_nearest_carried_artifact_id_for(target_id)
+		if artifact_id > 0:
 			var extraction_slot := _extraction_room_slot()
-			players[local_id].global_position = Vector2(80 + float(extraction_slot) * ROOM_WIDTH, 300)
-			cli_auto_pickup_done = true
+			players[target_id].global_position = Vector2(80 + float(extraction_slot) * ROOM_WIDTH, 300)
+			players[target_id].set_meta("cli_auto_ported", true)
+			# Only set the global done flag if it was our local player
+			if target_id == _local_peer_id():
+				cli_auto_pickup_done = true
 		else:
-			var pickup_id := _find_nearest_ground_artifact_id(local_id)
+			var pickup_id := _find_nearest_ground_artifact_id(target_id)
 			if pickup_id > 0 and RunState.evidence_by_id.has(pickup_id):
 				var artifact: Dictionary = RunState.evidence_by_id[pickup_id]
-				players[local_id].global_position = artifact.get("world_pos", players[local_id].global_position)
-				NetworkManager.request_pickup(pickup_id)
-	if cli_auto_role_action and not cli_auto_role_action_done and NetworkManager.is_run_active():
-		if str(RunState.local_role) == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
-			NetworkManager.request_sabotage(_room_slot_for_position(players[local_id].global_position))
+				players[target_id].global_position = artifact.get("world_pos", players[target_id].global_position)
+				if target_id == _local_peer_id():
+					NetworkManager.request_pickup(pickup_id)
+
+	if cli_auto_role_action and not cli_auto_role_action_done and NetworkManager.is_run_active() and tick_counter > 60:
+		if target_id == _local_peer_id() and str(RunState.local_role) == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+			NetworkManager.request_sabotage(_room_slot_for_position(players[target_id].global_position))
 			cli_auto_role_action_done = true
+
+func _find_nearest_carried_artifact_id_for(target_id: int) -> int:
+	for artifact_raw in RunState.evidence_by_id.keys():
+		var artifact_id := int(artifact_raw)
+		var artifact: Dictionary = RunState.evidence_by_id[artifact_id]
+		if int(artifact.get("owner_peer_id", 0)) == target_id:
+			return artifact_id
+	return 0
 
 func _find_nearest_ground_artifact_id(local_id: int) -> int:
 	if not players.has(local_id):
@@ -466,7 +489,26 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 		var state: Dictionary = snapshot[key]
 		
 		if peer_id == local_id:
-			# Fully trust local simulation. No server-reconciliation snapping. Completely eliminates rubberbanding.
+			# Host-authoritative correction: Compare local predictive position to server truth.
+			# We softly pull the local player toward the server state if there is a divergence,
+			# but allow local simulation to lead. This ensures buttery-smooth prediction while
+			# strictly enforcing Host authority against desyncs (e.g. trap impacts).
+			var server_pos: Vector2 = state.get("p", actor.global_position)
+			var dist = actor.global_position.distance_to(server_pos)
+			
+			if dist > 3000.0:
+				# CLI Auto-teleport or valid cross-map respawn. Do not snap back, trust local.
+				continue
+			elif dist > 200.0:
+				# Major desync (e.g., knocked back, fell off a missed ledge) - Snap immediately
+				actor.global_position = server_pos
+				actor.velocity = state.get("v", actor.velocity)
+			elif dist > 15.0:
+				# Minor desync - Smooth buttery lerp correction
+				actor.global_position = actor.global_position.lerp(server_pos, 0.15)
+			
+			# We still sync floor state to ensure animation matches host reality
+			actor._remote_on_floor = state.get("f", false)
 			continue
 			
 		actor.apply_snapshot(state.get("p", actor.global_position), state.get("v", actor.velocity), 0.25, state.get("f", false))
@@ -1617,3 +1659,29 @@ func _apply_cli_args() -> void:
 			cli_auto_pickup = true
 		elif arg == "--auto-role-action":
 			cli_auto_role_action = true
+
+func execute_door_teleport(peer_id: int, door_id: int) -> void:
+	if not NetworkManager.is_host: return
+	if not room_builder: return
+	
+	var doors = _find_doors_in_node(room_builder)
+	var target_door = null
+	for d in doors:
+		if d.door_id == door_id and not _is_door_same_origin(players[peer_id].global_position, d.global_position):
+			target_door = d
+			break
+			
+	if target_door and players.has(peer_id):
+		players[peer_id].global_position = target_door.linked_pos
+		players[peer_id].velocity = Vector2.ZERO
+
+func _is_door_same_origin(player_pos: Vector2, door_pos: Vector2) -> bool:
+	return player_pos.distance_to(door_pos) < 64.0
+
+func _find_doors_in_node(node: Node) -> Array:
+	var res = []
+	if node is Area2D and "door_id" in node:
+		res.append(node)
+	for child in node.get_children():
+		res.append_array(_find_doors_in_node(child))
+	return res

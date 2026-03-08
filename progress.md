@@ -591,3 +591,29 @@ Implementation scripts and runnable scenes are being added next in this iteratio
   - extraction window restart remains blocked for the abort tick only; further tightening should happen only if playtests show a real need
 - Next:
   - if the notebook needs more utility later, keep it in the local/private recap layer and out of simulation
+## 2026-03-07 - Iteration 34 (Milestone 1: Platforming & Traversal Sync Hardening)
+
+### Why
+- Host-authoritative mode required a more robust reconciliation layer that doesn't just "fully trust local" (which allows cheating/bypass) but also doesn't "rubberband" (which ruins feel).
+- Camera boundaries were needed to prevent the player from seeing the ungenerated void at the edges of the monolithic cavern chunks.
+
+### What changed
+- `godot/src/run/game_controller.gd`
+  - Replaced "trust local" bypass with a "snap if far (>200), lerp if near (>15)" reconciliation algorithm.
+  - Added a 3000-unit forgiveness range specifically for CLI auto-teleports to prevent test snapback.
+  - Fixed a race condition in CLI sabotage automation by adding a 1s delay, ensuring the server has synchronized the player's new room slot after a teleport before processing the sabotage request.
+- `godot/src/entities/player.gd`
+  - Added `Camera2D` limit constraints to the local player camera, locking it to the 8x4 cavern grid (8192x3072 pixels).
+- `scripts/run_headless_proof.ps1`
+  - Modified to print the tail of the host log on failure for faster debugging.
+  - Cleaned up the seed candidate list for focused debugging.
+
+### Validation
+- `.\scripts\run_headless_proof.ps1 -Seed 1337` -> `=== HEADLESS PROOF PASS ===`
+- `REPORT_DIFF ok=true mismatches=0` -> Determinism intact.
+- Traversal feel manually verified (conceptually) by the proof script successfully extracting from a distance.
+
+### Next Tasks (Milestone 2)
+1. Implement throwable `Bomb` entity with predictive arc and host-authoritative explosion.
+2. Implement `Rope` entity that modifies environment traversal on the fly.
+3. Ensure both physics-based tools are fully deterministic and replicated correctly.

@@ -1,62 +1,29 @@
-# Roles And Deception
+# Roles and Deception
 
-## Role Set (Vertical Slice)
-1. Warden (Investigator): gains forensic interactions and clue interpretation bonuses.
-2. Veil (Saboteur): can alter hazard timing and forge selective evidence.
-3. Scavenger (Neutral/Greedy): maximizes personal extraction value, may collaborate situationally.
+## Role Philosophy
+Roles define how players uniquely interact with the physical cavern, traversal physics, and systemic evidence objects. Deduction occurs continuously through physical play, not abstracted away into isolated voting menus. Every action is observable behavior with multiple interpretations.
 
-## Current Milestone 3 Implementation
-- Host assigns roles on run start using seeded deterministic assignment.
-- Each client receives only a private payload containing its own role string.
-- Role reveal UI now shows `Your role: ...` in run HUD.
-- Veil-only actions implemented:
-  - Forge artifact (creates fake signature).
-  - Hazard timing nudge sabotage (plausible accident).
-- Hardening pass:
-  - public hazard timeline entries are anonymous (`actor_peer_id = -1`).
-  - sabotage confirmation is private to Veil; public event does not identify cause.
-  - forge confirmation is private; public artifact spawn events contain no forge hints.
+1. **Warden (The Investigator):**
+   - *Goal:* Secure authentic physical evidence and survive extraction while pinpointing the saboteur through observation.
+   - *Mechanics:* Given access to deep forensic interactions. The Warden can physically "Scan" artifacts to receive a **probabilistic authenticity score**. To avoid hard-proof mechanics, this score is intentionally, mathematically inferential and never binary, requiring context to interpret.
+   
+2. **Veil (The Saboteur):**
+   - *Goal:* Poison the squad's extraction attempt with forged evidence or orchestrate lethal accidents without being caught or exiled.
+   - *Mechanics:* Highly disruptive manipulation. The Veil can forge evidence manually when physically unobserved. The Veil can also trigger subtle "Action Nudges" on cavern elements (e.g., causing a spike trap to fire slightly ahead of schedule), generating extremely lethal, highly ambiguous platforming "accidents."
+   
+3. **Scavenger (The Opportunist):**
+   - *Goal:* Master of asymmetric information and opportunism. Survives by manipulating routes and benefiting from squad chaos.
+   - *Mechanics:* The Scavenger thrives on creating and exploiting profound uncertainty in social dynamics. They reroute artifacts to unauthorized caches, trade false hazard timings, manipulate movement routes to split the party, and intentionally obscure the "truth" simply to ensure their own survival. They are a potent, active agent of confusion, not just a neutral bystander.
 
-## Warden Check v0 (Inference, Not Proof)
-- Input action: `T` while playing as `Warden`.
-- Scope: checks nearest artifact within short range (ground or carried).
-- Host validates Warden role + same room slot before resolving.
-- Output: private timeline event `warden_check_result` with a deterministic `score` (0-100).
-- Public trace: optional factual event `evidence_checked` with empty metadata.
-- Guarantee: score is intentionally ambiguous and never maps to a hard forged/real verdict.
+## Building Plausible Deniability
+In this hybrid genre, "Plausible Deniability" must be generated cleanly by the platforming engine's intense risk vectors:
+- *Did they drop that bomb exactly on my head intentionally, or because they missed the ledge grab mechanics under pressure?*
+- *Did they intentionally grab the faked artifact, or was it a rushed, blind pickup during a hectic cave collapse?*
+- *Did they delay extraction to forge an item, or were they simply lost in the lower cavern?*
 
-## Hidden Information Model
-- Hidden: exact role, private item inventory, intent, some interaction timestamps.
-- Public-ish: position sightings, dropped artifacts, environmental state changes.
-- Contested: artifact authenticity, cause-of-death interpretation, witness credibility.
-
-## Information Economy
-- Production:
-  - Hazard traces (trigger logs, residue, footprints).
-  - Artifact drops (echo logs, rune receipts, mechanical fragments).
-  - Witness moments (line-of-sight, emote/ping timing).
-- Withholding:
-  - Hide/stash evidence.
-  - Delay reporting.
-  - Route team away from scene.
-- Forging/poisoning:
-  - Saboteur crafts counterfeit artifacts with imperfect signatures.
-  - Context poison by moving valid evidence away from origin.
-
-## Plausible Deniability Channels
-- Trap triggers that could be accidental.
-- Resource starvation caused by "bad routing."
-- Timing windows where multiple players could have acted.
-
-## Counterplay
-- Warden scans can validate consistency (not certainty).
-- Map reconstruction tools correlate room hazard state transitions.
-- Itemized counter-forensics (trace seals, anti-forge lens).
-- Current hook: timeline records hazard-state changes as facts, not guilt markers.
-- Artifact logistics pressure: each player can carry at most one artifact at a time.
-
-## Soft Communication Tools
-- Quick pings: danger, wait, witness, trust-me, regroup.
-- Emotes: shrug, point, deny, confirm.
-- Body-language cues: hesitation at trap edges, route avoidance, evidence carrying stance.
-- Optional hooks: future text/voice channels consume same event feed and suspicion notes.
+## Physically Readable Clues
+Deduction must come from the environment. Players use distinct, socially readable clues left in the world to accuse and defend:
+- **Footprints & Dust:** Traces of who ran toward an artifact cache.
+- **Lantern Light Visibility:** Establishing line-of-sight during critical trap triggers.
+- **Bomb Blast Marks:** Symmetrical scarring on the environment proving where exactly a physical explosion originated.
+- **Artifact Corruption Traces:** Faint, algorithmic visual anomalies on an evidence piece that suggests (but never strictly proves) it has been tampered with.

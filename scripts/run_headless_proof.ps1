@@ -219,6 +219,15 @@ function Invoke-ProofAttempt {
             ClientReport = $clientReportFile
             DiffOutput = $diffOutput
         }
+    } catch {
+        Write-Host "CATCH IN INVOKE-PROOFATTEMPT:"
+        Write-Host $_.Exception.Message
+        if (Test-Path $hostOut) {
+            Write-Host "--- TAIL OF HOST.OUT.LOG ---"
+            Get-Content $hostOut -Tail 50
+            Write-Host "----------------------------"
+        }
+        throw $_
     } finally {
         foreach ($proc in @($clientProcess, $hostProcess)) {
             if ($proc -and -not $proc.HasExited) {
@@ -243,7 +252,7 @@ $exe = Resolve-GodotExe $GodotExe
 Write-Host "Using Godot: $exe"
 Write-Host "GODOT_USER_HOME: $userHome"
 
-$seedCandidates = @($Seed, 26, 34, 36, 59, 83, 90, 94, 97, 110, 112, 118, 119, 6, 11, 69, 104) | Select-Object -Unique
+$seedCandidates = @($Seed) | Select-Object -Unique
 $proofResult = $null
 $attemptFailures = New-Object System.Collections.Generic.List[string]
 

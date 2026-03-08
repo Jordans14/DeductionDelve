@@ -1,103 +1,34 @@
-# Testing
+# Testing Strategy
 
-## Testing Strategy
-- Keep tests lightweight and runnable from PowerShell scripts.
-- Combine manual runbooks with in-project deterministic checks.
+## Philosophy
+Testing in Deduction Delve relies heavily on automated, deterministic script validations coupled with focused manual runbooks. Because the game is a platforming/physics hybrid, network synchronization and host-authority are paramount to ensure that "accidents" are actually the fault of the player, not a network lag spike.
 
-## Required Tests
-1. Lobby + spawn smoke test.
-2. Seed determinism test.
-3. Multiplayer join + sync test (2 clients).
-4. Role secrecy payload test.
-5. Artifact signature determinism test.
-6. Artifact ownership sync logic test.
-7. Public sabotage anonymity test.
-8. One-carry host rule test (pickup/steal denied while carrying).
-9. Forge determinism-from-counter test (no tick dependency).
-10. Public event meta allowlist test.
-11. Event ID monotonic determinism test.
-12. Warden check score determinism test.
-13. Cross-room pickup denial test.
-14. Unknown event-type allowlist drop test.
-15. Cross-room steal denial test.
-16. RoomBuilder visual-only indicator guard test.
-17. Run end tick determinism test.
-18. Extraction objective end-reason determinism test.
-19. Role reveal secrecy-until-end test.
-20. End payload data-contract test.
-21. Extraction readiness window determinism + public meta allowlist test.
+## Deterministic Generation Tests
+1. **Seed Determinism:** Validating the exact same cavern room topology, hazard configurations, and item/artifact spawns across identical `run_seed` launches.
+2. **Substream Integrity:** Ensure that rng calls happening mid-run do not irreversibly fracture the Host's core procedural generation pipeline sequence.
 
-## Manual Runbook: Lobby + Spawn Smoke
-1. Run `scripts/run_host.ps1`.
-2. Run `scripts/run_client.ps1` one or more times.
-3. In host window, confirm player list updates and ready states.
-4. Start run and verify all players spawn and can move.
-5. Confirm host movement/state replicates correctly to clients.
+## Network Authority Tests
+1. **Cross-Room Guardrails:** Forcing out-of-bounds client interactions (e.g., cross-room steals, picking up evidence far outside legitimate coordinate boundaries) and validating immediate Host rejection.
+2. **Action Denial Bounds:** Testing the "One-Carry limit" validation to ensure players cannot hold multiple evidence artifacts simultaneously. 
 
-## Manual Runbook: Seed Determinism
-1. Start host with explicit seed.
-2. Launch run twice with same seed.
-3. Check generation log output for identical room sequence.
+## Traversal & Hazard Sync Tests
+1. **Platforming Interpolation:** Inject artificial latency and command a client to execute complex maneuvers (coyote jumps, scaffolding drop-throughs), ensuring smooth visual prediction and accurate Host mathematical corrections without snapping or stuttering.
+2. **Physics Objects Parity:** Throwing a bomb and validating its rigid body arc, bounces, and radius resolve simultaneously on all connected screens based precisely on the Host's calculation tick.
 
-## Manual Runbook: Multiplayer Join + Sync
-1. Host starts server at `127.0.0.1:2456`.
-2. Two clients join.
-3. Move players and verify positions converge after short delay.
-4. Disconnect/reconnect one client and confirm resync.
+## Item & Synergy Tests
+1. **Environmental Trace Application:** Ensure that dropping footprint decals, spawning bomb scorch marks, and altering lantern light radiuses sync and decay deterministically on all clients for accurate social interpretation.
 
-## Manual Runbook: Milestone 3 (Roles, Evidence, Sabotage, Timeline)
-1. Launch host + 2 clients.
-2. Ready all players and start run.
-3. Verify each window shows `Your role: ...` in HUD.
-4. Verify windows do not show other players' roles anywhere in UI.
-5. Move near an evidence object (green square), press `Q` to pick up.
-6. Verify carrier shows `EV` above player and HUD updates `Carrying: E#`.
-7. Press `E` to drop and confirm object returns to ground.
-8. Have a second player approach carrier and press `R` to steal.
-9. If local role is `Veil`, press `F` to forge an artifact in current room.
-10. If local role is `Veil`, press `G` to trigger hazard timing nudge.
-11. Verify timeline list receives events:
-   - `artifact_picked` / `artifact_dropped` / `artifact_stolen`
-   - `artifact_forged` (private to actor) and `artifact_spawned` (public, no forge hint)
-   - `hazard_state_changed` (public anonymous event, no sabotage-specific metadata)
-12. Verify one-carry rule:
-   - while carrying one artifact, attempts to pickup or steal another are denied.
-13. Join as/with a Warden and press `T` near an artifact:
-   - verify a private timeline event `warden_check_result` appears with score.
-   - verify no binary forged/real UI verdict appears.
-14. Trigger hazard pulses (cycle or sabotage) and verify `!` indicator flashes in the correct room slot.
-15. Attempt to pick up artifact from different room slot and verify host denies interaction.
-16. Attempt steal across mismatched room slots and verify host denies interaction.
-17. Press any invalid interaction (wrong role/no target/wrong room) and verify temporary status text `Denied: ...` appears for about 1.2s.
-18. Trigger hazard pulse and verify `!` indicator flashes and then decays without affecting run state.
-19. Continue run until host tick limit is reached and verify end screen appears on all clients.
-20. While carrying an artifact, reach the last room slot and verify run ends with reason `extraction_objective`.
-21. Confirm `extraction_window_started` appears before `extraction_completed`.
-21. Verify end screen shows seed, role reveals, and evidence summary rows.
-22. Verify role map is not visible before run end.
-23. Press `N`, enter a short suspicion note, and verify it appears only in the local notebook / `YOUR NOTES` feed.
+## Role Secrecy Tests
+1. **Memory Sandbox Proof:** Validate that no client retains network payload evidence or memory access capable of revealing another peer's secret role string prior to the official game-end payload.
 
-## Automated Headless Proof
-- Command:
-  - `.\scripts\run_headless_proof.ps1`
-- Expected markers:
-  - `TIMELINE_EVENT ... type=sabotage_camera_jam ...`
-  - `TIMELINE_EVENT ... type=extraction_window_started ...`
-  - `RUN_VERIFY ok=true checks=5 failures=0`
-  - `REPORT_DIFF ok=true mismatches=0`
+## Evidence Integrity Tests
+1. **Forge Anonymity Constraints:** Validate that the public event meta-allowlist strictly filters out private forge hints from `artifact_spawned` broadcasts.
 
-## Script Entry Points
-- `scripts/run_host.ps1` launches game as host.
-- `scripts/run_client.ps1` launches game as client.
-- `scripts/run_tests.ps1` executes deterministic generation checks and prints pass/fail.
-- Current test script includes Milestone 3 unit-style checks in `godot/src/tests/test_runner.gd`.
+## Suspicion UI & Replay Summary Tests
+1. **Timeline Resolution Checks:** Verify the End-of-Run UI perfectly displays the parsed chronological structure of logged host-events, revealing key actions without perfectly, mathematically solving every mystery.
+2. **Sabotage Broadcast Scrubbing:** Verify Sabotage events strip all Actor peer IDs before global broadcast (`actor_peer_id = -1`) ensuring the Veil's deniability remains perfectly untracked during the action.
 
-## Command Examples (Windows PowerShell)
-- Host: `.\scripts\run_host.ps1 -GodotExe "D:\Godot\Godot_v4.x.exe" -Port 2456 -Seed 1337`
-- Clients: `.\scripts\run_client.ps1 -GodotExe "D:\Godot\Godot_v4.x.exe" -Address 127.0.0.1 -Port 2456 -Count 2`
-- Tests: `.\scripts\run_tests.ps1 -GodotExe "D:\Godot\Godot_v4.x.exe"`
-- Auto-detect: scripts now search common `D:\` locations first (`D:\Godot`, `D:\Tools`, `D:\Apps`), then PATH.
-
-## Known Gaps
-- No full headless CI yet.
-- No packet-level fuzz test in vertical slice.
+## Fairness & Readability Manual Playtest Goals
+1. **Visual Interpretation Literacy:** Can players distinguish a forged artifact's faint visual trace anomaly from an environmental lighting engine cast shadow? Can players accurately track decay on footprints?
+2. **Hazard Accountability:** Does a player feel they died resulting from their own platforming mistake (or an explicitly clever Veil nudge manipulation), rather than from an unfair network desync?
+3. **Notebook Usability:** Can a player successfully log an "Alibi" tag via macro while jumping across a lethal chasm without suffering a mechanical disadvantage?

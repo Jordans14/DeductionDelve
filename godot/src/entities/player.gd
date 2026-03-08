@@ -53,13 +53,20 @@ var is_crawling := false
 var is_ledge_hanging := false
 var ledge_hang_dir := 1.0
 var sprint_bridge_timer := 0.0
+var sprint_bridge_y := 0.0
 var visual_hang_offset := Vector2.ZERO
 var _base_visual_y := 0.0
 var _spawn_seq := 0  # increments per throw; passed to RPCs for deterministic node naming
 
 var _remote_on_floor := false  # Synced from authoritative player for animations
+var _was_move_axis := 0.0
+
+var camera_look_timer := 0.0
+var camera_look_offset_y := 0.0
 
 func _ready() -> void:
+	collision_mask = 1 | 2 # Layer 1 (World) and Layer 2 (Scaffolding/Platforms)
+	
 	visual_root = Node2D.new()
 	add_child(visual_root)
 	
@@ -258,7 +265,29 @@ func configure_for_peer(id_value: int) -> void:
 		camera = Camera2D.new()
 		camera.zoom = Vector2(1.2, 1.2)
 		camera.position_smoothing_enabled = true
+		camera.position_smoothing_speed = 5.0
+		# Map bounds: 8 columns (1024), 4 rows (768)
+		# We set absolute boundaries to keep the camera strictly within the cavern
+		camera.limit_left = 0
+		camera.limit_right = 8 * 1024
+		camera.limit_top = -200
+		camera.limit_bottom = 4 * 768
+		camera.limit_smoothed = true
 		add_child(camera)
+		
+		# Give local player a dynamic point light for deep cave exploration
+		var pl := PointLight2D.new()
+		var grad = Gradient.new()
+		grad.colors = [Color.WHITE, Color(1, 1, 1, 0)]
+		var ptex = GradientTexture2D.new()
+		ptex.gradient = grad; ptex.fill = GradientTexture2D.FILL_RADIAL
+		ptex.fill_from = Vector2(0.5, 0.5); ptex.fill_to = Vector2(1.0, 0.5)
+		ptex.width = 1024; ptex.height = 1024
+		pl.texture = ptex
+		pl.energy = 0.8
+		pl.color = Color(0.95, 0.85, 0.70)
+		pl.blend_mode = Light2D.BLEND_MODE_ADD
+		add_child(pl)
 
 func _process(delta: float) -> void:
 	if camera and shake_intensity > 0.1:
@@ -300,10 +329,39 @@ func _process(delta: float) -> void:
 	else:
 		eyes.position.x = lerpf(eyes.position.x, 0.0, 15.0 * delta)
 
+	# Camera Looking Logic (Spelunky style)
+	if is_on_floor() and abs(velocity.x) < 5.0:
+		if Input.is_key_pressed(KEY_UP):
+			camera_look_timer += delta
+			if camera_look_timer > 0.4:
+				camera_look_offset_y = lerpf(camera_look_offset_y, -250.0, 3.0 * delta)
+		elif Input.is_key_pressed(KEY_DOWN) and not is_crawling:
+			camera_look_timer += delta
+			if camera_look_timer > 0.4:
+				camera_look_offset_y = lerpf(camera_look_offset_y, 250.0, 3.0 * delta)
+		else:
+			camera_look_timer = 0.0
+			camera_look_offset_y = lerpf(camera_look_offset_y, 0.0, 5.0 * delta)
+	else:
+		camera_look_timer = 0.0
+		camera_look_offset_y = lerpf(camera_look_offset_y, 0.0, 10.0 * delta)
+		
+	if camera:
+		camera.position.y = camera_look_offset_y
+
 	var local_uid = get_node_or_null("/root/NetworkManager").get_multiplayer().get_unique_id() if get_node_or_null("/root/NetworkManager") and get_node_or_null("/root/NetworkManager").get_multiplayer().has_multiplayer_peer() else 0
 	
 	if peer_id == local_uid and not dead:
 		var dir = 1.0 if eyes.position.x >= 0 else -1.0
+		
+		# Check for Door Interaction
+		if Input.is_action_just_pressed("ui_up") and is_on_floor() and not is_crawling:
+			for area in hazard_detector.get_overlapping_areas():
+				if area.get("door_id") != null and area.has_method("set_link"):
+					var net = get_node_or_null("/root/NetworkManager")
+					if net and net.has_method("request_enter_door"):
+						net.request_enter_door(area.door_id)
+					break
 		
 		# Whip attack
 		if Input.is_key_pressed(KEY_X) and whip_timer <= 0.0:
@@ -485,6 +543,19 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 
 	var is_down_just_pressed: bool = down_held and not was_down_pressed
 	was_down_pressed = down_held
+	
+	var is_move_just_pressed := false
+	if move_axis != 0 and sign(move_axis) != sign(_was_move_axis):
+		is_move_just_pressed = true
+	_was_move_axis = move_axis
+
+	# ─── Drop-through Scaffolding (Layer 2) ──────────────────────────────────
+	if is_on_floor() and down_held and jump_pressed and not was_jump_pressed:
+		# Pushing the player down 2 pixels bypasses the one-way collision edge smoothly
+		global_position.y += 2.0
+		# Consume the jump so we don't also hop into the air
+		jump_pressed = false
+		was_jump_pressed = true
 
 	# ─── Crawl (Duck) ────────────────────────────────────────────────────────
 	var col_shape_node = get_node_or_null("CollisionShape2D")
@@ -521,8 +592,6 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		)
 		floor_ahead.collision_mask = 1
 		if not ledge_space.intersect_ray(floor_ahead):
-			# If there's floor right below (e.g. 1-tile stair), just fall to it.
-			# Otherwise, their new 36px teleported hang position would clip the lower floor.
 			var drop_check = PhysicsRayQueryParameters2D.create(
 				global_position + Vector2(check_dir * 16, 0.0),
 				global_position + Vector2(check_dir * 16, 60.0)
@@ -537,17 +606,18 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 					col_shape_node.shape = col_shape_node.shape.duplicate()
 					col_shape_node.shape.size.y = 38
 					col_shape_node.position.y = 0
-				# Fall around the corner: Animate a "face plant twist" perfectly down into the hang posture 
-				visual_hang_offset = Vector2(-check_dir * 16.0, -36.0)
-				visual_root.rotation = check_dir * (PI / 2.0)
-				global_position.x += check_dir * 16.0
-				global_position.y += 36.0 
+				# Shift slightly off the edge smoothly, gravity will correct Y organically
+				global_position.x += check_dir * 8.0
+				global_position.y += 18.0
 				velocity = Vector2.ZERO
+				visual_hang_offset = Vector2(-check_dir * 16.0, -20.0)
+				visual_root.rotation = check_dir * (PI / 2.0)
 
 	# ─── Gap-running (Spelunky: glide over 1-tile gaps at speed) ─────────────
 	var sprint_bridge: bool = sprint_bridge_timer > 0.0 and not is_on_floor()
 	if sprint_bridge:
 		velocity.y = 0.0 # Force horizontal glide, removing residual frame-1 gravity
+		global_position.y = sprint_bridge_y # Snap exactly to horizontal height to avoid bumping ledge
 
 	# ─── Speed / acceleration ─────────────────────────────────────────────────
 	var spd_multiplier: float = 0.3 if is_crawling else 1.0
@@ -558,7 +628,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
 	# ─── Ledge Grab (falling toward a ledge) ─────────────────────────────────
-	if not is_on_floor() and velocity.y > 50 and not is_ledge_hanging and not is_crawling and not is_climbing:
+	if not is_on_floor() and velocity.y > 10 and not is_ledge_hanging and not is_crawling and not is_climbing:
 		var lspace = get_world_2d().direct_space_state
 		var look_dir: float = sign(move_axis) if move_axis != 0 else sign(eyes.position.x)
 		if look_dir == 0: look_dir = 1.0
@@ -578,19 +648,20 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			ledge_hang_dir = look_dir
 			velocity = Vector2.ZERO
 			has_double_jumped = false
-			wall_grab_latch = 0.0
+			wall_grab_latch = 0.2
 
 	# ─── Ledge hang physics ───────────────────────────────────────────────────
 	if is_ledge_hanging:
 		velocity = Vector2.ZERO
 		var drop = false
 		if wall_grab_latch <= 0.0:
-			if move_axis != 0 and sign(move_axis) != ledge_hang_dir:
+			# Only drop if the user explicitly presses down, or moves AWAY from the wall explicitly
+			if is_down_just_pressed:
 				drop = true
-			elif is_down_just_pressed:
+			elif is_move_just_pressed and move_axis != 0 and sign(move_axis) != ledge_hang_dir:
 				drop = true
-			
-		# Drop off: press away or down
+				
+		# Drop off: press down or away
 		if drop:
 			is_ledge_hanging = false
 		# Vault up: press toward ledge or jump
@@ -649,6 +720,28 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 	if not skip_gravity:
 		velocity.y += GRAVITY * delta
 	move_and_slide()
+
+	# ─── Gap-running Check (Execute exactly when leaving floor!) ─────────────
+	if was_on_floor and not is_on_floor() and velocity.y >= 0.0 and not jump_pressed:
+		if absf(velocity.x) > 200.0: # Moderate speed required
+			var check_dir = sign(velocity.x)
+			var space = get_world_2d().direct_space_state
+			# Check perfectly 1 tile ahead for a solid landing spot
+			var land_q = PhysicsRayQueryParameters2D.create(
+				global_position + Vector2(check_dir * 42.0, 0),
+				global_position + Vector2(check_dir * 42.0, 32.0)
+			)
+			land_q.collision_mask = 1
+			# Ensure there is actually a gap below us
+			var pit_q = PhysicsRayQueryParameters2D.create(
+				global_position + Vector2(check_dir * 20.0, 0),
+				global_position + Vector2(check_dir * 20.0, 48.0)
+			)
+			pit_q.collision_mask = 1
+			
+			if space.intersect_ray(land_q) and not space.intersect_ray(pit_q):
+				sprint_bridge_timer = 0.20 # Plenty of time to glide across 1 gap
+				sprint_bridge_y = global_position.y # Lock Y
 
 	if not was_on_floor and is_on_floor():
 		visual_root.scale = Vector2(1.3, 0.7)
