@@ -192,16 +192,16 @@ func _ready() -> void:
 	var ghost_poly = Polygon2D.new()
 	ghost_poly.color = Color(0.2, 0.0, 0.4, 0.8)
 	ghost_poly.polygon = PackedVector2Array([
-		Vector2(0, -48), Vector2(30, -20), Vector2(30, 20), Vector2(15, 48), 
+		Vector2(0, -48), Vector2(30, -20), Vector2(30, 20), Vector2(15, 48),
 		Vector2(0, 35), Vector2(-15, 48), Vector2(-30, 20), Vector2(-30, -20)
 	])
 	warden_ghost.add_child(ghost_poly)
-	
+
 	var ghost_eyes = Polygon2D.new()
 	ghost_eyes.color = Color.RED
 	ghost_eyes.polygon = PackedVector2Array([-12, -10, -4, -10, -4, -2, -12, -2, 4, -10, 12, -10, 12, -2, 4, -2])
 	warden_ghost.add_child(ghost_eyes)
-	
+
 	add_child(warden_ghost)
 
 	print("run_started_transition")
@@ -284,7 +284,7 @@ func _physics_process(delta: float) -> void:
 		_refresh_end_timeline()
 	if notebook_open and Input.is_key_pressed(KEY_ESCAPE):
 		_toggle_notebook(false)
-		
+
 	_update_forensic_traces()
 	if warden_ghost:
 		warden_ghost.rotation = sin(tick_counter * 0.1) * 0.1
@@ -401,8 +401,8 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 				var is_floor = actor.is_on_floor() if peer_id == local_id else actor._remote_on_floor
 				var tool_counts: Dictionary = NetworkManager.get_tool_counts_for_peer(peer_id) if NetworkManager.has_method("get_tool_counts_for_peer") else {}
 				snapshot[str(peer_id)] = {
-					"p": actor.global_position, 
-					"v": actor.velocity, 
+					"p": actor.global_position,
+					"v": actor.velocity,
 					"f": is_floor,
 					"h": actor.health,
 					"b": int(tool_counts.get("bomb", 0)),
@@ -460,11 +460,11 @@ func _handle_local_actions(local_id: int) -> void:
 func _run_cli_automation(target_id: int) -> void:
 	if target_id <= 0 or not players.has(target_id):
 		return
-		
+
 	# Check if this player has already picked up their item and ported
 	# We use a dictionary to track multiple players if we are the host
 	var is_ported: bool = players[target_id].get_meta("cli_auto_ported", false)
-	
+
 	if cli_auto_pickup and not is_ported and NetworkManager.is_run_active():
 		var artifact_id := _find_nearest_carried_artifact_id_for(target_id)
 		if artifact_id > 0:
@@ -504,7 +504,7 @@ func _run_cli_automation(target_id: int) -> void:
 			if NetworkManager.can_local_use_sabotage(room_slot):
 				NetworkManager.request_sabotage(room_slot)
 				cli_auto_role_action_done = true
-			
+
 	if cli_auto_bomb and not cli_auto_bomb_done and NetworkManager.is_run_active() and tick_counter > 120:
 		if target_id == _local_peer_id():
 			var dir = 1.0 # arbitrary
@@ -529,7 +529,7 @@ func _run_cli_automation(target_id: int) -> void:
 			if cli_auto_role_action and not cli_auto_role_action_done: tasks_done = false
 			if cli_auto_bomb and not cli_auto_bomb_done: tasks_done = false
 			if cli_auto_rope and not cli_auto_rope_done: tasks_done = false
-			
+
 			# Give some grace ticks for effects/explosions to finish and log events (about 2 seconds)
 			if tasks_done and tick_counter > 360:
 				print("CLI_AUTO_COMPLETE tick=%d. Requesting run end." % tick_counter)
@@ -633,7 +633,7 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 			continue
 		var actor = players[peer_id]
 		var state: Dictionary = snapshot[key]
-		
+
 		if peer_id == local_id:
 			# Host-authoritative correction: Compare local predictive position to server truth.
 			# We softly pull the local player toward the server state if there is a divergence,
@@ -641,7 +641,7 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 			# strictly enforcing Host authority against desyncs (e.g. trap impacts).
 			var server_pos: Vector2 = state.get("p", actor.global_position)
 			var dist = actor.global_position.distance_to(server_pos)
-			
+
 			if dist > 3000.0:
 				# CLI Auto-teleport or valid cross-map respawn. Do not snap back, trust local.
 				continue
@@ -652,13 +652,13 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 			elif dist > 15.0:
 				# Minor desync - Smooth buttery lerp correction
 				actor.global_position = actor.global_position.lerp(server_pos, 0.15)
-			
+
 			# We still sync floor state to ensure animation matches host reality
 			actor._remote_on_floor = state.get("f", false)
 			_sync_snapshot_tool_counts(peer_id, actor, state)
 			_sync_item_affordances_to_actor(peer_id, actor)
 			continue
-			
+
 		actor.apply_snapshot(state, state.get("f", false))
 		_sync_snapshot_tool_counts(peer_id, actor, state)
 		_sync_item_affordances_to_actor(peer_id, actor)
@@ -2443,14 +2443,14 @@ func _apply_cli_args() -> void:
 func execute_door_teleport(peer_id: int, door_id: int) -> void:
 	if not NetworkManager.is_host: return
 	if not room_builder: return
-	
+
 	var doors = _find_doors_in_node(room_builder)
 	var target_door = null
 	for d in doors:
 		if d.door_id == door_id and not _is_door_same_origin(players[peer_id].global_position, d.global_position):
 			target_door = d
 			break
-			
+
 	if target_door and players.has(peer_id):
 		players[peer_id].global_position = target_door.linked_pos
 		players[peer_id].velocity = Vector2.ZERO

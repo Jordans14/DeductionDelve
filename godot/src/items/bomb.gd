@@ -23,7 +23,7 @@ func rpc_explode(pos: Vector2) -> void:
 		var tween = blast.create_tween()
 		tween.tween_property(blast, "color:a", 0.0, 0.3)
 		tween.tween_callback(blast.queue_free)
-		
+
 		# apply impulse to players
 		for child in parent.get_children():
 			if child.has_method("simulate_step") and child is CharacterBody2D:
@@ -32,11 +32,11 @@ func rpc_explode(pos: Vector2) -> void:
 					var dir = (child.global_position - pos).normalized()
 					child.velocity += dir * (80.0 - dist) * 15.0
 					if child.has_method("apply_damage"): child.apply_damage(1) # pseudo damage
-	
+
 	# Record explosion event for tracing
 	if NetworkManager.is_host:
 		NetworkManager.record_public_event("bomb_exploded", NetworkManager.get_room_slot(pos), -1, {})
-	
+
 	queue_free()
 
 func _spawn_scorch_mark(parent: Node, pos: Vector2) -> void:
@@ -70,13 +70,13 @@ func _ready() -> void:
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.bounce = 0.4
 	physics_material_override.friction = 0.5
-	
+
 	var col := CollisionShape2D.new()
 	var shape := CircleShape2D.new()
 	shape.radius = 6.0
 	col.shape = shape
 	add_child(col)
-	
+
 	visual = Polygon2D.new()
 	visual.color = Color(0.1, 0.1, 0.1) # Black bomb
 	visual.polygon = _build_circle(6.0)
@@ -91,6 +91,6 @@ func _process(delta: float) -> void:
 		visual.color = Color(1.0, 0.2, 0.0)
 	else:
 		visual.color = Color(0.1, 0.1, 0.1)
-		
+
 	if timer <= 0.0 and is_multiplayer_authority():
 		rpc_explode.rpc(global_position)

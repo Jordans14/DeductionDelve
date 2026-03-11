@@ -1503,13 +1503,13 @@ func _host_callout(requester_id: int, kind: String, room_slot: int) -> void:
 func host_spawn_bomb(pos: Vector2, vel: Vector2, node_name: String) -> void:
 	var game_node = get_tree().root.get_node_or_null("Game")
 	var parent = game_node if game_node else self
-	
+
 	if parent.has_node(node_name):
 		# Prediction already exists. We can either trust it or replace it.
 		# For Milestone 2, let's replace it with Host's truth.
 		var old = parent.get_node(node_name)
 		old.queue_free()
-		
+
 	var b = _get_bomb_script().new()
 	b.name = node_name
 	b.global_position = pos
@@ -1520,11 +1520,11 @@ func host_spawn_bomb(pos: Vector2, vel: Vector2, node_name: String) -> void:
 func host_spawn_rope(pos: Vector2, node_name: String) -> void:
 	var game_node = get_tree().root.get_node_or_null("Game")
 	var parent = game_node if game_node else self
-	
+
 	if parent.has_node(node_name):
 		var old = parent.get_node(node_name)
 		old.queue_free()
-		
+
 	var r = _get_rope_script().new()
 	r.name = node_name
 	r.global_position = pos
