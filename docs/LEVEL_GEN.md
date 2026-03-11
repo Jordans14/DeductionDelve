@@ -9,6 +9,8 @@ Deduction Delve’s environments utilize a bespoke procedural pipeline requiring
    - *Traversal Drops:* Massive vertical shafts necessitating ropes, anchored scaffolding drops, and safe one-way collision logic.
    - *Hazard Choke-points:* Dense, confined corridors populated with spikes, crushers, and timing gates.
    - *Evidence Pockets:* Highly treacherous dead-end enclaves containing primary deduction objectives.
+   - The active slice now also biases the chain into a readable arc: traversal opener, early evidence contact, harsher late hazard choke, then a readable traversal extraction room.
+   - The active slice now also gives each room archetype a deterministic micro-plan: traversal rooms create split-route and regroup platforms, evidence rooms stage exposed pickup pedestals and watch perches, and hazard rooms present visible fast-vs-safe commitment lanes.
 3. **Architectural Scaffolding Insertion:** Instead of drawing flat, floating boxes, the generator algorithmically drops structural wooden buildings, casting dynamic "legs" directly downwards until they accurately impact the organic cave ground.
 4. **Environmental Trace Canvas:** Levels are generated with visual layers intended for disruption—dust particles, dark corners for hiding, and surfaces capable of retaining physical blast marks or footprint decals to enhance social readability.
 

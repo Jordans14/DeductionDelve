@@ -11,7 +11,7 @@ var line: Line2D
 var climb_area: Area2D
 var climb_col: CollisionShape2D
 
-@rpc("any_peer", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable")
 func rpc_deploy(top_pos: Vector2, bottom_y: float) -> void:
 	if state == 1: return
 	state = 1
@@ -27,6 +27,9 @@ func rpc_deploy(top_pos: Vector2, bottom_y: float) -> void:
 	var rope_len = abs(bottom_y - top_pos.y)
 	line.add_point(Vector2.ZERO)
 	line.add_point(Vector2(0, rope_len))
+	
+	if NetworkManager.is_host:
+		NetworkManager.record_public_event("rope_deployed", NetworkManager.get_room_slot(top_pos), -1, {"len": rope_len})
 	
 	climb_area = Area2D.new()
 	# Set climbing layer to something specific. We'll use collision layer 4 mask (value 8) for ropes

@@ -3,6 +3,9 @@ extends RefCounted
 
 const PICKUP_RANGE := 72.0
 const STEAL_RANGE := 78.0
+const ROOM_WIDTH := 1024.0
+const ROOM_HEIGHT := 768.0
+const ROOM_COLUMNS := 5
 
 func spawn_for_chain(seed_value: int, room_chain: Array) -> Array:
 	var artifacts: Array = []
@@ -14,7 +17,7 @@ func spawn_for_chain(seed_value: int, room_chain: Array) -> Array:
 
 		var spawn_count := _spawn_count_for_room(room)
 		for spawn_index in spawn_count:
-			var artifact := _create_artifact(seed_value, next_id, slot, spawn_index)
+			var artifact := _create_artifact(seed_value, next_id, room, spawn_index)
 			artifacts.append(artifact)
 			next_id += 1
 	return artifacts
@@ -43,6 +46,20 @@ func build_forged_artifact(seed_value: int, artifact_id: int, room_slot: int, fo
 		"world_pos": world_pos
 	}
 
+func authenticity_state(artifact: Dictionary) -> String:
+	return "counterfeit" if bool(artifact.get("is_forged", false)) else "authentic"
+
+func summarize_authenticity(artifacts_state: Dictionary) -> Dictionary:
+	var summary := {
+		"authentic": 0,
+		"counterfeit": 0
+	}
+	for artifact_raw in artifacts_state.values():
+		var artifact: Dictionary = artifact_raw
+		var state := authenticity_state(artifact)
+		summary[state] = int(summary.get(state, 0)) + 1
+	return summary
+
 func can_pickup(artifact: Dictionary, player_pos: Vector2, max_range: float = PICKUP_RANGE) -> bool:
 	if int(artifact.get("owner_peer_id", 0)) != 0:
 		return false
@@ -64,7 +81,11 @@ func apply_owner(artifact: Dictionary, owner_peer_id: int, world_pos: Vector2) -
 	next["world_pos"] = world_pos
 	return next
 
-func _create_artifact(seed_value: int, artifact_id: int, room_slot: int, spawn_index: int) -> Dictionary:
+func world_pos_for_room_spawn_for_test(room: Dictionary, spawn_index: int) -> Vector2:
+	return _world_pos_for_room_spawn(room, spawn_index)
+
+func _create_artifact(seed_value: int, artifact_id: int, room: Dictionary, spawn_index: int) -> Dictionary:
+	var room_slot := int(room.get("slot", -1))
 	return {
 		"artifact_id": artifact_id,
 		"room_slot": room_slot,
@@ -72,7 +93,7 @@ func _create_artifact(seed_value: int, artifact_id: int, room_slot: int, spawn_i
 		"signature": real_signature(seed_value, artifact_id, room_slot, spawn_index),
 		"is_forged": false,
 		"owner_peer_id": 0,
-		"world_pos": Vector2(120.0 + float(room_slot % 5) * 1024.0 + 60.0 * spawn_index, 300.0 + float(room_slot / 5) * 768.0 + 100.0 * float(spawn_index % 3))
+		"world_pos": _world_pos_for_room_spawn(room, spawn_index)
 	}
 
 func _spawn_count_for_room(room: Dictionary) -> int:
@@ -83,6 +104,37 @@ func _spawn_count_for_room(room: Dictionary) -> int:
 	if risk >= 3:
 		return 1
 	return 0
+
+func _world_pos_for_room_spawn(room: Dictionary, spawn_index: int) -> Vector2:
+	var room_slot := int(room.get("slot", -1))
+	var room_type := str(room.get("type", "traversal"))
+	var room_id := str(room.get("id", ""))
+	var grid_x := posmod(room_slot, ROOM_COLUMNS)
+	var grid_y := int(floor(float(room_slot) / float(ROOM_COLUMNS)))
+	var room_origin := Vector2(float(grid_x) * ROOM_WIDTH, float(grid_y) * ROOM_HEIGHT)
+	var local_positions: Array[Vector2] = []
+	match room_type:
+		"evidence":
+			match room_id:
+				"evidence_vault":
+					local_positions = [Vector2(512.0, 316.0), Vector2(752.0, 456.0)]
+				"evidence_gap":
+					local_positions = [Vector2(748.0, 258.0), Vector2(324.0, 460.0)]
+				"evidence_choke":
+					local_positions = [Vector2(516.0, 304.0), Vector2(272.0, 236.0)]
+				_:
+					local_positions = [Vector2(512.0, 320.0), Vector2(720.0, 448.0)]
+		"hazard":
+			match room_id:
+				"hazard_push":
+					local_positions = [Vector2(760.0, 286.0)]
+				"hazard_collapse":
+					local_positions = [Vector2(520.0, 492.0)]
+				_:
+					local_positions = [Vector2(712.0, 330.0)]
+		_:
+			local_positions = [Vector2(220.0, 336.0), Vector2(360.0, 420.0)]
+	return room_origin + local_positions[min(spawn_index, local_positions.size() - 1)]
 
 func _signature_raw(seed_value: int, artifact_id: int, room_slot: int, spawn_index: int) -> int:
 	var seed_mix := int((seed_value * 1103515245) & 0x7FFFFFFF)

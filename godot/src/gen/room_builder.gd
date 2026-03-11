@@ -1,13 +1,21 @@
 extends Node2D
 
+const CRUSHER_SCRIPT = preload("res://src/entities/crusher.gd")
+
 # ============================================================
 # WORLD CONSTANTS
 # ============================================================
-const COLS := 8
-const ROWS := 4
+const ROOM_COLUMNS := 5
+const ROOM_ROWS := 3
+const COLS := ROOM_COLUMNS
+const ROWS := ROOM_ROWS
 const ROOM_WIDTH  : float = 1024.0
 const ROOM_HEIGHT : float = 768.0
 const T_SIZE      : float = 32.0
+const ROUTE_FAST_COLOR := Color(0.92, 0.62, 0.18, 0.22)
+const ROUTE_SAFE_COLOR := Color(0.24, 0.72, 0.74, 0.18)
+const ROUTE_WATCH_COLOR := Color(0.84, 0.82, 0.38, 0.18)
+const ROUTE_DANGER_COLOR := Color(0.86, 0.22, 0.24, 0.18)
 
 var GW : int       # global tile width  (160)
 var GH : int       # global tile height  (72)
@@ -16,6 +24,8 @@ var CHUNK_H : int  # tiles per room tall  (24)
 
 var indicator_by_slot      : Dictionary = {}
 var indicator_time_left_by_slot : Dictionary = {}
+var indicator_text_by_slot : Dictionary = {}
+var indicator_color_by_slot : Dictionary = {}
 var spawn_points : Array[Vector2] = []
 var biome_noise  : FastNoiseLite
 var cached_glow_tex : GradientTexture2D
@@ -33,6 +43,8 @@ func build_from_chain(room_chain: Array, run_seed: int = 99991) -> void:
 		child.queue_free()
 	indicator_by_slot.clear()
 	indicator_time_left_by_slot.clear()
+	indicator_text_by_slot.clear()
+	indicator_color_by_slot.clear()
 	spawn_points.clear()
 
 	if room_chain.is_empty():
@@ -513,17 +525,27 @@ func _render_room_specifics(room: Dictionary, grid: Array, run_seed: int) -> voi
 				valid_x = rx; valid_y = ry - 1; break
 		if valid_x != -1:
 			_add_spikes(room_node, float(valid_x)*T_SIZE, float(valid_y)*T_SIZE + T_SIZE - 8.0, 4.0 * T_SIZE)
+	elif str(room.get("hazard", "")) == "collapse":
+		_add_crusher(room_node, Vector2(ROOM_WIDTH * 0.5 - 48.0, 72.0), Vector2(0, 224.0), slot)
+	elif str(room.get("hazard", "")) == "push":
+		_add_crusher(room_node, Vector2(ROOM_WIDTH * 0.18, ROOM_HEIGHT * 0.5 - 48.0), Vector2(220.0, 0), slot)
 
 	# Labels and Indicators
 	var type_str : String = str(room.get("type", "?"))
 	var label := Label.new(); label.position = Vector2(10, 10)
-	label.text = type_str[0].to_upper()
+	label.text = _room_title(type_str)
 	var cx_t : int = sx + CHUNK_W / 2
 	var cy_t : int = sy + CHUNK_H / 2
 	var amb := _biome_ambient_at(cx_t, cy_t)
 	label.add_theme_color_override("font_color", Color(amb.r, amb.g, amb.b, 0.4))
-	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_font_size_override("font_size", 12)
 	room_node.add_child(label)
+	var subtitle := Label.new()
+	subtitle.position = Vector2(10, 28)
+	subtitle.text = _room_subtitle(room)
+	subtitle.add_theme_color_override("font_color", Color(amb.r, amb.g, amb.b, 0.3))
+	subtitle.add_theme_font_size_override("font_size", 10)
+	room_node.add_child(subtitle)
 
 	var indicator := Label.new(); indicator.position = Vector2(ROOM_WIDTH - 48.0, 24.0)
 	indicator.text = "!"; indicator.visible = false
@@ -532,6 +554,198 @@ func _render_room_specifics(room: Dictionary, grid: Array, run_seed: int) -> voi
 	room_node.add_child(indicator)
 	indicator_by_slot[slot]           = indicator
 	indicator_time_left_by_slot[slot] = 0.0
+	indicator_text_by_slot[slot] = "!"
+	indicator_color_by_slot[slot] = Color(1.0, 0.18, 0.2, 1.0)
+	_render_room_micro_plan(room_node, room, run_seed)
+
+func build_room_micro_plan_for_test(room: Dictionary, run_seed: int) -> Dictionary:
+	return _build_room_micro_plan(room, run_seed)
+
+func _room_title(room_type: String) -> String:
+	match room_type:
+		"traversal":
+			return "Traversal Shaft"
+		"hazard":
+			return "Hazard Chokepoint"
+		"evidence":
+			return "Evidence Pocket"
+		_:
+			return room_type.capitalize()
+
+func _room_subtitle(room: Dictionary) -> String:
+	match str(room.get("type", "")):
+		"traversal":
+			return "Split routes and regroup points"
+		"hazard":
+			return "Timing pressure and risky shortcuts"
+		"evidence":
+			return "Exposed pickup and contested exits"
+		_:
+			return ""
+
+func _build_room_micro_plan(room: Dictionary, run_seed: int) -> Dictionary:
+	var slot := int(room.get("slot", 0))
+	var room_type := str(room.get("type", "traversal"))
+	var room_id := str(room.get("id", ""))
+	var hazard := str(room.get("hazard", ""))
+	var mirrored := posmod(run_seed + slot * 17, 2) == 0
+	var left_x := 160.0 if not mirrored else 672.0
+	var right_x := 672.0 if not mirrored else 160.0
+	var plan := {
+		"platforms": [],
+		"markers": [],
+		"pedestal": {},
+		"watch_light": Vector2(-1, -1)
+	}
+	match room_type:
+		"traversal":
+			plan["platforms"] = [
+				{"x": left_x, "y": 236.0, "tiles": 4, "kind": "fast"},
+				{"x": right_x, "y": 420.0, "tiles": 5, "kind": "safe"},
+				{"x": ROOM_WIDTH * 0.5 - 64.0, "y": 564.0, "tiles": 4, "kind": "regroup"}
+			]
+			plan["markers"] = [
+				{"x": left_x, "y": 228.0, "w": 160.0, "h": 12.0, "kind": "fast"},
+				{"x": right_x, "y": 412.0, "w": 192.0, "h": 12.0, "kind": "safe"}
+			]
+		"evidence":
+			plan["pedestal"] = {"x": ROOM_WIDTH * 0.5 - 80.0, "y": 332.0, "w": 160.0, "h": 18.0}
+			plan["watch_light"] = Vector2(ROOM_WIDTH * 0.5, 286.0)
+			plan["platforms"] = [
+				{"x": left_x, "y": 232.0, "tiles": 4, "kind": "watch"},
+				{"x": ROOM_WIDTH * 0.5 - 64.0, "y": 384.0, "tiles": 4, "kind": "exposed"},
+				{"x": right_x, "y": 500.0, "tiles": 5, "kind": "safe"}
+			]
+			plan["markers"] = [
+				{"x": ROOM_WIDTH * 0.5 - 88.0, "y": 352.0, "w": 176.0, "h": 14.0, "kind": "watch"},
+				{"x": left_x, "y": 224.0, "w": 160.0, "h": 12.0, "kind": "fast"},
+				{"x": right_x, "y": 492.0, "w": 192.0, "h": 12.0, "kind": "safe"}
+			]
+			if room_id == "evidence_gap":
+				plan["platforms"].append({"x": right_x, "y": 272.0, "tiles": 3, "kind": "fast"})
+			elif room_id == "evidence_choke":
+				plan["platforms"].append({"x": left_x + 96.0, "y": 300.0, "tiles": 3, "kind": "watch"})
+		"hazard":
+			match hazard:
+				"collapse":
+					plan["platforms"] = [
+						{"x": 176.0, "y": 196.0, "tiles": 3, "kind": "safe"},
+						{"x": ROOM_WIDTH - 272.0, "y": 196.0, "tiles": 3, "kind": "safe"},
+						{"x": ROOM_WIDTH * 0.5 - 80.0, "y": 476.0, "tiles": 5, "kind": "regroup"}
+					]
+					plan["markers"] = [
+						{"x": ROOM_WIDTH * 0.5 - 88.0, "y": 84.0, "w": 176.0, "h": 308.0, "kind": "danger"},
+						{"x": ROOM_WIDTH * 0.5 - 96.0, "y": 468.0, "w": 192.0, "h": 12.0, "kind": "safe"}
+					]
+				"push":
+					plan["platforms"] = [
+						{"x": 180.0, "y": 192.0, "tiles": 4, "kind": "safe"},
+						{"x": ROOM_WIDTH - 340.0, "y": 280.0, "tiles": 4, "kind": "fast"},
+						{"x": ROOM_WIDTH - 280.0, "y": 520.0, "tiles": 4, "kind": "regroup"}
+					]
+					plan["markers"] = [
+						{"x": 160.0, "y": ROOM_HEIGHT * 0.5 - 72.0, "w": 320.0, "h": 144.0, "kind": "danger"},
+						{"x": ROOM_WIDTH - 360.0, "y": 272.0, "w": 160.0, "h": 12.0, "kind": "fast"}
+					]
+				_:
+					plan["platforms"] = [
+						{"x": 204.0, "y": 228.0, "tiles": 4, "kind": "safe"},
+						{"x": ROOM_WIDTH - 332.0, "y": 320.0, "tiles": 3, "kind": "fast"},
+						{"x": ROOM_WIDTH - 280.0, "y": 548.0, "tiles": 4, "kind": "regroup"}
+					]
+					plan["markers"] = [
+						{"x": ROOM_WIDTH * 0.5 - 180.0, "y": ROOM_HEIGHT - 112.0, "w": 360.0, "h": 18.0, "kind": "danger"},
+						{"x": ROOM_WIDTH - 332.0, "y": 312.0, "w": 128.0, "h": 12.0, "kind": "fast"}
+					]
+	return plan
+
+func _render_room_micro_plan(room_node: Node2D, room: Dictionary, run_seed: int) -> void:
+	var plan := _build_room_micro_plan(room, run_seed)
+	for marker_raw in Array(plan.get("markers", [])):
+		var marker: Dictionary = marker_raw
+		_add_route_marker(
+			room_node,
+			float(marker.get("x", 0.0)),
+			float(marker.get("y", 0.0)),
+			float(marker.get("w", 0.0)),
+			float(marker.get("h", 0.0)),
+			str(marker.get("kind", "safe"))
+		)
+	for platform_raw in Array(plan.get("platforms", [])):
+		var platform: Dictionary = platform_raw
+		_add_platform_run(
+			room_node,
+			float(platform.get("x", 0.0)),
+			float(platform.get("y", 0.0)),
+			int(platform.get("tiles", 3)),
+			str(platform.get("kind", "safe"))
+		)
+	var pedestal: Dictionary = plan.get("pedestal", {})
+	if not pedestal.is_empty():
+		_add_evidence_pedestal(
+			room_node,
+			float(pedestal.get("x", 0.0)),
+			float(pedestal.get("y", 0.0)),
+			float(pedestal.get("w", 160.0)),
+			float(pedestal.get("h", 18.0))
+		)
+	var watch_light: Vector2 = plan.get("watch_light", Vector2(-1, -1))
+	if watch_light.x >= 0.0:
+		_add_focus_light(room_node, watch_light)
+
+func _route_color(kind: String) -> Color:
+	match kind:
+		"fast":
+			return ROUTE_FAST_COLOR
+		"watch", "exposed":
+			return ROUTE_WATCH_COLOR
+		"danger":
+			return ROUTE_DANGER_COLOR
+		_:
+			return ROUTE_SAFE_COLOR
+
+func _add_route_marker(parent: Node2D, x: float, y: float, w: float, h: float, kind: String) -> void:
+	var rect := ColorRect.new()
+	rect.position = Vector2(x, y)
+	rect.size = Vector2(w, h)
+	rect.color = _route_color(kind)
+	parent.add_child(rect)
+
+func _add_platform_run(parent: Node2D, x: float, y: float, tiles: int, kind: String) -> void:
+	var width := float(maxi(tiles, 1)) * T_SIZE
+	var marker := ColorRect.new()
+	marker.position = Vector2(x, y - 6.0)
+	marker.size = Vector2(width, 6.0)
+	marker.color = _route_color(kind).lightened(0.15)
+	parent.add_child(marker)
+	for i in range(maxi(tiles, 1)):
+		_add_platform_tile(parent, x + float(i) * T_SIZE, y)
+
+func _add_evidence_pedestal(parent: Node2D, x: float, y: float, w: float, h: float) -> void:
+	var base := ColorRect.new()
+	base.position = Vector2(x, y)
+	base.size = Vector2(w, h)
+	base.color = Color(0.34, 0.26, 0.18, 0.85)
+	parent.add_child(base)
+	var trim := ColorRect.new()
+	trim.position = Vector2(x + 8.0, y - 4.0)
+	trim.size = Vector2(w - 16.0, 4.0)
+	trim.color = Color(0.66, 0.56, 0.32, 0.7)
+	parent.add_child(trim)
+	var aura := ColorRect.new()
+	aura.position = Vector2(x - 16.0, y + h)
+	aura.size = Vector2(w + 32.0, 10.0)
+	aura.color = ROUTE_WATCH_COLOR
+	parent.add_child(aura)
+
+func _add_focus_light(parent: Node2D, world_pos: Vector2) -> void:
+	var light := PointLight2D.new()
+	light.texture = cached_glow_tex
+	light.color = Color(0.94, 0.84, 0.54, 0.9)
+	light.energy = 0.45
+	light.scale = Vector2(1.6, 1.2)
+	light.position = world_pos
+	parent.add_child(light)
 
 # ============================================================
 # RIM-LIGHT HIGHLIGHT on top edge of wall tiles
@@ -772,11 +986,6 @@ func _add_platform_tile(parent: Node2D, x: float, y: float) -> void:
 	col.one_way_collision = true # CRITICAL: Allows players to jump UP through the platforms!
 	body.add_child(col)
 	parent.add_child(body)
-	
-	if randf() < 0.1: # 10% chance per platform block to spawn a loot box
-		var box = load("res://src/items/loot_box.gd").new()
-		box.position = Vector2(x + T_SIZE/2, y - 12)
-		parent.add_child(box)
 
 # ============================================================
 # STAGE 13: PROCEDURAL SCAFFOLDING BUILDINGS
@@ -933,18 +1142,35 @@ func get_spawn_point(index: int) -> Vector2:
 	if spawn_points.is_empty(): return global_position + Vector2(float(GW)*0.5*T_SIZE, float(GH)*0.5*T_SIZE)
 	return spawn_points[index % spawn_points.size()]
 
-func flash_hazard_indicator(room_slot: int, duration_sec: float = 0.3) -> void:
-	if not indicator_time_left_by_slot.has(room_slot): return
+func flash_room_indicator(room_slot: int, label: String, color: Color, duration_sec: float = 0.3) -> void:
+	if not indicator_time_left_by_slot.has(room_slot):
+		return
 	indicator_time_left_by_slot[room_slot] = maxf(float(indicator_time_left_by_slot[room_slot]), duration_sec)
-	var ind : Label = indicator_by_slot.get(room_slot, null)
-	if ind: ind.visible = true
+	indicator_text_by_slot[room_slot] = label
+	indicator_color_by_slot[room_slot] = color
+	var ind: Label = indicator_by_slot.get(room_slot, null)
+	if ind:
+		ind.text = label
+		ind.modulate = color
+		ind.visible = true
+
+func flash_hazard_indicator(room_slot: int, duration_sec: float = 0.3) -> void:
+	flash_room_indicator(room_slot, "!", Color(1.0, 0.18, 0.2, 1.0), duration_sec)
 
 func _process(delta: float) -> void:
 	for slot in indicator_time_left_by_slot.keys():
 		var left : float = float(indicator_time_left_by_slot[slot]) - delta
 		indicator_time_left_by_slot[slot] = maxf(left, 0.0)
 		var ind : Label = indicator_by_slot.get(slot, null)
-		if ind: ind.visible = left > 0.0
+		if ind:
+			if left > 0.0:
+				ind.text = str(indicator_text_by_slot.get(slot, "!"))
+				ind.modulate = Color(indicator_color_by_slot.get(slot, Color(1.0, 0.18, 0.2, 1.0)))
+				ind.visible = true
+			else:
+				ind.text = "!"
+				ind.modulate = Color(1.0, 0.18, 0.2, 1.0)
+				ind.visible = false
 
 # ============================================================
 # HELPERS: physics geometry
@@ -995,6 +1221,12 @@ func _add_spikes(parent: Node2D, x: float, y: float, w: float) -> void:
 	var col := CollisionShape2D.new(); var rect := RectangleShape2D.new()
 	rect.size = Vector2(w, 12.0); col.shape = rect; col.position = Vector2(w*0.5, 2.0)
 	area.add_child(col); parent.add_child(area)
+
+func _add_crusher(parent: Node2D, anchor: Vector2, travel: Vector2, slot: int) -> void:
+	var crusher := CRUSHER_SCRIPT.new()
+	crusher.name = "Crusher_%d" % slot
+	crusher.configure(anchor, travel, slot * 23)
+	parent.add_child(crusher)
 
 # ============================================================
 # NOISE-BASED BIOME COLOR HELPERS (organic blobs, not columns)

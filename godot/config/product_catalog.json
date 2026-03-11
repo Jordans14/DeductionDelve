@@ -1,0 +1,355 @@
+{
+  "schema_version": 1,
+  "cosmetic_categories": [
+    "title",
+    "banner",
+    "notebook_theme",
+    "zipline_skin",
+    "rope_skin",
+    "lantern_skin"
+  ],
+  "cosmetics": [
+    {
+      "id": "title_greenhorn",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Greenhorn",
+      "family": "starter",
+      "rarity": "common",
+      "source": {
+        "type": "starter"
+      }
+    },
+    {
+      "id": "banner_field_issue",
+      "category": "banner",
+      "slot": "banner",
+      "display_name": "Field Issue Banner",
+      "family": "starter",
+      "rarity": "common",
+      "source": {
+        "type": "starter"
+      }
+    },
+    {
+      "id": "theme_amber_fieldnotes",
+      "category": "notebook_theme",
+      "slot": "notebook_theme",
+      "display_name": "Amber Field Notes",
+      "family": "starter",
+      "rarity": "common",
+      "source": {
+        "type": "starter"
+      },
+      "palette": {
+        "panel_bg": "#221A14",
+        "border": "#C6914A",
+        "accent": "#E4B25C",
+        "text": "#F6E3BE"
+      }
+    },
+    {
+      "id": "title_tunnel_scout",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Tunnel Scout",
+      "family": "progression",
+      "rarity": "common",
+      "source": {
+        "type": "account_level",
+        "level": 2
+      }
+    },
+    {
+      "id": "banner_countermark",
+      "category": "banner",
+      "slot": "banner",
+      "display_name": "Countermark Banner",
+      "family": "progression",
+      "rarity": "uncommon",
+      "source": {
+        "type": "account_level",
+        "level": 3
+      }
+    },
+    {
+      "id": "theme_cobalt_archive",
+      "category": "notebook_theme",
+      "slot": "notebook_theme",
+      "display_name": "Cobalt Archive",
+      "family": "progression",
+      "rarity": "uncommon",
+      "source": {
+        "type": "account_level",
+        "level": 4
+      },
+      "palette": {
+        "panel_bg": "#111A24",
+        "border": "#4F88C6",
+        "accent": "#79B8E8",
+        "text": "#DDEEFF"
+      }
+    },
+    {
+      "id": "title_truth_diver",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Truth Diver",
+      "family": "mastery",
+      "rarity": "rare",
+      "source": {
+        "type": "role_mastery",
+        "role": "Warden",
+        "level": 2
+      }
+    },
+    {
+      "id": "title_route_saboteur",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Route Saboteur",
+      "family": "mastery",
+      "rarity": "rare",
+      "source": {
+        "type": "role_mastery",
+        "role": "Veil",
+        "level": 2
+      }
+    },
+    {
+      "id": "title_cache_runner",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Cache Runner",
+      "family": "mastery",
+      "rarity": "rare",
+      "source": {
+        "type": "role_mastery",
+        "role": "Scavenger",
+        "level": 2
+      }
+    },
+    {
+      "id": "banner_ghostline",
+      "category": "banner",
+      "slot": "banner",
+      "display_name": "Ghostline Banner",
+      "family": "progression",
+      "rarity": "rare",
+      "source": {
+        "type": "account_level",
+        "level": 5
+      }
+    },
+    {
+      "id": "zipline_skin_braided_amber",
+      "category": "zipline_skin",
+      "slot": "zipline_skin",
+      "display_name": "Braided Amber Cable",
+      "family": "catalog",
+      "rarity": "common",
+      "source": {
+        "type": "catalog_only"
+      }
+    },
+    {
+      "id": "rope_skin_sandline",
+      "category": "rope_skin",
+      "slot": "rope_skin",
+      "display_name": "Sandline Coil",
+      "family": "catalog",
+      "rarity": "common",
+      "source": {
+        "type": "catalog_only"
+      }
+    },
+    {
+      "id": "lantern_skin_etched_glass",
+      "category": "lantern_skin",
+      "slot": "lantern_skin",
+      "display_name": "Etched Glass Lantern",
+      "family": "catalog",
+      "rarity": "uncommon",
+      "source": {
+        "type": "catalog_only"
+      }
+    }
+  ],
+  "mastery_tracks": {
+    "account": {
+      "display_name": "Expedition Rank",
+      "levels": [0, 100, 240, 420, 640, 900]
+    },
+    "Warden": {
+      "display_name": "Warden Mastery",
+      "levels": [0, 70, 180, 340]
+    },
+    "Veil": {
+      "display_name": "Veil Mastery",
+      "levels": [0, 70, 180, 340]
+    },
+    "Scavenger": {
+      "display_name": "Scavenger Mastery",
+      "levels": [0, 70, 180, 340]
+    }
+  },
+  "achievements": [
+    {
+      "id": "first_descent",
+      "display_name": "First Descent",
+      "description": "Complete a run and return with a story.",
+      "rule": {
+        "type": "runs",
+        "count": 1
+      }
+    },
+    {
+      "id": "true_haul",
+      "display_name": "True Haul",
+      "description": "Secure an authentic artifact for the expedition.",
+      "rule": {
+        "type": "expedition_wins",
+        "count": 1
+      }
+    },
+    {
+      "id": "false_prize",
+      "display_name": "False Prize",
+      "description": "See sabotage win through a counterfeit or failed extraction.",
+      "rule": {
+        "type": "sabotage_wins",
+        "count": 1
+      }
+    },
+    {
+      "id": "warden_reader",
+      "display_name": "Warden Reader",
+      "description": "Reach Warden mastery level 2.",
+      "rule": {
+        "type": "role_level",
+        "role": "Warden",
+        "level": 2
+      }
+    },
+    {
+      "id": "cavern_index",
+      "display_name": "Cavern Index",
+      "description": "Discover every room family in the current slice.",
+      "rule": {
+        "type": "discoveries",
+        "section": "room_families",
+        "count": 3
+      }
+    }
+  ],
+  "codex": {
+    "roles": [
+      {
+        "id": "Warden",
+        "display_name": "Warden",
+        "description": "Reads clues, inspects artifacts, and protects authentic extraction."
+      },
+      {
+        "id": "Veil",
+        "display_name": "Veil",
+        "description": "Wins by turning the expedition against itself while staying ambiguous."
+      },
+      {
+        "id": "Scavenger",
+        "display_name": "Scavenger",
+        "description": "Keeps routes alive, survives the chaos, and carries the expedition forward."
+      }
+    ],
+    "room_families": [
+      {
+        "id": "traversal",
+        "display_name": "Traversal Shafts",
+        "description": "Split routes, height changes, and movement commitment."
+      },
+      {
+        "id": "hazard",
+        "display_name": "Hazard Chokepoints",
+        "description": "Danger lanes that force timing blame and regroup decisions."
+      },
+      {
+        "id": "evidence",
+        "display_name": "Evidence Pockets",
+        "description": "Exposed artifact rooms that create pickup and exit pressure."
+      }
+    ],
+    "item_families": [
+      {
+        "id": "tools",
+        "display_name": "Tools",
+        "description": "Active equipment that changes routes, clues, or timing in the moment."
+      },
+      {
+        "id": "relics",
+        "display_name": "Relics",
+        "description": "Passive modifiers that change movement, visibility, or trace pressure."
+      },
+      {
+        "id": "artifacts",
+        "display_name": "Artifacts",
+        "description": "The objective cargo. Carry one at a time and trust who holds it carefully."
+      },
+      {
+        "id": "world_objects",
+        "display_name": "World Objects",
+        "description": "Placed structures and room fixtures that become shared route evidence."
+      }
+    ],
+    "artifact_states": [
+      {
+        "id": "authentic",
+        "display_name": "Authentic Artifact",
+        "description": "The true expedition target."
+      },
+      {
+        "id": "counterfeit",
+        "display_name": "Counterfeit Artifact",
+        "description": "Looks plausible, but extraction hands victory to sabotage."
+      }
+    ],
+    "clue_families": [
+      {
+        "id": "footprints",
+        "display_name": "Footprints",
+        "description": "Heavy movement leaves a readable route history."
+      },
+      {
+        "id": "bomb_exploded",
+        "display_name": "Blast Marks",
+        "description": "Explosions leave loud, public evidence and changed routes."
+      },
+      {
+        "id": "placed_zipline",
+        "display_name": "Placed Ziplines",
+        "description": "A zipline commits a room to a visible route."
+      },
+      {
+        "id": "noise_trace",
+        "display_name": "Noise Traces",
+        "description": "Decoys create ambiguous but public route stories."
+      },
+      {
+        "id": "light_change",
+        "display_name": "Light Changes",
+        "description": "Dimmed light changes how much of a room the team could really see."
+      },
+      {
+        "id": "room_callout",
+        "display_name": "Room Callouts",
+        "description": "Public room callouts add explicit but arguable pressure and route context."
+      }
+    ]
+  },
+  "settings_defaults": {
+    "large_text": false,
+    "hint_mode": "full",
+    "controller_glyphs": false,
+    "voice_mode": "off",
+    "push_to_talk": true,
+    "mute_voice": false
+  }
+}

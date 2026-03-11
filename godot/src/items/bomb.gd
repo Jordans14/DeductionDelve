@@ -5,7 +5,7 @@ var timer := 2.5
 var visual: Polygon2D
 var flash_timer := 0.0
 
-@rpc("any_peer", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable")
 func rpc_explode(pos: Vector2) -> void:
 	var rb = get_node_or_null("/root/Game/Rooms")
 	if rb and rb.has_method("carve_hole"):
@@ -14,6 +14,7 @@ func rpc_explode(pos: Vector2) -> void:
 	# Blast physics / Damage
 	var parent = get_parent()
 	if parent:
+		_spawn_scorch_mark(parent, pos)
 		var blast = Polygon2D.new()
 		blast.color = Color(1.0, 0.5, 0.1, 0.8)
 		blast.polygon = _build_circle(100)
@@ -32,7 +33,25 @@ func rpc_explode(pos: Vector2) -> void:
 					child.velocity += dir * (80.0 - dist) * 15.0
 					if child.has_method("apply_damage"): child.apply_damage(1) # pseudo damage
 	
+	# Record explosion event for tracing
+	if NetworkManager.is_host:
+		NetworkManager.record_public_event("bomb_exploded", NetworkManager.get_room_slot(pos), -1, {})
+	
 	queue_free()
+
+func _spawn_scorch_mark(parent: Node, pos: Vector2) -> void:
+	var scorch := Polygon2D.new()
+	scorch.color = Color(0.14, 0.08, 0.06, 0.55)
+	scorch.position = pos
+	scorch.polygon = PackedVector2Array([
+		Vector2(-34, -12), Vector2(-18, -24), Vector2(10, -22), Vector2(30, -8),
+		Vector2(26, 10), Vector2(8, 18), Vector2(-20, 16), Vector2(-36, 4)
+	])
+	parent.add_child(scorch)
+	var tween = scorch.create_tween()
+	tween.tween_interval(12.0)
+	tween.tween_property(scorch, "color:a", 0.0, 2.0)
+	tween.tween_callback(scorch.queue_free)
 
 func _build_circle(r: float) -> PackedVector2Array:
 	var pts := PackedVector2Array()

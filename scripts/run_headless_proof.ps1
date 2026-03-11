@@ -74,6 +74,21 @@ function Wait-ForPattern {
     throw "Timed out waiting for pattern '$Pattern' in $Path"
 }
 
+function Wait-ForPortBound {
+    param(
+        [int]$Port,
+        [int]$TimeoutSec = 15
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Test-PortFree -Port $Port)) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Timed out waiting for port $Port to bind"
+}
+
 function Assert-Contains {
     param(
         [string]$Path,
@@ -148,7 +163,9 @@ function Invoke-ProofAttempt {
         "--auto-ready",
         "--auto-start",
         "--auto-pickup",
-        "--auto-role-action"
+        "--auto-role-action",
+        "--auto-bomb",
+        "--auto-rope"
     )
 
     $hostProcess = $null
@@ -156,8 +173,14 @@ function Invoke-ProofAttempt {
 
     try {
         $hostProcess = Start-Process -FilePath $Exe -WorkingDirectory $GodotPath -ArgumentList $hostArgs -RedirectStandardOutput $hostOut -RedirectStandardError $hostErr -PassThru
-        $hostMatch = Wait-ForPattern -Path $hostOut -Pattern "HOST_ONLINE .*chosen_port=(\d+)" -TimeoutSec 20
-        $chosenPort = [int]$hostMatch.Groups[1].Value
+        Start-Sleep -Seconds 2
+        $chosenPort = $requestedPort
+        try {
+            $hostMatch = Wait-ForPattern -Path $hostOut -Pattern "HOST_ONLINE .*chosen_port=(\d+)" -TimeoutSec 30
+            $chosenPort = [int]$hostMatch.Groups[1].Value
+        } catch {
+            Wait-ForPortBound -Port $requestedPort -TimeoutSec 60 | Out-Null
+        }
         Write-Host "Host chosen port: $chosenPort"
 
         $clientArgs = @(
@@ -169,9 +192,12 @@ function Invoke-ProofAttempt {
             "--port=$chosenPort",
             "--auto-ready",
             "--auto-pickup",
-            "--auto-role-action"
+            "--auto-role-action",
+            "--auto-bomb",
+            "--auto-rope"
         )
         $clientProcess = Start-Process -FilePath $Exe -WorkingDirectory $GodotPath -ArgumentList $clientArgs -RedirectStandardOutput $clientOut -RedirectStandardError $clientErr -PassThru
+        Start-Sleep -Seconds 2
 
         Wait-ForPattern -Path $hostOut -Pattern "START_RUN_REQUEST" -TimeoutSec 25 | Out-Null
         Wait-ForPattern -Path $hostOut -Pattern "GAME_READY" -TimeoutSec 25 | Out-Null
@@ -185,6 +211,10 @@ function Invoke-ProofAttempt {
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=run_started" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=sabotage_camera_jam" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=extraction_window_started" -Label "host output"
+        Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=bomb_thrown" -Label "host output"
+        Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=bomb_exploded" -Label "host output"
+        Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=rope_thrown" -Label "host output"
+        Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=rope_deployed" -Label "host output"
         Assert-Contains -Path $clientOut -Pattern "GAME_READY" -Label "client output"
         Assert-EmptyFile -Path $hostErr -Label "host"
         Assert-EmptyFile -Path $clientErr -Label "client"
@@ -220,18 +250,25 @@ function Invoke-ProofAttempt {
             DiffOutput = $diffOutput
         }
     } catch {
-        Write-Host "CATCH IN INVOKE-PROOFATTEMPT:"
-        Write-Host $_.Exception.Message
-        if (Test-Path $hostOut) {
-            Write-Host "--- TAIL OF HOST.OUT.LOG ---"
-            Get-Content $hostOut -Tail 50
-            Write-Host "----------------------------"
-        }
-        throw $_
+        $exception = $_
+        Write-Host "CATCH IN INVOKE-PROOFATTEMPT: $($exception.ToString())"
+        throw $exception
     } finally {
         foreach ($proc in @($clientProcess, $hostProcess)) {
             if ($proc -and -not $proc.HasExited) {
                 try { Stop-Process -Id $proc.Id -Force } catch {}
+            }
+        }
+        if ($LastExitCode -ne 0 -or $null -ne $exception) {
+             if (Test-Path $hostOut) {
+                Write-Host "--- TAIL OF HOST.OUT.LOG ---"
+                Get-Content $hostOut -Tail 50 -ErrorAction SilentlyContinue
+                Write-Host "----------------------------"
+            }
+            if (Test-Path $clientOut) {
+                Write-Host "--- TAIL OF CLIENT.OUT.LOG ---"
+                Get-Content $clientOut -Tail 50 -ErrorAction SilentlyContinue
+                Write-Host "----------------------------"
             }
         }
     }
@@ -266,7 +303,8 @@ foreach ($candidateSeed in $seedCandidates) {
     }
 }
 
-if ($proofResult -eq $null) {
+if ($null -eq $proofResult) {
+    Write-Host "Final failures: $($attemptFailures -join ' || ')"
     throw ("Headless proof failed for all candidate seeds: {0}" -f ($attemptFailures -join " || "))
 }
 

@@ -18,25 +18,35 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -320.0
-offset_top = -220.0
-offset_right = 320.0
-offset_bottom = 220.0
+offset_left = -460.0
+offset_top = -320.0
+offset_right = 460.0
+offset_bottom = 320.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="Panel"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="Title" type="Label" parent="Panel/VBox"]
 layout_mode = 2
-text = "Deduction Delve - Lobby"
+text = "Deduction Delve"
+horizontal_alignment = 1
+
+[node name="BannerLabel" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+text = "Title // Banner"
 horizontal_alignment = 1
 
 [node name="Status" type="Label" parent="Panel/VBox"]
 layout_mode = 2
 text = "Not connected"
+
+[node name="SessionSummary" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Session: Offline"
 
 [node name="Grid" type="GridContainer" parent="Panel/VBox"]
 layout_mode = 2
@@ -82,6 +92,11 @@ text = "Join"
 layout_mode = 2
 text = "Leave"
 
+[node name="ReconnectButton" type="Button" parent="Panel/VBox/Buttons"]
+layout_mode = 2
+text = "Reconnect"
+disabled = true
+
 [node name="ReadyButton" type="Button" parent="Panel/VBox/Buttons"]
 layout_mode = 2
 text = "Ready: NO"
@@ -97,8 +112,244 @@ visible = false
 layout_mode = 2
 text = "No players"
 
+[node name="ShellHint" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+text = "PgUp/PgDn or LB/RB: switch tabs"
+horizontal_alignment = 1
+
+[node name="ShellTabs" type="TabContainer" parent="Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+current_tab = 0
+
+[node name="HomeTab" type="VBoxContainer" parent="Panel/VBox/ShellTabs"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HeroCard" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Hero"
+
+[node name="Overview" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Overview"
+
+[node name="QuickStart" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Quick start"
+
+[node name="Continue" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Continue"
+
+[node name="LastRun" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Last run"
+
+[node name="RecentRuns" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Recent runs"
+
+[node name="RunDiagnostics" type="Label" parent="Panel/VBox/ShellTabs/HomeTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Diagnostics"
+
+[node name="ProfileTab" type="VBoxContainer" parent="Panel/VBox/ShellTabs"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ProfileSummary" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Profile"
+
+[node name="MasterySummary" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Mastery"
+
+[node name="ProgressSummary" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Progress"
+
+[node name="AchievementSummary" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Milestones"
+
+[node name="HistorySummary" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "History"
+
+[node name="HistoryFocus" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "History focus"
+
+[node name="HistoryCompare" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "History compare"
+
+[node name="HistoryFilter" type="OptionButton" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+
+[node name="HistorySort" type="OptionButton" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+
+[node name="RunHistoryEntries" type="ItemList" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RunHistoryDetail" type="Label" parent="Panel/VBox/ShellTabs/ProfileTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Run details"
+
+[node name="CollectionTab" type="VBoxContainer" parent="Panel/VBox/ShellTabs"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CollectionSection" type="OptionButton" parent="Panel/VBox/ShellTabs/CollectionTab"]
+layout_mode = 2
+
+[node name="CollectionEntries" type="ItemList" parent="Panel/VBox/ShellTabs/CollectionTab"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CollectionDetail" type="Label" parent="Panel/VBox/ShellTabs/CollectionTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Collection detail"
+
+[node name="CollectionSummary" type="Label" parent="Panel/VBox/ShellTabs/CollectionTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Collection"
+
+[node name="CodexTab" type="VBoxContainer" parent="Panel/VBox/ShellTabs"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CodexSection" type="OptionButton" parent="Panel/VBox/ShellTabs/CodexTab"]
+layout_mode = 2
+
+[node name="CodexEntries" type="ItemList" parent="Panel/VBox/ShellTabs/CodexTab"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CodexDetail" type="Label" parent="Panel/VBox/ShellTabs/CodexTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Codex detail"
+
+[node name="CodexSummary" type="Label" parent="Panel/VBox/ShellTabs/CodexTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Codex"
+
+[node name="CosmeticsTab" type="VBoxContainer" parent="Panel/VBox/ShellTabs"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CosmeticCategory" type="OptionButton" parent="Panel/VBox/ShellTabs/CosmeticsTab"]
+layout_mode = 2
+
+[node name="CosmeticEntries" type="ItemList" parent="Panel/VBox/ShellTabs/CosmeticsTab"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="EquipNextButton" type="Button" parent="Panel/VBox/ShellTabs/CosmeticsTab"]
+layout_mode = 2
+text = "Equip next owned"
+
+[node name="CosmeticPreview" type="Label" parent="Panel/VBox/ShellTabs/CosmeticsTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Preview"
+
+[node name="CosmeticSummary" type="Label" parent="Panel/VBox/ShellTabs/CosmeticsTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Cosmetics"
+
+[node name="SettingsTab" type="VBoxContainer" parent="Panel/VBox/ShellTabs"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LargeTextCheck" type="CheckBox" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Large text"
+
+[node name="ControllerGlyphsCheck" type="CheckBox" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Controller glyph hints"
+
+[node name="HintModeButton" type="Button" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Hints: Full"
+
+[node name="VoiceModeButton" type="Button" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Voice: Off"
+
+[node name="PushToTalkCheck" type="CheckBox" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Push-to-talk"
+
+[node name="MuteVoiceCheck" type="CheckBox" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Mute voice"
+
+[node name="ResetSettingsButton" type="Button" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+text = "Reset settings"
+
+[node name="SettingsSummary" type="Label" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Settings"
+
+[node name="DataHealth" type="Label" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Data health"
+
+[node name="ControlsSummary" type="Label" parent="Panel/VBox/ShellTabs/SettingsTab"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Controls"
+
 [connection signal="pressed" from="Panel/VBox/Buttons/HostButton" to="." method="_on_host_button_pressed"]
 [connection signal="pressed" from="Panel/VBox/Buttons/JoinButton" to="." method="_on_join_button_pressed"]
 [connection signal="pressed" from="Panel/VBox/Buttons/LeaveButton" to="." method="_on_leave_button_pressed"]
+[connection signal="pressed" from="Panel/VBox/Buttons/ReconnectButton" to="." method="_on_reconnect_button_pressed"]
 [connection signal="pressed" from="Panel/VBox/Buttons/ReadyButton" to="." method="_on_ready_button_pressed"]
 [connection signal="pressed" from="Panel/VBox/Buttons/StartButton" to="." method="_on_start_button_pressed"]
+[connection signal="tab_changed" from="Panel/VBox/ShellTabs" to="." method="_on_shell_tab_changed"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/ProfileTab/HistoryFilter" to="." method="_on_history_filter_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/ProfileTab/HistorySort" to="." method="_on_history_sort_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/ProfileTab/RunHistoryEntries" to="." method="_on_history_entry_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/CollectionTab/CollectionSection" to="." method="_on_collection_section_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/CollectionTab/CollectionEntries" to="." method="_on_collection_entry_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/CodexTab/CodexSection" to="." method="_on_codex_section_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/CodexTab/CodexEntries" to="." method="_on_codex_entry_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/CosmeticsTab/CosmeticCategory" to="." method="_on_cosmetic_category_selected"]
+[connection signal="item_selected" from="Panel/VBox/ShellTabs/CosmeticsTab/CosmeticEntries" to="." method="_on_cosmetic_entry_selected"]
+[connection signal="pressed" from="Panel/VBox/ShellTabs/CosmeticsTab/EquipNextButton" to="." method="_on_equip_next_button_pressed"]
+[connection signal="toggled" from="Panel/VBox/ShellTabs/SettingsTab/LargeTextCheck" to="." method="_on_large_text_toggled"]
+[connection signal="toggled" from="Panel/VBox/ShellTabs/SettingsTab/ControllerGlyphsCheck" to="." method="_on_controller_glyphs_toggled"]
+[connection signal="pressed" from="Panel/VBox/ShellTabs/SettingsTab/HintModeButton" to="." method="_on_hint_mode_button_pressed"]
+[connection signal="pressed" from="Panel/VBox/ShellTabs/SettingsTab/VoiceModeButton" to="." method="_on_voice_mode_button_pressed"]
+[connection signal="toggled" from="Panel/VBox/ShellTabs/SettingsTab/PushToTalkCheck" to="." method="_on_push_to_talk_toggled"]
+[connection signal="toggled" from="Panel/VBox/ShellTabs/SettingsTab/MuteVoiceCheck" to="." method="_on_mute_voice_toggled"]
+[connection signal="pressed" from="Panel/VBox/ShellTabs/SettingsTab/ResetSettingsButton" to="." method="_on_reset_settings_button_pressed"]

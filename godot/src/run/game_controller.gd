@@ -3,6 +3,8 @@ extends Node2D
 const SNAPSHOT_INTERVAL := 0.04
 const SPAWN_X_STEP := 80.0
 const ROOM_WIDTH := 1024.0
+const ROOM_HEIGHT := 768.0
+const ROOM_COLUMNS := 5
 const WARDEN_CHECK_RANGE := 96.0
 const NOTEBOOK_RECENT_LIMIT := 8
 const NOTEBOOK_MAX_LEN := 120
@@ -16,6 +18,9 @@ const NOTEBOOK_FILTER_ALIBI := "ALIBI"
 const NOTEBOOK_FILTER_OTHER := "OTHER"
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EVIDENCE_SERVICE_SCRIPT = preload("res://src/run/evidence_service.gd")
+const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
+const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
+const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
 const ITEM_PICKUP_SCENE = preload("res://scenes/Item.tscn")
 
 var NetworkManager: Node:
@@ -40,6 +45,7 @@ var RunState: Node:
 @onready var status_label: Label = get_node_or_null("CanvasLayer/HUD/Status") as Label
 @onready var role_label: Label = get_node_or_null("CanvasLayer/HUD/Role") as Label
 @onready var carry_label: Label = get_node_or_null("CanvasLayer/HUD/Carry") as Label
+@onready var goal_label: Label = get_node_or_null("CanvasLayer/HUD/Goal") as Label
 @onready var prompt_label: Label = get_node_or_null("CanvasLayer/HUD/Prompt") as Label
 @onready var timeline_label: Label = get_node_or_null("CanvasLayer/HUD/Timeline") as Label
 @onready var hint_label: Label = get_node_or_null("CanvasLayer/HUD/HintLabel") as Label
@@ -66,9 +72,14 @@ var RunState: Node:
 var player_scene := preload("res://scenes/Player.tscn")
 var evidence_scene := preload("res://scenes/Evidence.tscn")
 var evidence_service: Object = EVIDENCE_SERVICE_SCRIPT.new()
+var item_service: RefCounted = ITEM_SERVICE_SCRIPT.new()
 var players: Dictionary = {}
 var evidence_nodes: Dictionary = {}
 var item_nodes: Dictionary = {}
+var trace_root: Node2D
+var footprint_nodes: Array[Node2D] = []
+var last_footprint_tick_by_peer: Dictionary = {}
+var last_footprint_pos_by_peer: Dictionary = {}
 var tick_counter: int = 0
 var snapshot_timer: float = 0.0
 var key_latch: Dictionary = {}
@@ -85,13 +96,24 @@ var notebook_toast_expires_tick: int = -1
 var hint_last_text: String = ""
 var hint_last_tick: int = -999999
 var next_step_hint_text: String = ""
+var selected_active_item_id: int = -1
 var cli_auto_pickup: bool = false
 var cli_auto_pickup_done: bool = false
 var cli_auto_role_action: bool = false
 var cli_auto_role_action_done: bool = false
+var cli_auto_bomb: bool = false
+var cli_auto_bomb_done: bool = false
+var cli_auto_rope: bool = false
+var cli_auto_rope_done: bool = false
 var last_report_user_path: String = ""
 var last_verify_status: String = ""
+var product_run_recorded: bool = false
+var last_known_local_peer_id: int = -1
 var warden_ghost: Area2D
+var profile_settings: Dictionary = {}
+var equipped_notebook_theme_id: String = ""
+var equipped_banner_id: String = ""
+var equipped_title_id: String = ""
 
 func _ready() -> void:
 	if NetworkManager.has_signal("state_snapshot"):
@@ -100,6 +122,8 @@ func _ready() -> void:
 		NetworkManager.evidence_state_changed.connect(_on_evidence_state_changed)
 	if NetworkManager.has_signal("item_state_changed"):
 		NetworkManager.item_state_changed.connect(_on_item_state_changed)
+	if NetworkManager.has_signal("ghost_state_changed"):
+		NetworkManager.ghost_state_changed.connect(_on_ghost_state_changed)
 	if NetworkManager.has_signal("role_revealed"):
 		NetworkManager.role_revealed.connect(_on_role_revealed)
 	if NetworkManager.has_signal("hazard_pulse_requested"):
@@ -108,6 +132,8 @@ func _ready() -> void:
 		NetworkManager.action_denied.connect(_on_action_denied)
 	if NetworkManager.has_signal("run_ended"):
 		NetworkManager.run_ended.connect(_on_run_ended)
+	if NetworkManager.has_signal("connection_changed"):
+		NetworkManager.connection_changed.connect(_on_connection_state_changed)
 	if EventLog.has_signal("timeline_event_added"):
 		EventLog.timeline_event_added.connect(_on_timeline_event_added)
 	if return_lobby_button:
@@ -119,6 +145,7 @@ func _ready() -> void:
 		notebook_pin_button.pressed.connect(_on_pin_latest_note_pressed)
 	if notebook_copy_button:
 		notebook_copy_button.pressed.connect(_on_copy_notes_pressed)
+	_load_profile_preferences()
 	_apply_cli_args()
 	_build_rooms()   # Must happen first so spawn_points[] is populated
 	_spawn_players()
@@ -139,25 +166,19 @@ func _ready() -> void:
 		help_panel.visible = false
 	if help_label:
 		help_label.text = _build_help_overlay_text()
+	trace_root = Node2D.new()
+	trace_root.name = "TraceRoot"
+	add_child(trace_root)
 
-	var custom_theme = Theme.new()
-	var bg_style = StyleBoxFlat.new()
-	bg_style.bg_color = Color(0.06, 0.05, 0.08, 0.95)
-	bg_style.border_width_bottom = 2
-	bg_style.border_width_right = 2
-	bg_style.border_color = Color(0.4, 0.1, 0.4, 0.7)
-	bg_style.corner_radius_bottom_right = 8
-	bg_style.corner_radius_bottom_left = 8
-	bg_style.corner_radius_top_left = 8
-	bg_style.corner_radius_top_right = 8
-	custom_theme.set_stylebox("panel", "PanelContainer", bg_style)
-	
+	var custom_theme := _build_panel_theme(Color(0.06, 0.05, 0.08, 0.95), Color(0.26, 0.24, 0.34, 0.8))
+	var notebook_theme := _build_notebook_panel_theme()
 	if notebook_panel:
-		notebook_panel.theme = custom_theme
+		notebook_panel.theme = notebook_theme
 	if help_panel:
 		help_panel.theme = custom_theme
 	if end_screen:
 		end_screen.theme = custom_theme
+	_apply_accessibility_preferences()
 
 	warden_ghost = Area2D.new()
 	warden_ghost.position = Vector2(-2000, 300)
@@ -186,6 +207,52 @@ func _ready() -> void:
 	print("run_started_transition")
 	print("GAME_READY pid=%d" % OS.get_process_id())
 
+func _load_profile_preferences() -> void:
+	var profile := PROFILE_SERVICE_SCRIPT.load_profile()
+	profile_settings = Dictionary(profile.get("settings", {})).duplicate(true)
+	var equipped: Dictionary = Dictionary(Dictionary(profile.get("cosmetics", {})).get("equipped", {}))
+	equipped_notebook_theme_id = str(equipped.get("notebook_theme", ""))
+	equipped_banner_id = str(equipped.get("banner", ""))
+	equipped_title_id = str(equipped.get("title", ""))
+
+func _build_panel_theme(background: Color, border: Color) -> Theme:
+	var theme := Theme.new()
+	var bg_style := StyleBoxFlat.new()
+	bg_style.bg_color = background
+	bg_style.border_width_bottom = 2
+	bg_style.border_width_right = 2
+	bg_style.border_width_top = 2
+	bg_style.border_width_left = 2
+	bg_style.border_color = border
+	bg_style.corner_radius_bottom_right = 8
+	bg_style.corner_radius_bottom_left = 8
+	bg_style.corner_radius_top_left = 8
+	bg_style.corner_radius_top_right = 8
+	theme.set_stylebox("panel", "PanelContainer", bg_style)
+	return theme
+
+func _build_notebook_panel_theme() -> Theme:
+	var palette := PRODUCT_CATALOG_SCRIPT.get_notebook_theme_palette(equipped_notebook_theme_id)
+	if palette.is_empty():
+		palette = PRODUCT_CATALOG_SCRIPT.get_notebook_theme_palette("theme_amber_fieldnotes")
+	var background := Color(str(palette.get("panel_bg", "#221A14")))
+	var border := Color(str(palette.get("border", "#C6914A")))
+	return _build_panel_theme(background, border)
+
+func _apply_accessibility_preferences() -> void:
+	if not bool(profile_settings.get("large_text", false)):
+		return
+	for label in [
+		status_label, role_label, carry_label, goal_label, prompt_label, timeline_label, hint_label,
+		notebook_hint_label, notebook_toast_label, notebook_notes_label,
+		end_seed_label, end_reason_label, end_roles_label, end_summary_label, end_timeline_label, end_more_label
+	]:
+		if label:
+			var current_size := int(label.get_theme_font_size("font_size"))
+			if current_size <= 0:
+				current_size = 16
+			label.add_theme_font_size_override("font_size", current_size + 2)
+
 func _physics_process(delta: float) -> void:
 	tick_counter += 1
 	snapshot_timer += delta
@@ -202,6 +269,7 @@ func _physics_process(delta: float) -> void:
 	_update_item_visuals()
 	_update_interaction_prompt(local_id)
 	_update_status()
+	_update_goal_label(local_id)
 	if feedback_left > 0.0:
 		feedback_left = maxf(feedback_left - delta, 0.0)
 		if feedback_left <= 0.0:
@@ -217,13 +285,9 @@ func _physics_process(delta: float) -> void:
 	if notebook_open and Input.is_key_pressed(KEY_ESCAPE):
 		_toggle_notebook(false)
 		
-	if warden_ghost and players.has(local_id) and NetworkManager.is_run_active() and not run_ended:
-		if tick_counter > 1500:
-			var target_pos: Vector2 = players[local_id].global_position
-			warden_ghost.position = warden_ghost.position.move_toward(target_pos, 70.0 * delta)
-			warden_ghost.rotation = sin(tick_counter * 0.1) * 0.1
-		else:
-			warden_ghost.position = Vector2(-2000, 300)
+	_update_forensic_traces()
+	if warden_ghost:
+		warden_ghost.rotation = sin(tick_counter * 0.1) * 0.1
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -261,8 +325,9 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _prepare_run_state() -> void:
-	_on_evidence_state_changed(RunState.evidence_by_id)
+	_on_evidence_state_changed(_evidence_state())
 	_on_item_state_changed(NetworkManager.get_items_snapshot() if NetworkManager.has_method("get_items_snapshot") else {})
+	_on_ghost_state_changed(NetworkManager.get_ghost_state() if NetworkManager.has_method("get_ghost_state") else {"active": false})
 	_on_role_revealed(str(RunState.local_role))
 
 func _spawn_players() -> void:
@@ -317,18 +382,32 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 						# Estimate velocity so animations play correctly on host screen.
 						var est_vel = (client_pos - actor.global_position) / max(delta, 0.001)
 						var r_flags = int(input_pack.get("flags", 0))
-						actor.apply_snapshot(client_pos, est_vel, 0.0, bool(r_flags & 1))
+						actor.apply_snapshot({
+							"p": client_pos,
+							"v": est_vel,
+							"h": actor.health
+						}, bool(r_flags & 1))
 			var room_slot := _room_slot_for_position(actor.global_position)
 			NetworkManager.update_authoritative_player_state(peer_id, actor.global_position, room_slot)
 			if NetworkManager.has_method("track_noise_trace") and actor.has_method("is_carrying_artifact"):
 				NetworkManager.track_noise_trace(peer_id, room_slot, actor.is_carrying_artifact())
+			_sync_tool_counts_to_actor(peer_id, actor)
+			_sync_item_affordances_to_actor(peer_id, actor)
 		if snapshot_timer >= SNAPSHOT_INTERVAL:
 			snapshot_timer = 0.0
 			var snapshot := {}
 			for peer_id in players.keys():
 				var actor = players[peer_id]
 				var is_floor = actor.is_on_floor() if peer_id == local_id else actor._remote_on_floor
-				snapshot[str(peer_id)] = {"p": actor.global_position, "v": actor.velocity, "f": is_floor}
+				var tool_counts: Dictionary = NetworkManager.get_tool_counts_for_peer(peer_id) if NetworkManager.has_method("get_tool_counts_for_peer") else {}
+				snapshot[str(peer_id)] = {
+					"p": actor.global_position, 
+					"v": actor.velocity, 
+					"f": is_floor,
+					"h": actor.health,
+					"b": int(tool_counts.get("bomb", 0)),
+					"r": int(tool_counts.get("rope", 0))
+				}
 			NetworkManager.broadcast_state(snapshot, tick_counter)
 	elif not NetworkManager.is_host and not run_ended:
 		var send_pos : Vector2 = players[local_id].global_position if players.has(local_id) else Vector2.ZERO
@@ -340,6 +419,7 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 func _handle_local_actions(local_id: int) -> void:
 	if notebook_open or not players.has(local_id) or run_ended:
 		return
+	var local_slot := _room_slot_for_position(players[local_id].global_position)
 	if _pressed_once(KEY_Q):
 		var artifact_id := _find_nearest_ground_artifact_id(local_id)
 		if artifact_id > 0:
@@ -348,6 +428,14 @@ func _handle_local_actions(local_id: int) -> void:
 		var item_id := _find_nearest_ground_item_id(local_id)
 		if item_id > 0:
 			NetworkManager.request_pickup_item(item_id)
+	if _pressed_once(KEY_U):
+		var active_item := _get_selected_active_item()
+		if not active_item.is_empty():
+			NetworkManager.request_use_item(int(active_item.get("item_id", -1)))
+	if _pressed_once(KEY_BRACKETLEFT):
+		_cycle_active_item(-1)
+	if _pressed_once(KEY_BRACKETRIGHT):
+		_cycle_active_item(1)
 	if _pressed_once(KEY_E):
 		NetworkManager.request_drop()
 	if _pressed_once(KEY_R):
@@ -362,6 +450,12 @@ func _handle_local_actions(local_id: int) -> void:
 		var check_id := _find_nearest_artifact_for_check(local_id, WARDEN_CHECK_RANGE)
 		if check_id > 0:
 			NetworkManager.request_check_artifact(check_id)
+	if _pressed_once(KEY_1):
+		NetworkManager.request_callout("danger", local_slot)
+	if _pressed_once(KEY_2):
+		NetworkManager.request_callout("regroup", local_slot)
+	if _pressed_once(KEY_3):
+		NetworkManager.request_callout("artifact", local_slot)
 
 func _run_cli_automation(target_id: int) -> void:
 	if target_id <= 0 or not players.has(target_id):
@@ -375,28 +469,77 @@ func _run_cli_automation(target_id: int) -> void:
 		var artifact_id := _find_nearest_carried_artifact_id_for(target_id)
 		if artifact_id > 0:
 			var extraction_slot := _extraction_room_slot()
-			players[target_id].global_position = Vector2(80 + float(extraction_slot) * ROOM_WIDTH, 300)
+			players[target_id].global_position = _room_slot_anchor(extraction_slot)
 			players[target_id].set_meta("cli_auto_ported", true)
 			# Only set the global done flag if it was our local player
 			if target_id == _local_peer_id():
 				cli_auto_pickup_done = true
 		else:
-			var pickup_id := _find_nearest_ground_artifact_id(target_id)
-			if pickup_id > 0 and RunState.evidence_by_id.has(pickup_id):
-				var artifact: Dictionary = RunState.evidence_by_id[pickup_id]
-				players[target_id].global_position = artifact.get("world_pos", players[target_id].global_position)
+			var evidence_by_id := _evidence_state()
+			var pickup_id := int(players[target_id].get_meta("cli_auto_pickup_id", 0))
+			if pickup_id <= 0 or not evidence_by_id.has(pickup_id) or int(Dictionary(evidence_by_id.get(pickup_id, {})).get("owner_peer_id", 0)) != 0:
+				pickup_id = _find_nearest_ground_artifact_id(target_id)
+			if pickup_id > 0 and evidence_by_id.has(pickup_id):
+				var artifact: Dictionary = evidence_by_id[pickup_id]
+				var target_pos: Vector2 = artifact.get("world_pos", players[target_id].global_position)
+				var tracked_pickup_id := int(players[target_id].get_meta("cli_auto_pickup_id", 0))
+				if tracked_pickup_id != pickup_id:
+					players[target_id].set_meta("cli_auto_pickup_id", pickup_id)
+					players[target_id].set_meta("cli_auto_seek_tick", tick_counter)
+				if players[target_id].global_position.distance_to(target_pos) > 64.0:
+					players[target_id].global_position = target_pos
 				if target_id == _local_peer_id():
-					NetworkManager.request_pickup(pickup_id)
+					var seek_tick := int(players[target_id].get_meta("cli_auto_seek_tick", -999999))
+					if tick_counter - seek_tick >= 2:
+						if NetworkManager.is_host:
+							var local_pos: Vector2 = players[target_id].global_position
+							NetworkManager.update_authoritative_player_state(target_id, local_pos, _room_slot_for_position(local_pos))
+							NetworkManager._host_pickup(target_id, pickup_id)
+						else:
+							NetworkManager.request_pickup(pickup_id)
 
 	if cli_auto_role_action and not cli_auto_role_action_done and NetworkManager.is_run_active() and tick_counter > 60:
-		if target_id == _local_peer_id() and str(RunState.local_role) == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
-			NetworkManager.request_sabotage(_room_slot_for_position(players[target_id].global_position))
-			cli_auto_role_action_done = true
+		if target_id == _local_peer_id():
+			var room_slot := _room_slot_for_position(players[target_id].global_position)
+			if NetworkManager.can_local_use_sabotage(room_slot):
+				NetworkManager.request_sabotage(room_slot)
+				cli_auto_role_action_done = true
+			
+	if cli_auto_bomb and not cli_auto_bomb_done and NetworkManager.is_run_active() and tick_counter > 120:
+		if target_id == _local_peer_id():
+			var dir = 1.0 # arbitrary
+			var bname := "Bomb_CLI_%d" % target_id
+			NetworkManager.request_throw_bomb(players[target_id].global_position + Vector2(dir * 10, -5), Vector2(dir * 300, -200), bname)
+			cli_auto_bomb_done = true
+			print("CLI_AUTO_BOMB_DONE tick=%d" % tick_counter)
+
+	if cli_auto_rope and not cli_auto_rope_done and NetworkManager.is_run_active() and tick_counter > 180:
+		if target_id == _local_peer_id():
+			var rname := "Rope_CLI_%d" % target_id
+			NetworkManager.request_throw_rope(players[target_id].global_position + Vector2(16, -10), rname)
+			cli_auto_rope_done = true
+			print("CLI_AUTO_ROPE_DONE tick=%d" % tick_counter)
+
+	# CLI End condition check (only on host, once all tasks done)
+	if NetworkManager.is_host and NetworkManager.is_run_active():
+		if target_id == _local_peer_id():
+			# Check tasks (if they were enabled)
+			var tasks_done = true
+			if cli_auto_pickup and not cli_auto_pickup_done: tasks_done = false
+			if cli_auto_role_action and not cli_auto_role_action_done: tasks_done = false
+			if cli_auto_bomb and not cli_auto_bomb_done: tasks_done = false
+			if cli_auto_rope and not cli_auto_rope_done: tasks_done = false
+			
+			# Give some grace ticks for effects/explosions to finish and log events (about 2 seconds)
+			if tasks_done and tick_counter > 360:
+				print("CLI_AUTO_COMPLETE tick=%d. Requesting run end." % tick_counter)
+				NetworkManager._host_end_run("cli_done")
 
 func _find_nearest_carried_artifact_id_for(target_id: int) -> int:
-	for artifact_raw in RunState.evidence_by_id.keys():
+	var evidence_by_id := _evidence_state()
+	for artifact_raw in evidence_by_id.keys():
 		var artifact_id := int(artifact_raw)
-		var artifact: Dictionary = RunState.evidence_by_id[artifact_id]
+		var artifact: Dictionary = evidence_by_id[artifact_id]
 		if int(artifact.get("owner_peer_id", 0)) == target_id:
 			return artifact_id
 	return 0
@@ -404,12 +547,13 @@ func _find_nearest_carried_artifact_id_for(target_id: int) -> int:
 func _find_nearest_ground_artifact_id(local_id: int) -> int:
 	if not players.has(local_id):
 		return 0
+	var evidence_by_id := _evidence_state()
 	var best_id := 0
 	var best_dist := INF
 	var local_pos: Vector2 = players[local_id].global_position
-	for artifact_raw in RunState.evidence_by_id.keys():
+	for artifact_raw in evidence_by_id.keys():
 		var artifact_id := int(artifact_raw)
-		var artifact: Dictionary = RunState.evidence_by_id[artifact_id]
+		var artifact: Dictionary = evidence_by_id[artifact_id]
 		if int(artifact.get("owner_peer_id", 0)) != 0:
 			continue
 		var pos: Vector2 = artifact.get("world_pos", Vector2.ZERO)
@@ -443,12 +587,13 @@ func _find_nearest_ground_item_id(local_id: int) -> int:
 func _find_nearest_carried_artifact_id(local_id: int) -> int:
 	if not players.has(local_id):
 		return 0
+	var evidence_by_id := _evidence_state()
 	var best_id := 0
 	var best_dist := INF
 	var local_pos: Vector2 = players[local_id].global_position
-	for artifact_raw in RunState.evidence_by_id.keys():
+	for artifact_raw in evidence_by_id.keys():
 		var artifact_id := int(artifact_raw)
-		var artifact: Dictionary = RunState.evidence_by_id[artifact_id]
+		var artifact: Dictionary = evidence_by_id[artifact_id]
 		var owner_peer := int(artifact.get("owner_peer_id", 0))
 		if owner_peer == 0 or owner_peer == local_id or not players.has(owner_peer):
 			continue
@@ -461,12 +606,13 @@ func _find_nearest_carried_artifact_id(local_id: int) -> int:
 func _find_nearest_artifact_for_check(local_id: int, max_range: float) -> int:
 	if not players.has(local_id):
 		return 0
+	var evidence_by_id := _evidence_state()
 	var best_id := 0
 	var best_dist := max_range
 	var local_pos: Vector2 = players[local_id].global_position
-	for artifact_raw in RunState.evidence_by_id.keys():
+	for artifact_raw in evidence_by_id.keys():
 		var artifact_id := int(artifact_raw)
-		var artifact: Dictionary = RunState.evidence_by_id[artifact_id]
+		var artifact: Dictionary = evidence_by_id[artifact_id]
 		var owner_peer := int(artifact.get("owner_peer_id", 0))
 		var target_pos: Vector2 = artifact.get("world_pos", Vector2.ZERO)
 		if owner_peer != 0 and players.has(owner_peer):
@@ -509,19 +655,35 @@ func _on_state_snapshot(snapshot: Dictionary, _tick: int) -> void:
 			
 			# We still sync floor state to ensure animation matches host reality
 			actor._remote_on_floor = state.get("f", false)
+			_sync_snapshot_tool_counts(peer_id, actor, state)
+			_sync_item_affordances_to_actor(peer_id, actor)
 			continue
 			
-		actor.apply_snapshot(state.get("p", actor.global_position), state.get("v", actor.velocity), 0.25, state.get("f", false))
+		actor.apply_snapshot(state, state.get("f", false))
+		_sync_snapshot_tool_counts(peer_id, actor, state)
+		_sync_item_affordances_to_actor(peer_id, actor)
 
 func _on_evidence_state_changed(evidence_by_id: Dictionary) -> void:
 	_sync_evidence_nodes(evidence_by_id)
 
 func _on_item_state_changed(items_by_id: Dictionary) -> void:
 	_sync_item_nodes(items_by_id)
+	_sync_selected_active_item()
+
+func _on_ghost_state_changed(state: Dictionary) -> void:
+	if warden_ghost == null:
+		return
+	if not bool(state.get("active", false)):
+		warden_ghost.position = Vector2(-2000, 300)
+		return
+	warden_ghost.position = state.get("position", Vector2(-2000, 300))
 
 func _on_role_revealed(role_name: String) -> void:
 	if role_label:
-		role_label.text = "Your role: %s%s" % [role_name, _local_role_hint(role_name)]
+		role_label.text = "Role: %s | %s" % [role_name, _local_role_goal(role_name)]
+
+func _local_role_goal(role_name: String) -> String:
+	return ROLE_SERVICE_SCRIPT.new().goal_text_for_role(role_name)
 
 func _on_hazard_pulse_requested(room_slot: int, _source_peer_id: int, reason: String) -> void:
 	if room_builder and room_builder.has_method("flash_hazard_indicator"):
@@ -533,12 +695,42 @@ func _on_action_denied(reason: String) -> void:
 	feedback_text = "Denied: %s" % reason
 	feedback_left = 1.2
 
+func _on_connection_state_changed(status: String) -> void:
+	if run_ended or NetworkManager == null:
+		return
+	var normalized := status.to_lower()
+	if NetworkManager.is_run_active():
+		return
+	if normalized.find("host disconnected") == -1 and normalized.find("run already active") == -1 and normalized.find("connection failed") == -1:
+		return
+	_record_interrupted_product_run(status)
+	get_tree().change_scene_to_file("res://scenes/Lobby.tscn")
+
 func _on_timeline_event_added(event: Dictionary) -> void:
 	if str(event.get("event_type", "")) == "notebook_note_added":
 		if int(event.get("target_peer_id", -1)) == _local_peer_id():
 			_refresh_notebook_panel()
 	elif str(event.get("event_type", "")) == "warden_check_result":
 		_maybe_autonote_on_inspection(event)
+	elif str(event.get("event_type", "")) == "item_used" and room_builder and room_builder.has_method("flash_disturbance_indicator"):
+		var meta: Dictionary = event.get("meta", {})
+		var label := str(meta.get("label", "")).to_lower()
+		if label.find("bookmark") != -1:
+			room_builder.flash_disturbance_indicator(int(event.get("room_slot", -1)), 0.45, "BK")
+		elif label.find("decoy") != -1:
+			room_builder.flash_disturbance_indicator(int(event.get("room_slot", -1)), 0.45, "DC")
+		elif label.find("zipline") != -1:
+			room_builder.flash_disturbance_indicator(int(event.get("room_slot", -1)), 0.45, "ZL")
+	elif str(event.get("event_type", "")) == "bomb_exploded" and room_builder and room_builder.has_method("flash_hazard_indicator"):
+		room_builder.flash_hazard_indicator(int(event.get("room_slot", -1)), 0.45)
+	elif str(event.get("event_type", "")) == "room_callout":
+		var meta: Dictionary = event.get("meta", {})
+		var kind := str(meta.get("kind", ""))
+		if room_builder and room_builder.has_method("flash_room_indicator"):
+			room_builder.flash_room_indicator(int(event.get("room_slot", -1)), _callout_indicator_text(kind), _callout_indicator_color(kind), 0.55)
+		if int(event.get("actor_peer_id", -1)) == _local_peer_id():
+			feedback_text = "%s callout sent" % _callout_label(kind)
+			feedback_left = 1.2
 	_refresh_timeline()
 
 func _on_run_ended(payload: Dictionary) -> void:
@@ -550,6 +742,7 @@ func _on_run_ended(payload: Dictionary) -> void:
 		var verify_result := _verify_run_event_stream()
 		last_verify_status = _verify_status_text(verify_result)
 	last_report_user_path = _write_run_report()
+	_record_product_run()
 	_render_end_screen()
 
 func _toggle_notebook(force_open: Variant = null) -> void:
@@ -779,6 +972,39 @@ func _private_toast(_msg: String) -> void:
 	notebook_toast_label.text = _msg
 	notebook_toast_expires_tick = tick_counter + 90
 
+func _callout_label(kind: String) -> String:
+	match kind.to_lower():
+		"danger":
+			return "Danger"
+		"regroup":
+			return "Regroup"
+		"artifact":
+			return "Artifact"
+		_:
+			return "Room"
+
+func _callout_indicator_text(kind: String) -> String:
+	match kind.to_lower():
+		"danger":
+			return "!"
+		"regroup":
+			return "GO"
+		"artifact":
+			return "ART"
+		_:
+			return "?"
+
+func _callout_indicator_color(kind: String) -> Color:
+	match kind.to_lower():
+		"danger":
+			return Color(1.0, 0.24, 0.2, 1.0)
+		"regroup":
+			return Color(0.28, 0.86, 0.72, 1.0)
+		"artifact":
+			return Color(0.96, 0.82, 0.3, 1.0)
+		_:
+			return Color(0.84, 0.84, 0.84, 1.0)
+
 func _format_timeline_grouped(events: Array, private_feed: bool = false) -> Array[String]:
 	var lines: Array[String] = []
 	var last_chapter := ""
@@ -812,11 +1038,13 @@ func _event_tag(event_type: String, private_feed: bool = false) -> String:
 			return "[RUN]"
 		"artifact_picked", "artifact_dropped", "artifact_stolen", "extraction_window_started", "extraction_window_aborted", "extraction_completed":
 			return "[EVID]"
-		"sabotage_accident", "sabotage_camera_jam", "hazard_state_changed":
+		"sabotage_accident", "sabotage_camera_jam", "hazard_state_changed", "bomb_exploded":
 			return "[HAZ]"
 		"evidence_checked", "warden_check_result", "warden_camera_jam_note":
 			return "[WARD]"
-		"item_picked", "item_used", "item_note", "noise_trace":
+		"room_callout":
+			return "[INFO]"
+		"item_picked", "item_used", "item_note", "noise_trace", "rope_deployed":
 			return "[ITEM]"
 		"notebook_note_added":
 			return "[NOTE]" if private_feed else "[INFO]"
@@ -831,11 +1059,13 @@ func _event_chapter(event_type: String, private_feed: bool = false) -> String:
 			return "EVIDENCE MOVES"
 		"extraction_window_started", "extraction_window_aborted", "extraction_completed":
 			return "EXTRACTION"
-		"sabotage_accident", "sabotage_camera_jam", "hazard_state_changed":
+		"sabotage_accident", "sabotage_camera_jam", "hazard_state_changed", "bomb_exploded":
 			return "DISTURBANCES"
 		"evidence_checked", "warden_check_result", "warden_camera_jam_note":
 			return "INSPECTIONS"
-		"item_picked", "item_used", "item_note", "noise_trace":
+		"room_callout":
+			return "ROOM SIGNALS"
+		"item_picked", "item_used", "item_note", "noise_trace", "rope_deployed":
 			return "ITEM EFFECTS / TRACES"
 		"run_ended":
 			return "RUN END"
@@ -852,12 +1082,14 @@ func _event_bookmark(event_type: String) -> String:
 			return "RUN START"
 		"artifact_stolen":
 			return "THEFT"
-		"sabotage_accident", "sabotage_camera_jam":
+		"sabotage_accident", "sabotage_camera_jam", "bomb_exploded":
 			return "SABOTAGE"
 		"evidence_checked", "warden_check_result":
 			return "INSPECTION"
 		"extraction_window_started", "extraction_window_aborted", "extraction_completed":
 			return "EXTRACTION"
+		"room_callout":
+			return "CALLOUT"
 		"run_ended":
 			return "RUN END"
 		_:
@@ -873,10 +1105,12 @@ func _event_summary(event: Dictionary, private_feed: bool = false) -> String:
 		"run_started":
 			return "Run started"
 		"run_ended":
-			return "Run ended"
+			return "Run ended: %s" % str(meta.get("reason", "Outcome revealed"))
 		"artifact_picked":
 			return "%s picked E%d" % [actor_text, int(meta.get("artifact_id", 0))]
 		"artifact_dropped":
+			if actor < 0:
+				return "E%d was rerouted" % int(meta.get("artifact_id", 0))
 			return "%s dropped E%d" % [actor_text, int(meta.get("artifact_id", 0))]
 		"artifact_stolen":
 			return "%s stole E%d" % [actor_text, int(meta.get("artifact_id", 0))]
@@ -885,23 +1119,30 @@ func _event_summary(event: Dictionary, private_feed: bool = false) -> String:
 		"sabotage_camera_jam":
 			return str(meta.get("label", "Camera feed glitched in the room"))
 		"hazard_state_changed":
-			return "Hazard pulse"
+			return "Trap timing shifted in room %d" % slot
+		"bomb_exploded":
+			return "Bomb blast scarred the room"
+		"room_callout":
+			return "%s callout marked room %d" % [_callout_label(str(meta.get("kind", ""))), slot]
+		"rope_deployed":
+			return "A rope changed the route"
 		"evidence_checked":
-			return "Inspection occurred in room %d" % slot
+			return "Artifact inspected in room %d" % slot
 		"warden_check_result":
 			return "Inspection E%d scored %d" % [int(meta.get("artifact_id", 0)), int(meta.get("score", -1))]
 		"warden_camera_jam_note":
 			return str(meta.get("label", "Camera jam residue lowered confidence"))
 		"item_picked":
-			return "Item picked"
+			var picked_label := str(meta.get("label", ""))
+			return picked_label if not picked_label.is_empty() else "Tool recovered"
 		"item_used":
 			return str(meta.get("label", "Item used"))
 		"item_note":
 			return str(meta.get("label", "Item note"))
 		"noise_trace":
-			return "Noise trace"
+			return "A decoy trail echoed"
 		"extraction_window_started":
-			return "Extraction stabilizing (%dt)" % int(meta.get("duration_ticks", 0))
+			return "Extraction stabilizing (%s)" % _format_ticks_short(int(meta.get("duration_ticks", 0)))
 		"extraction_window_aborted":
 			return "Extraction window collapsed"
 		"extraction_completed":
@@ -923,17 +1164,26 @@ func _update_interaction_prompt(local_id: int) -> void:
 	var local_pos: Vector2 = players[local_id].global_position
 	var local_slot := _room_slot_for_position(local_pos)
 	var carried_id: int = int(NetworkManager.get_local_carried_artifact_id())
+	var local_actor = players.get(local_id, null)
+	if local_actor and local_actor.has_method("is_ziplining_now") and bool(local_actor.is_ziplining_now()):
+		prompts.append("Zipline: move sideways | Jump/Down to drop")
+	elif local_actor and local_actor.has_method("can_mount_zipline_now") and bool(local_actor.can_mount_zipline_now()):
+		prompts.append("Up: Grab zipline")
 	if carried_id > 0:
 		prompts.append(_carry_objective_prompt(local_slot))
 	else:
 		var pickup_id := _find_nearest_ground_artifact_id(local_id)
 		if pickup_id > 0 and RunState.evidence_by_id.has(pickup_id):
-			prompts.append("Find Evidence (press Q to pick up)")
+			prompts.append("Q: Take Artifact E%d" % pickup_id)
 	var item_id := _find_nearest_ground_item_id(local_id)
 	if item_id > 0 and NetworkManager.has_method("get_items_snapshot"):
 		var items: Dictionary = NetworkManager.get_items_snapshot()
 		if items.has(item_id):
-			prompts.append("Y: Pick up %s" % str(Dictionary(items[item_id]).get("display_name", "Item")))
+			prompts.append("Y: Take %s" % _describe_item_pickup(Dictionary(items[item_id])))
+	var active_item := _get_selected_active_item()
+	if not active_item.is_empty():
+		prompts.append("U: Use %s" % _describe_active_item(active_item))
+		prompts.append("[ / ] Cycle")
 	if carried_id > 0:
 		prompts.append("E: Drop")
 	var steal_id := _find_nearest_carried_artifact_id(local_id)
@@ -945,38 +1195,216 @@ func _update_interaction_prompt(local_id: int) -> void:
 	if str(RunState.local_role) == ROLE_SERVICE_SCRIPT.ROLE_WARDEN:
 		var check_id := _find_nearest_artifact_for_check(local_id, WARDEN_CHECK_RANGE)
 		if check_id > 0:
-			prompts.append("T: Check")
+			prompts.append("T: Inspect E%d" % check_id)
+	if prompts.size() < 6:
+		prompts.append("1/2/3: Callout")
 	prompt_label.text = " | ".join(prompts)
 
 func _carry_objective_prompt(local_slot: int) -> String:
 	var extraction_slot := _extraction_room_slot()
 	if local_slot == extraction_slot:
 		if NetworkManager.is_local_extraction_window_active():
-			return "Deliver Evidence now: EXTRACT room (%d) ready | Extraction stabilizing..." % extraction_slot
-		return "Deliver Evidence now: EXTRACT room (%d) ready" % extraction_slot
+			var remaining_ticks := _current_extraction_window_remaining_ticks(EventLog, tick_counter)
+			return "Hold Artifact in Extraction room %d | stabilizing %s" % [extraction_slot, _format_ticks_short(remaining_ticks)]
+		return "Artifact is in Extraction room %d | hold position" % extraction_slot
 	var room_delta := extraction_slot - local_slot
 	var direction := "right" if room_delta > 0 else "left"
-	return "Deliver Evidence to EXTRACT room (%d) | %d room %s" % [extraction_slot, abs(room_delta), direction]
+	return "Carry Artifact to Extraction room %d | %d room %s" % [extraction_slot, abs(room_delta), direction]
+
+func _describe_item_pickup(item_data: Dictionary) -> String:
+	var item_def_id := str(item_data.get("item_def_id", ""))
+	var display_name := str(item_data.get("display_name", item_def_id))
+	if item_def_id.is_empty():
+		return display_name
+	var category := str(item_service.get_category(item_def_id)).capitalize()
+	return "%s - %s" % [category, display_name]
+
+func _describe_active_item(active_item: Dictionary) -> String:
+	var item_def_id := str(active_item.get("item_def_id", ""))
+	if item_def_id.is_empty():
+		return str(active_item.get("display_name", "item"))
+	return item_service.get_use_label(item_def_id)
+
+func _current_extraction_window_remaining_ticks(event_log: Node, now_tick: int) -> int:
+	if event_log == null:
+		return 0
+	for i in range(event_log.events.size() - 1, -1, -1):
+		var event: Dictionary = event_log.events[i]
+		match str(event.get("event_type", "")):
+			"extraction_window_aborted", "extraction_completed", "run_ended":
+				return 0
+			"extraction_window_started":
+				var duration_ticks := int(Dictionary(event.get("meta", {})).get("duration_ticks", 0))
+				return maxi(duration_ticks - (now_tick - int(event.get("tick", now_tick))), 0)
+	return 0
+
+func _format_ticks_short(ticks: int) -> String:
+	return "%.1fs" % (float(maxi(ticks, 0)) / 60.0)
 
 func _update_status() -> void:
 	if status_label == null:
 		return
 	var parts: Array[String] = []
+	parts.append("Phase %s" % _compute_run_phase(EventLog, _local_peer_id()))
 	parts.append("Seed %d" % int(RunState.run_seed))
-	parts.append("Players %d" % int(RunState.player_ids.size()))
-	parts.append("Host %s" % str(NetworkManager.is_host))
-	parts.append("Extract: room %d" % _extraction_room_slot())
+	parts.append("Extract room %d" % _extraction_room_slot())
+	var local_tool_counts := _get_local_tool_counts()
+	parts.append("Bombs %d" % int(local_tool_counts.get("bomb", 0)))
+	parts.append("Ropes %d" % int(local_tool_counts.get("rope", 0)))
 	var local_items: Array = NetworkManager.get_local_item_names() if NetworkManager.has_method("get_local_item_names") else []
 	if not local_items.is_empty():
-		parts.append("Items: %s" % ", ".join(local_items))
+		parts.append("Kit %s" % ", ".join(local_items))
+	var active_item := _get_selected_active_item()
+	if not active_item.is_empty():
+		parts.append("Ready %s" % _describe_active_item(active_item))
 	if NetworkManager.is_local_extraction_window_active():
-		parts.append("Extraction stabilizing...")
+		parts.append("Extraction %s" % _format_ticks_short(_current_extraction_window_remaining_ticks(EventLog, tick_counter)))
+	var ghost_state: Dictionary = NetworkManager.get_ghost_state() if NetworkManager.has_method("get_ghost_state") else {}
+	if bool(ghost_state.get("active", false)):
+		var local_id := _local_peer_id()
+		if int(ghost_state.get("target_peer_id", -1)) == local_id:
+			parts.append("Ghost on you")
+		else:
+			parts.append("Ghost active")
 	if feedback_left > 0.0 and not feedback_text.is_empty():
 		parts.append(feedback_text)
 	status_label.text = " | ".join(parts)
 	if carry_label:
 		var carried_id: int = int(NetworkManager.get_local_carried_artifact_id())
-		carry_label.text = "Carrying: E%d" % carried_id if carried_id > 0 else "Carrying: None"
+		carry_label.text = "Artifact: E%d (objective carry)" % carried_id if carried_id > 0 else "Artifact: None"
+
+func _sync_tool_counts_to_actor(peer_id: int, actor: Node) -> void:
+	if actor == null or not actor.has_method("set_spelunky_item_counts") or not NetworkManager.has_method("get_tool_counts_for_peer"):
+		return
+	var tool_counts: Dictionary = NetworkManager.get_tool_counts_for_peer(peer_id)
+	var bombs := int(tool_counts.get("bomb", 0))
+	var ropes := int(tool_counts.get("rope", 0))
+	actor.set_spelunky_item_counts(bombs, ropes)
+	if NetworkManager.has_method("set_tool_counts_local_only"):
+		NetworkManager.set_tool_counts_local_only(peer_id, bombs, ropes)
+
+func _sync_snapshot_tool_counts(peer_id: int, actor: Node, state: Dictionary) -> void:
+	if actor == null or not actor.has_method("set_spelunky_item_counts"):
+		return
+	if not state.has("b") and not state.has("r"):
+		return
+	var bombs := int(state.get("b", 0))
+	var ropes := int(state.get("r", 0))
+	actor.set_spelunky_item_counts(bombs, ropes)
+	if NetworkManager.has_method("set_tool_counts_local_only"):
+		NetworkManager.set_tool_counts_local_only(peer_id, bombs, ropes)
+
+func _get_local_tool_counts() -> Dictionary:
+	var local_id := _local_peer_id()
+	if local_id > 0 and players.has(local_id) and players[local_id].has_method("get_spelunky_item_counts"):
+		return players[local_id].get_spelunky_item_counts()
+	if NetworkManager.has_method("get_local_tool_counts"):
+		return NetworkManager.get_local_tool_counts()
+	return {"bomb": 0, "rope": 0}
+
+func _sync_item_affordances_to_actor(peer_id: int, actor: Node) -> void:
+	if actor == null or not actor.has_method("set_item_affordances") or not NetworkManager.has_method("get_item_effects_for_peer"):
+		return
+	var effects: Dictionary = NetworkManager.get_item_effects_for_peer(peer_id)
+	actor.set_item_affordances(
+		float(effects.get("light_scale", 1.0)),
+		float(effects.get("move_speed_mult", 1.0)),
+		float(effects.get("jump_velocity_mult", 1.0))
+	)
+
+func _local_active_items() -> Array[Dictionary]:
+	if NetworkManager == null or not NetworkManager.has_method("get_local_active_items"):
+		return []
+	return NetworkManager.get_local_active_items()
+
+func _sync_selected_active_item() -> void:
+	var active_items := _local_active_items()
+	if active_items.is_empty():
+		selected_active_item_id = -1
+		return
+	for item in active_items:
+		if int(item.get("item_id", -1)) == selected_active_item_id:
+			return
+	selected_active_item_id = int(active_items[0].get("item_id", -1))
+
+func _get_selected_active_item() -> Dictionary:
+	_sync_selected_active_item()
+	for item in _local_active_items():
+		if int(item.get("item_id", -1)) == selected_active_item_id:
+			return item
+	return {}
+
+func _cycle_active_item(direction: int) -> void:
+	var active_items := _local_active_items()
+	if active_items.is_empty():
+		selected_active_item_id = -1
+		return
+	var selected_index := 0
+	for i in range(active_items.size()):
+		if int(active_items[i].get("item_id", -1)) == selected_active_item_id:
+			selected_index = i
+			break
+	selected_index = posmod(selected_index + direction, active_items.size())
+	selected_active_item_id = int(active_items[selected_index].get("item_id", -1))
+	_private_toast("Ready %s" % str(active_items[selected_index].get("display_name", "item")))
+
+func _update_forensic_traces() -> void:
+	if trace_root == null:
+		return
+	var expiry_tick := tick_counter
+	for trace in footprint_nodes.duplicate():
+		if not is_instance_valid(trace):
+			footprint_nodes.erase(trace)
+			continue
+		if expiry_tick >= int(trace.get_meta("expires_tick", -1)):
+			footprint_nodes.erase(trace)
+			trace.queue_free()
+	for peer_id in players.keys():
+		var actor = players[peer_id]
+		if actor == null:
+			continue
+		var on_floor: bool = actor._sync_is_on_floor() if actor.has_method("_sync_is_on_floor") else actor.is_on_floor()
+		if not on_floor:
+			continue
+		var item_effects: Dictionary = NetworkManager.get_item_effects_for_peer(peer_id) if NetworkManager.has_method("get_item_effects_for_peer") else {}
+		var carrying: bool = actor.has_method("is_carrying_artifact") and actor.is_carrying_artifact()
+		var interval := int(item_effects.get("footprint_interval", 48))
+		var scale := float(item_effects.get("footprint_scale", 0.8))
+		if not carrying and scale < 1.0:
+			continue
+		var last_tick := int(last_footprint_tick_by_peer.get(peer_id, -999999))
+		var last_pos: Vector2 = last_footprint_pos_by_peer.get(peer_id, Vector2(-99999, -99999))
+		if tick_counter - last_tick < interval:
+			continue
+		if actor.global_position.distance_to(last_pos) < 28.0:
+			continue
+		last_footprint_tick_by_peer[peer_id] = tick_counter
+		last_footprint_pos_by_peer[peer_id] = actor.global_position
+		_spawn_footprint(actor.global_position + Vector2(0, 18), scale, carrying)
+
+func _spawn_footprint(world_pos: Vector2, scale_mult: float, carrying: bool) -> void:
+	if trace_root == null:
+		return
+	if footprint_nodes.size() >= 96:
+		var oldest: Node2D = footprint_nodes.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+	var node := Node2D.new()
+	node.position = world_pos
+	node.set_meta("expires_tick", tick_counter + 540)
+	var left := Polygon2D.new()
+	left.color = Color(0.46, 0.40, 0.32, 0.42 if carrying else 0.28)
+	left.scale = Vector2.ONE * scale_mult
+	left.position = Vector2(-8, 0)
+	left.polygon = PackedVector2Array([
+		Vector2(-5, -2), Vector2(0, -7), Vector2(5, -2), Vector2(3, 7), Vector2(-3, 7)
+	])
+	var right := left.duplicate(true)
+	right.position = Vector2(8, 2)
+	node.add_child(left)
+	node.add_child(right)
+	trace_root.add_child(node)
+	footprint_nodes.append(node)
 
 func _sync_evidence_nodes(evidence_by_id: Dictionary) -> void:
 	if evidence_root == null:
@@ -1018,10 +1446,11 @@ func _sync_item_nodes(items_by_id: Dictionary) -> void:
 			item_nodes[item_id].configure(item_data)
 
 func _update_evidence_visuals() -> void:
+	var evidence_by_id := _evidence_state()
 	var carried_by_peer: Dictionary = {}
-	for artifact_raw in RunState.evidence_by_id.keys():
+	for artifact_raw in evidence_by_id.keys():
 		var artifact_id := int(artifact_raw)
-		var artifact: Dictionary = RunState.evidence_by_id[artifact_id]
+		var artifact: Dictionary = evidence_by_id[artifact_id]
 		if not evidence_nodes.has(artifact_id):
 			continue
 		var owner_peer := int(artifact.get("owner_peer_id", 0))
@@ -1036,6 +1465,11 @@ func _update_evidence_visuals() -> void:
 		if players[peer_id].has_method("set_carrying_artifact"):
 			players[peer_id].set_carrying_artifact(carried_by_peer.has(peer_id))
 
+func _evidence_state() -> Dictionary:
+	if NetworkManager != null and not NetworkManager.artifacts_by_id.is_empty():
+		return NetworkManager.artifacts_by_id
+	return RunState.evidence_by_id
+
 func _update_item_visuals() -> void:
 	pass
 
@@ -1046,7 +1480,11 @@ func _render_end_screen() -> void:
 	if end_seed_label:
 		end_seed_label.text = "Seed: %d" % int(end_payload.get("seed", RunState.run_seed))
 	if end_reason_label:
-		end_reason_label.text = "Outcome: RUN COMPLETE (%s)" % str(end_payload.get("reason", "unknown"))
+		var outcome_summary: Dictionary = end_payload.get("outcome_summary", {})
+		end_reason_label.text = "Outcome: %s | %s" % [
+			str(outcome_summary.get("summary_text", "Run complete")),
+			str(outcome_summary.get("artifact_result_text", str(end_payload.get("reason", "unknown"))))
+		]
 	_render_end_roles()
 	_render_end_summary()
 	_refresh_end_timeline()
@@ -1069,6 +1507,11 @@ func _render_end_summary() -> void:
 	var ids: Array = summary.keys()
 	ids.sort()
 	var lines: Array[String] = []
+	var outcome_summary: Dictionary = end_payload.get("outcome_summary", {})
+	var local_role := str(RunState.local_role)
+	var role_result := ""
+	if not local_role.is_empty() and local_role != "Unknown":
+		role_result = "Success" if ROLE_SERVICE_SCRIPT.new().role_wins(local_role, bool(outcome_summary.get("expedition_success", false)), bool(outcome_summary.get("sabotage_success", false))) else "Defeat"
 	for peer_key in ids:
 		var row: Dictionary = summary[peer_key]
 		lines.append("P%s pick:%d drop:%d steal:%d carry_end:%d" % [
@@ -1081,7 +1524,29 @@ func _render_end_summary() -> void:
 	var local_id := _local_peer_id()
 	var stats_lines := _build_run_stats_lines(_build_run_stats(EventLog, local_id))
 	var action_lines := _build_action_summary_lines(EventLog, local_id, 8)
-	var sections: Array[String] = ["Evidence Summary", _join_or_placeholder(lines, "No summary"), "", "Stats", _join_or_placeholder(stats_lines, "No stats"), "", "Action Summary", _join_or_placeholder(action_lines, "No actions")]
+	var clue_lines := _build_key_clue_lines(EventLog, 6)
+	var outcome_lines: Array[String] = [
+		"Summary: %s" % str(outcome_summary.get("summary_text", "Run complete")),
+		"Artifact Result: %s" % str(outcome_summary.get("artifact_result_text", "-"))
+	]
+	if not role_result.is_empty():
+		outcome_lines.append("Role Result: %s" % role_result)
+	var sections: Array[String] = [
+		"Run Outcome",
+		_join_or_placeholder(outcome_lines, "No outcome"),
+		"",
+		"Evidence Summary",
+		_join_or_placeholder(lines, "No summary"),
+		"",
+		"Stats",
+		_join_or_placeholder(stats_lines, "No stats"),
+		"",
+		"Action Summary",
+		_join_or_placeholder(action_lines, "No actions"),
+		"",
+		"Key Clues",
+		_join_or_placeholder(clue_lines, "No shared clues")
+	]
 	end_summary_label.text = "\n".join(sections)
 
 func _refresh_end_timeline() -> void:
@@ -1106,15 +1571,23 @@ func _refresh_end_timeline() -> void:
 func _build_run_report_lines(seed_value: int, end_reason: String, local_peer_id: int, run_counter: int, fact_lines: Array[String], note_lines: Array[String]) -> Array[String]:
 	var lines: Array[String] = []
 	var duration_ticks := _report_duration_ticks(EventLog)
+	var outcome_summary: Dictionary = end_payload.get("outcome_summary", {})
+	var local_role := str(RunState.local_role)
 	lines.append("DeductionDelve Run Report")
 	lines.append("Seed: %d" % seed_value)
 	lines.append("Local Peer: P%d" % local_peer_id)
-	if RunState != null and str(RunState.local_role) != "" and str(RunState.local_role) != "Unknown":
-		lines.append("Role: %s" % str(RunState.local_role))
+	if RunState != null and local_role != "" and local_role != "Unknown":
+		lines.append("Role: %s" % local_role)
 	lines.append("End Reason: %s" % end_reason)
 	lines.append("Duration: %s" % _format_report_duration(duration_ticks))
 	lines.append("Run Counter: %d" % run_counter)
-	lines.append("Outcome: RUN COMPLETE")
+	lines.append("")
+	lines.append("RUN OUTCOME")
+	lines.append("Summary: %s" % str(outcome_summary.get("summary_text", "Run complete")))
+	lines.append("Artifact Result: %s" % str(outcome_summary.get("artifact_result_text", "-")))
+	if local_role != "" and local_role != "Unknown":
+		var role_result := "Success" if ROLE_SERVICE_SCRIPT.new().role_wins(local_role, bool(outcome_summary.get("expedition_success", false)), bool(outcome_summary.get("sabotage_success", false))) else "Defeat"
+		lines.append("Role Result: %s" % role_result)
 	lines.append("")
 	lines.append("Role Reveal")
 	var roles: Dictionary = end_payload.get("roles_reveal", {})
@@ -1132,9 +1605,17 @@ func _build_run_report_lines(seed_value: int, end_reason: String, local_peer_id:
 		lines.append("P%s pick:%d drop:%d steal:%d carry_end:%d" % [
 			str(peer_key), int(row.get("picked", 0)), int(row.get("dropped", 0)), int(row.get("stolen", 0)), int(row.get("carrying_end", 0))
 		])
+	lines.append("Authentic: %d | Counterfeit: %d" % [
+		int(outcome_summary.get("authentic_count", 0)),
+		int(outcome_summary.get("counterfeit_count", 0))
+	])
 	lines.append("")
 	lines.append("FACTS")
 	for line in fact_lines:
+		lines.append(line)
+	lines.append("")
+	lines.append("KEY CLUES")
+	for line in _build_key_clue_lines(EventLog, 8):
 		lines.append(line)
 	lines.append("")
 	lines.append("YOUR NOTES (private)")
@@ -1171,6 +1652,123 @@ func _write_run_report() -> String:
 	file.close()
 	print("RUN_REPORT_WRITTEN path=%s seed=%d local=%d" % [user_path, seed_value, local_id])
 	return user_path
+
+func _record_product_run() -> void:
+	if product_run_recorded:
+		return
+	var run_record := _build_product_run_record()
+	if run_record.is_empty():
+		return
+	PROFILE_SERVICE_SCRIPT.record_run(run_record)
+	product_run_recorded = true
+
+func _record_interrupted_product_run(reason: String) -> void:
+	if product_run_recorded:
+		return
+	var run_record := _build_product_run_record(true, reason)
+	if run_record.is_empty():
+		return
+	PROFILE_SERVICE_SCRIPT.record_run(run_record)
+	product_run_recorded = true
+
+func _build_product_run_record(interrupted: bool = false, interruption_reason: String = "") -> Dictionary:
+	var local_id := _local_peer_id()
+	if local_id <= 0:
+		return {}
+	var local_role := str(RunState.local_role)
+	var outcome_summary: Dictionary = Dictionary(end_payload.get("outcome_summary", {}))
+	if outcome_summary.is_empty() and interrupted:
+		outcome_summary = _interrupted_outcome_summary(interruption_reason)
+	var role_result_success := false
+	if not interrupted and local_role != "" and local_role != "Unknown":
+		role_result_success = ROLE_SERVICE_SCRIPT.new().role_wins(
+			local_role,
+			bool(outcome_summary.get("expedition_success", false)),
+			bool(outcome_summary.get("sabotage_success", false))
+		)
+	var room_families: Array[String] = []
+	for room_raw in RunState.room_chain:
+		var room: Dictionary = room_raw
+		var room_type := str(room.get("type", ""))
+		if not room_type.is_empty() and not room_families.has(room_type):
+			room_families.append(room_type)
+	room_families.sort()
+	var clue_families: Array[String] = []
+	for event_raw in EventLog.get_recent_public(9999):
+		var event: Dictionary = event_raw
+		var event_type := str(event.get("event_type", ""))
+		if event_type in ["bomb_exploded", "placed_zipline", "noise_trace", "light_change", "rope_deployed", "room_callout"]:
+			if not clue_families.has(event_type):
+				clue_families.append(event_type)
+		elif event_type == "item_used":
+			var label := str(Dictionary(event.get("meta", {})).get("label", "")).to_lower()
+			if label.find("zipline") != -1 and not clue_families.has("placed_zipline"):
+				clue_families.append("placed_zipline")
+			elif label.find("decoy") != -1 and not clue_families.has("noise_trace"):
+				clue_families.append("noise_trace")
+	clue_families.sort()
+	var item_defs_seen: Array[String] = []
+	if NetworkManager != null and NetworkManager.has_method("get_items_snapshot"):
+		var items_snapshot: Dictionary = NetworkManager.get_items_snapshot()
+		for item_data in items_snapshot.values():
+			var item_dict: Dictionary = item_data
+			var item_def_id := str(item_dict.get("item_def_id", ""))
+			if not item_def_id.is_empty() and not item_defs_seen.has(item_def_id):
+				item_defs_seen.append(item_def_id)
+	item_defs_seen.sort()
+	var artifact_states: Array[String] = []
+	var artifact_result := str(outcome_summary.get("artifact_result", ""))
+	if not artifact_result.is_empty():
+		artifact_states.append(artifact_result)
+	var reconnect_offer: Dictionary = NetworkManager.get_reconnect_offer() if NetworkManager != null and NetworkManager.has_method("get_reconnect_offer") else {}
+	var stats := _build_run_stats(EventLog, local_id)
+	return {
+		"seed": int(end_payload.get("seed", RunState.run_seed)),
+		"end_reason": str(end_payload.get("reason", "session_interrupted" if interrupted else "unknown")),
+		"local_role": local_role,
+		"role_result_success": role_result_success,
+		"outcome_summary": outcome_summary.duplicate(true),
+		"stats": stats.duplicate(true),
+		"stats_lines": _build_run_stats_lines(stats),
+		"action_summary": _build_action_summary_lines(EventLog, local_id, 12),
+		"key_clues": _build_key_clue_lines(EventLog, 8),
+		"report_path": last_report_user_path,
+		"item_defs": item_defs_seen,
+		"room_families": room_families,
+		"artifact_states": artifact_states,
+		"roles": [local_role],
+		"clue_families": clue_families,
+		"communication_summary": _build_communication_summary(EventLog),
+		"interrupted": interrupted,
+		"interruption_reason": interruption_reason,
+		"session_wait_for_lobby": bool(reconnect_offer.get("wait_for_lobby", false)),
+		"session_reconnect_ready": bool(reconnect_offer.get("available", false))
+	}
+
+func _interrupted_outcome_summary(reason: String) -> Dictionary:
+	return {
+		"summary_text": "Session interrupted",
+		"artifact_result_text": "Run interrupted before extraction",
+		"artifact_result": "interrupted",
+		"expedition_success": false,
+		"sabotage_success": false,
+		"interrupt_reason": reason
+	}
+
+func _build_communication_summary(event_log: Node) -> Dictionary:
+	var summary := {"total": 0, "danger": 0, "regroup": 0, "artifact": 0}
+	if event_log == null:
+		return summary
+	for event_raw in event_log.get_recent_public(9999):
+		var event: Dictionary = event_raw
+		if str(event.get("event_type", "")) != "room_callout":
+			continue
+		var kind := str(Dictionary(event.get("meta", {})).get("kind", ""))
+		if not summary.has(kind):
+			continue
+		summary[kind] = int(summary.get(kind, 0)) + 1
+		summary["total"] = int(summary.get("total", 0)) + 1
+	return summary
 
 func _verify_run_event_stream() -> Dictionary:
 	var result := {"ok": true, "checks": 5, "failures": 0, "first": ""}
@@ -1241,8 +1839,15 @@ func _all_events_have_visibility(events: Array, expected_visibility: String) -> 
 			return false
 	return true
 
+func _room_slot_anchor(room_slot: int) -> Vector2:
+	var grid_x := posmod(room_slot, ROOM_COLUMNS)
+	var grid_y := int(floor(float(room_slot) / float(ROOM_COLUMNS)))
+	return Vector2(SPAWN_X_STEP + float(grid_x) * ROOM_WIDTH, 300.0 + float(grid_y) * ROOM_HEIGHT)
+
 func _room_slot_for_position(pos: Vector2) -> int:
-	return maxi(int(floor(pos.x / ROOM_WIDTH)), 0)
+	var grid_x := maxi(int(floor(pos.x / ROOM_WIDTH)), 0)
+	var grid_y := maxi(int(floor(pos.y / ROOM_HEIGHT)), 0)
+	return grid_x + grid_y * ROOM_COLUMNS
 
 func _room_slot_for_local_peer(local_id: int) -> int:
 	if local_id > 0 and players.has(local_id):
@@ -1251,11 +1856,15 @@ func _room_slot_for_local_peer(local_id: int) -> int:
 
 func _local_peer_id() -> int:
 	if multiplayer and multiplayer.multiplayer_peer != null:
-		return multiplayer.get_unique_id()
+		last_known_local_peer_id = multiplayer.get_unique_id()
+		return last_known_local_peer_id
 	if NetworkManager.has_method("_mp"):
 		var mp = NetworkManager._mp()
 		if mp != null and mp.multiplayer_peer != null:
-			return mp.get_unique_id()
+			last_known_local_peer_id = mp.get_unique_id()
+			return last_known_local_peer_id
+	if last_known_local_peer_id > 0:
+		return last_known_local_peer_id
 	return 1
 
 func _local_role_hint(role_name: String) -> String:
@@ -1264,6 +1873,8 @@ func _local_role_hint(role_name: String) -> String:
 			return " | G camera jam"
 		ROLE_SERVICE_SCRIPT.ROLE_WARDEN:
 			return " | T inspect evidence"
+		ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER:
+			return " | decoys can reroute evidence into cache"
 		_:
 			return ""
 
@@ -1409,6 +2020,9 @@ func get_notebook_notes_filtered_for_test(event_log: Node, local_peer_id: int, l
 func build_action_summary_lines_for_test(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
 	return _build_action_summary_lines(event_log, local_peer_id, limit)
 
+func build_key_clue_lines_for_test(event_log: Node, limit: int) -> Array[String]:
+	return _build_key_clue_lines(event_log, limit)
+
 func build_run_stats_lines_for_test(event_log: Node, local_peer_id: int) -> Array[String]:
 	return _build_run_stats_lines(_build_run_stats(event_log, local_peer_id))
 
@@ -1418,8 +2032,17 @@ func compute_next_step_hint_for_test(event_log: Node, local_peer_id: int) -> Str
 func compute_next_step_hint_for_test_with_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int) -> String:
 	return _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot)
 
+func compute_next_step_hint_for_test_with_full_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int, role_name: String, ghost_active: bool, ghost_target_local: bool, extraction_active: bool) -> String:
+	return _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot, role_name, ghost_active, ghost_target_local, extraction_active)
+
 func apply_quick_tag_shortcuts_for_test(current_text: String, shortcut: String) -> String:
 	return _apply_quick_tag_shortcuts(current_text, shortcut)
+
+func describe_item_pickup_for_test(item_data: Dictionary) -> String:
+	return _describe_item_pickup(item_data)
+
+func describe_active_item_for_test(item_data: Dictionary) -> String:
+	return _describe_active_item(item_data)
 
 func _populate_notebook_filter_options() -> void:
 	if notebook_filter_option == null:
@@ -1466,13 +2089,23 @@ func _toggle_help_overlay(force_open: Variant = null) -> void:
 		_toggle_notebook(false)
 
 func _build_help_overlay_text() -> String:
+	var controller_mode := bool(profile_settings.get("controller_glyphs", false))
+	var notebook_line := "View: notebook  A: save note" if controller_mode else "N: notebook, Enter: save note"
+	var quick_tag_line := "Hold modifiers on keyboard for quick tags" if controller_mode else "Shift+Enter: SUSPECT  Ctrl+Enter: ALIBI  Alt+Enter: EVIDENCE"
 	return "\n".join([
-		"Goal: collect evidence -> extract.",
+		"Goal: recover an authentic Artifact and hold it in Extraction.",
+		"Counterfeit extraction helps sabotage. Read clues before you commit.",
+		"Artifacts are the objective. Tools are active. Relics are passive.",
 		"Move: arrow keys / input axis",
-		"N: notebook, Enter: save note",
-		"Shift+Enter: SUSPECT  Ctrl+Enter: ALIBI  Alt+Enter: EVIDENCE",
-		"T: inspect evidence when nearby",
-		"Pin latest note, filter notes, copy notes",
+		"Q: take Artifact  Y: take Tool/Relic",
+		"C: bomb  V: rope  U: use tool  [ / ] cycle tool",
+		"1: danger callout  2: regroup callout  3: artifact callout",
+		"Up: grab zipline  move sideways to ride  Jump/Down: drop",
+		"T: inspect nearby Artifact (Warden)",
+		notebook_line,
+		quick_tag_line,
+		"Pin notes, filter notes, and copy notes from the notebook",
+		"Ghost pressure means the run is closing. Commit to a route.",
 		"F1/H: toggle help"
 	])
 
@@ -1483,6 +2116,25 @@ func _update_hint_label(local_id: int) -> void:
 		hint_label.text = ""
 		return
 	hint_label.text = _update_next_step_hint_state(EventLog, local_id, tick_counter)
+
+func _update_goal_label(local_id: int) -> void:
+	if goal_label == null:
+		return
+	if run_ended:
+		goal_label.text = ""
+		return
+	var phase := _compute_run_phase(EventLog, local_id)
+	var line := _compute_objective_line(local_id)
+	goal_label.text = "Phase: %s | %s" % [phase, line]
+
+func _compute_objective_line(local_id: int) -> String:
+	var carried_id := int(NetworkManager.get_local_carried_artifact_id()) if NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") else 0
+	var extraction_slot := _extraction_room_slot()
+	if NetworkManager != null and NetworkManager.is_local_extraction_window_active():
+		return "Hold the artifact in Extraction room %d until the window completes (%s)." % [extraction_slot, _format_ticks_short(_current_extraction_window_remaining_ticks(EventLog, tick_counter))]
+	if carried_id > 0:
+		return "Carry Artifact E%d to Extraction room %d." % [carried_id, extraction_slot]
+	return "Recover an artifact, watch for counterfeit signs, and escape together."
 
 func _build_action_summary_lines(event_log: Node, local_peer_id: int, limit: int) -> Array[String]:
 	var lines: Array[String] = []
@@ -1519,13 +2171,29 @@ func _build_action_summary_lines(event_log: Node, local_peer_id: int, limit: int
 				line = "Inspected E%d (room %d)" % [artifact_id, int(event.get("room_slot", -1))]
 			"item_note":
 				line = str(meta.get("label", ""))
+			"item_used":
+				line = _action_summary_item_line(str(meta.get("label", "Item used")))
+			"room_callout":
+				if int(event.get("actor_peer_id", -1)) == local_peer_id:
+					line = "%s callout in room %d" % [_callout_label(str(meta.get("kind", ""))), int(event.get("room_slot", -1))]
+			"rope_deployed":
+				line = "Rope changed the route"
 			"artifact_picked":
 				if int(event.get("actor_peer_id", -1)) == local_peer_id:
 					line = "Picked up E%d" % int(meta.get("artifact_id", 0))
+			"artifact_dropped":
+				if int(event.get("actor_peer_id", -1)) == -1:
+					line = "Evidence rerouted"
+			"hazard_state_changed":
+				line = "Trap timing shifted"
 			"extraction_window_started":
 				line = "Extraction window started"
 			"extraction_completed":
 				line = "Extraction completed"
+			"noise_trace":
+				line = "A decoy trail echoed"
+			"bomb_exploded":
+				line = "Bomb blast left a scorch mark"
 			"run_ended":
 				line = "Run ended"
 		if line.is_empty():
@@ -1534,6 +2202,69 @@ func _build_action_summary_lines(event_log: Node, local_peer_id: int, limit: int
 	if limit > 0 and lines.size() > limit:
 		return lines.slice(maxi(lines.size() - limit, 0), lines.size())
 	return lines
+
+func _build_key_clue_lines(event_log: Node, limit: int) -> Array[String]:
+	var lines: Array[String] = []
+	if event_log == null:
+		return lines
+	for event_raw in event_log.get_recent_public(9999):
+		var event: Dictionary = event_raw
+		var event_type := str(event.get("event_type", ""))
+		var meta: Dictionary = event.get("meta", {})
+		var slot := int(event.get("room_slot", -1))
+		var line := ""
+		match event_type:
+			"artifact_dropped":
+				if int(event.get("actor_peer_id", -1)) == -1:
+					line = "Artifact route changed in room %d" % slot
+			"bomb_exploded":
+				line = "Bomb blast scarred room %d" % slot
+			"room_callout":
+				line = "A %s callout rang out in room %d" % [_callout_label(str(meta.get("kind", ""))).to_lower(), slot]
+			"rope_deployed":
+				line = "A rope rewrote room %d" % slot
+			"noise_trace":
+				line = "A decoy trail echoed through room %d" % slot
+			"hazard_state_changed":
+				line = "A trap pulsed in room %d" % slot
+			"item_used":
+				line = _key_clue_item_line(str(meta.get("label", "Item used")), slot)
+			"sabotage_accident":
+				line = "Power flickered in room %d" % slot
+			"sabotage_camera_jam":
+				line = "Camera feed glitched in room %d" % slot
+			"evidence_checked":
+				line = "Someone inspected an artifact in room %d" % slot
+			"extraction_window_started":
+				line = "Extraction hold began in room %d" % slot
+			"extraction_completed":
+				line = "Artifact extraction finished in room %d" % slot
+		if line.is_empty():
+			continue
+		lines.append(_truncate_summary_line(line))
+	if limit > 0 and lines.size() > limit:
+		return lines.slice(maxi(lines.size() - limit, 0), lines.size())
+	return lines
+
+func _action_summary_item_line(label: String) -> String:
+	var normalized := label.to_lower()
+	if normalized.find("zipline") != -1:
+		return "Zipline changed the route"
+	if normalized.find("decoy") != -1:
+		return "Decoy emitter split the route"
+	if normalized.find("timeline") != -1:
+		return "Timeline bookmark marked the route"
+	return label
+
+func _key_clue_item_line(label: String, room_slot: int) -> String:
+	var normalized := label.to_lower()
+	if normalized.find("zipline") != -1:
+		return "A zipline committed the route in room %d" % room_slot
+	if normalized.find("decoy") != -1:
+		return "A decoy pulse muddied room %d" % room_slot
+	if normalized.find("timeline") != -1:
+		return "A timeline mark fixed room %d in memory" % room_slot
+	return "%s (room %d)" % [label, room_slot]
 
 func _build_run_stats(event_log: Node, local_peer_id: int) -> Dictionary:
 	var stats := {
@@ -1582,9 +2313,13 @@ func _build_run_stats_lines(stats: Dictionary) -> Array[String]:
 
 func _compute_next_step_hint(event_log: Node, local_peer_id: int) -> String:
 	var carrying := NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") and int(NetworkManager.get_local_carried_artifact_id()) > 0
-	return _compute_next_step_hint_with_state(event_log, local_peer_id, carrying, _extraction_room_slot())
+	var ghost_state: Dictionary = NetworkManager.get_ghost_state() if NetworkManager != null and NetworkManager.has_method("get_ghost_state") else {}
+	var ghost_active := bool(ghost_state.get("active", false))
+	var ghost_target_local := int(ghost_state.get("target_peer_id", -1)) == local_peer_id
+	return _compute_next_step_hint_with_state(event_log, local_peer_id, carrying, _extraction_room_slot(), str(RunState.local_role), ghost_active, ghost_target_local, bool(NetworkManager.is_local_extraction_window_active()))
 
-func _compute_next_step_hint_with_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int) -> String:
+func _compute_next_step_hint_with_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int, role_name: String = "", ghost_active: bool = false, ghost_target_local: bool = false, extraction_active: bool = false) -> String:
+	var hint_mode := str(profile_settings.get("hint_mode", "full"))
 	var notes_count := 0
 	var inspections_count := 0
 	if event_log != null:
@@ -1595,13 +2330,23 @@ func _compute_next_step_hint_with_state(event_log: Node, local_peer_id: int, has
 					notes_count += 1
 				"warden_check_result":
 					inspections_count += 1
-	if notes_count == 0:
-		return "Tip: TAB -> notebook. Write SUSPECT:/ALIBI: notes."
-	if inspections_count == 0:
-		return "Tip: Hold T near evidence to inspect."
+	if extraction_active:
+		return "Tip: Hold still in Extraction room %d until the stabilizing window finishes." % extraction_slot
+	if ghost_target_local:
+		return "Tip: The Ghost is on you. Keep moving and don't lose the route."
+	if ghost_active:
+		return "Tip: Ghost pressure is live. Stay grouped and commit to the route."
 	if has_carrying:
-		return "Tip: Bring evidence to Extraction room %d." % extraction_slot
-	return "Tip: Pin key notes, then seek more evidence."
+		return "Tip: Bring Artifact to Extraction room %d." % extraction_slot
+	if hint_mode != "full":
+		return ""
+	if notes_count == 0:
+		return "Tip: N -> notebook. Write SUSPECT:/ALIBI: notes."
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_WARDEN and inspections_count == 0:
+		return "Tip: Hold T near evidence to inspect."
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+		return "Tip: Use chaos, route tools, and timing. Do not make guilt obvious."
+	return "Tip: Pin key notes, watch routes, and seek more evidence."
 
 func _update_next_step_hint_state(event_log: Node, local_peer_id: int, now_tick: int) -> String:
 	var next_text := _compute_next_step_hint(event_log, local_peer_id)
@@ -1615,6 +2360,37 @@ func _update_next_step_hint_state(event_log: Node, local_peer_id: int, now_tick:
 		hint_last_tick = now_tick
 		next_step_hint_text = next_text
 	return next_step_hint_text
+
+func _compute_run_phase(event_log: Node, local_peer_id: int) -> String:
+	var ghost_state: Dictionary = NetworkManager.get_ghost_state() if NetworkManager != null and NetworkManager.has_method("get_ghost_state") else {}
+	return _compute_run_phase_with_state(event_log, local_peer_id, bool(ghost_state.get("active", false)), bool(NetworkManager.is_local_extraction_window_active()))
+
+func _compute_run_phase_with_state(event_log: Node, local_peer_id: int, ghost_active: bool, extraction_active: bool) -> String:
+	if run_ended:
+		return "Revelation"
+	if extraction_active:
+		return "Extraction"
+	if ghost_active:
+		return "Pressure"
+	var disturbance_score := 0
+	var saw_progress := false
+	if event_log != null:
+		for event_raw in event_log.events:
+			var event: Dictionary = event_raw
+			var visibility := str(event.get("visibility", "public"))
+			if visibility == "private" and int(event.get("target_peer_id", -1)) != local_peer_id:
+				continue
+			match str(event.get("event_type", "")):
+				"artifact_picked", "item_used", "warden_check_result", "notebook_note_added":
+					saw_progress = true
+				"sabotage_accident", "sabotage_camera_jam", "bomb_exploded", "noise_trace", "artifact_dropped":
+					saw_progress = true
+					disturbance_score += 1
+	if disturbance_score >= 2:
+		return "Chaos"
+	if saw_progress:
+		return "Suspicion"
+	return "Exploration"
 
 func _apply_quick_tag_shortcuts(current_text: String, shortcut: String) -> String:
 	var normalized_shortcut := _sanitize_notebook_text(shortcut).to_upper()
@@ -1659,6 +2435,10 @@ func _apply_cli_args() -> void:
 			cli_auto_pickup = true
 		elif arg == "--auto-role-action":
 			cli_auto_role_action = true
+		elif arg == "--auto-bomb":
+			cli_auto_bomb = true
+		elif arg == "--auto-rope":
+			cli_auto_rope = true
 
 func execute_door_teleport(peer_id: int, door_id: int) -> void:
 	if not NetworkManager.is_host: return

@@ -1,7 +1,10 @@
 extends Node2D
 
+const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
+
 @onready var core: Polygon2D = $Core
 @onready var label: Label = $Label
+var item_service: RefCounted = ITEM_SERVICE_SCRIPT.new()
 
 var item_id: int = 0
 var item_def_id: String = ""
@@ -34,6 +37,19 @@ func _apply_visuals() -> void:
 	visible = not consumed and owner_peer_id == 0
 	if not visible:
 		return
-	core.color = Color(0.93, 0.81, 0.36, 1.0)
+	match item_def_id:
+		"lantern_snuffer":
+			core.color = Color(0.62, 0.70, 0.90, 1.0)
+		"heavy_boots":
+			core.color = Color(0.52, 0.38, 0.25, 1.0)
+		"timeline_bookmark":
+			core.color = Color(0.88, 0.74, 0.36, 1.0)
+		"decoy_emitter":
+			core.color = Color(0.63, 0.87, 0.63, 1.0)
+		"zipline_kit":
+			core.color = Color(0.74, 0.78, 0.92, 1.0)
+		_:
+			core.color = Color(0.93, 0.81, 0.36, 1.0)
 	if label:
-		label.text = display_name
+		var category := str(item_service.get_category(item_def_id)).capitalize()
+		label.text = "%s: %s" % [category, display_name]

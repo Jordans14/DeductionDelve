@@ -40,6 +40,8 @@ var health: int = 3
 var dead: bool = false
 var hazard_detector: Area2D
 var light: PointLight2D
+var ambient_light: PointLight2D
+var focus_light: PointLight2D
 var camera: Camera2D
 var shake_intensity: float = 0.0
 var dust: CPUParticles2D
@@ -47,7 +49,10 @@ var dust: CPUParticles2D
 var inventory_bombs := 4
 var inventory_ropes := 4
 var is_climbing := false
+var is_ziplining := false
 var climb_x := 0.0
+var zipline_ratio := 0.0
+var active_zipline: Node = null
 var item_latch := false
 var is_crawling := false
 var is_ledge_hanging := false
@@ -60,6 +65,9 @@ var _spawn_seq := 0  # increments per throw; passed to RPCs for deterministic no
 
 var _remote_on_floor := false  # Synced from authoritative player for animations
 var _was_move_axis := 0.0
+var light_scale_mult := 1.0
+var move_speed_mult := 1.0
+var jump_velocity_mult := 1.0
 
 var camera_look_timer := 0.0
 var camera_look_offset_y := 0.0
@@ -132,7 +140,7 @@ func _ready() -> void:
 	hazard_detector.area_entered.connect(_on_hazard_entered)
 	
 	# Rope detection
-	hazard_detector.collision_mask = 1 | 8 # Includes ropes
+	hazard_detector.collision_mask = 1 | 8 | 16 # Includes ropes and ziplines
 	
 	# Main player lantern — warm golden illumination
 	var gradient = Gradient.new()
@@ -158,7 +166,7 @@ func _ready() -> void:
 	tex2.gradient = gradient; tex2.fill = GradientTexture2D.FILL_RADIAL
 	tex2.fill_from = Vector2(0.5, 0.5); tex2.fill_to = Vector2(1.0, 0.5)
 	tex2.width = 256; tex2.height = 256
-	var ambient_light := PointLight2D.new()
+	ambient_light = PointLight2D.new()
 	ambient_light.texture = tex2
 	ambient_light.color = Color(0.55, 0.60, 0.80)  # cool blue-purple ambient
 	ambient_light.energy = 0.45
@@ -225,23 +233,6 @@ func add_spelunky_item(type: String, amt: int) -> void:
 	if type == "bomb": inventory_bombs += amt
 	if type == "rope": inventory_ropes += amt
 
-@rpc("any_peer", "call_local", "reliable")
-func rpc_spawn_bomb(pos: Vector2, vel: Vector2, node_name: String) -> void:
-	var SpelunkyBombCls = load("res://src/items/bomb.gd")
-	var b = SpelunkyBombCls.new()
-	b.name = node_name          # deterministic on both peers — fixes RPC routing
-	b.global_position = pos
-	b.linear_velocity = vel
-	get_parent().add_child(b)
-
-@rpc("any_peer", "call_local", "reliable")
-func rpc_spawn_rope(pos: Vector2, node_name: String) -> void:
-	var SpelunkyRopeCls = load("res://src/items/rope.gd")
-	var r = SpelunkyRopeCls.new()
-	r.name = node_name          # deterministic on both peers — fixes RPC routing
-	r.global_position = pos
-	get_parent().add_child(r)
-
 func configure_for_peer(id_value: int) -> void:
 	peer_id = id_value
 	set_multiplayer_authority(id_value) # CRITICAL: Ensure player controls themselves
@@ -276,18 +267,18 @@ func configure_for_peer(id_value: int) -> void:
 		add_child(camera)
 		
 		# Give local player a dynamic point light for deep cave exploration
-		var pl := PointLight2D.new()
+		focus_light = PointLight2D.new()
 		var grad = Gradient.new()
 		grad.colors = [Color.WHITE, Color(1, 1, 1, 0)]
 		var ptex = GradientTexture2D.new()
 		ptex.gradient = grad; ptex.fill = GradientTexture2D.FILL_RADIAL
 		ptex.fill_from = Vector2(0.5, 0.5); ptex.fill_to = Vector2(1.0, 0.5)
 		ptex.width = 1024; ptex.height = 1024
-		pl.texture = ptex
-		pl.energy = 0.8
-		pl.color = Color(0.95, 0.85, 0.70)
-		pl.blend_mode = Light2D.BLEND_MODE_ADD
-		add_child(pl)
+		focus_light.texture = ptex
+		focus_light.energy = 0.8
+		focus_light.color = Color(0.95, 0.85, 0.70)
+		focus_light.blend_mode = Light2D.BLEND_MODE_ADD
+		add_child(focus_light)
 
 func _process(delta: float) -> void:
 	if camera and shake_intensity > 0.1:
@@ -295,6 +286,14 @@ func _process(delta: float) -> void:
 		shake_intensity = lerpf(shake_intensity, 0.0, 10.0 * delta)
 	elif camera:
 		camera.offset = Vector2.ZERO
+
+	if light:
+		light.scale = Vector2.ONE * (4.0 * light_scale_mult)
+	if ambient_light:
+		ambient_light.scale = Vector2.ONE * (7.0 * lerpf(0.7, 1.0, light_scale_mult))
+		ambient_light.energy = 0.45 * lerpf(0.8, 1.0, light_scale_mult)
+	if focus_light:
+		focus_light.energy = 0.8 * lerpf(0.4, 1.0, light_scale_mult)
 
 	if not is_multiplayer_authority() and net_initialized:
 		# Dynamic interpolation: adjust and buffer targets for fluid network motion
@@ -374,7 +373,19 @@ func _process(delta: float) -> void:
 				inventory_bombs -= 1
 				_spawn_seq += 1
 				var bname := "Bomb_p%d_s%d" % [peer_id, _spawn_seq]
-				rpc_spawn_bomb.rpc(global_position + Vector2(dir * 10, -5), velocity + Vector2(dir * 250, -250), bname)
+				var b_pos := global_position + Vector2(dir * 10, -5)
+				var b_vel := velocity + Vector2(dir * 250, -250)
+				var net = get_node_or_null("/root/NetworkManager")
+				if net and net.has_method("request_throw_bomb"):
+					net.request_throw_bomb(b_pos, b_vel, bname)
+				
+				# PREDICTION: Immediate local spawn
+				var SpelunkyBombCls = load("res://src/items/bomb.gd")
+				var b = SpelunkyBombCls.new()
+				b.name = bname
+				b.global_position = b_pos
+				b.linear_velocity = b_vel
+				get_parent().add_child(b)
 				item_latch = true
 		# Throw Rope
 		elif Input.is_key_pressed(KEY_V):
@@ -382,7 +393,17 @@ func _process(delta: float) -> void:
 				inventory_ropes -= 1
 				_spawn_seq += 1
 				var rname := "Rope_p%d_s%d" % [peer_id, _spawn_seq]
-				rpc_spawn_rope.rpc(global_position + Vector2(dir * 12, -10), rname)
+				var r_pos := global_position + Vector2(dir * 12, -10)
+				var net = get_node_or_null("/root/NetworkManager")
+				if net and net.has_method("request_throw_rope"):
+					net.request_throw_rope(r_pos, rname)
+				
+				# PREDICTION: Immediate local spawn
+				var SpelunkyRopeCls = load("res://src/items/rope.gd")
+				var r = SpelunkyRopeCls.new()
+				r.name = rname
+				r.global_position = r_pos
+				get_parent().add_child(r)
 				item_latch = true
 		else:
 			item_latch = false
@@ -485,6 +506,37 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		move_and_slide()
 		return
 	# ─── Climbing the rope ───────────────────────────────────────────────────
+	var down_held: bool = Input.is_key_pressed(KEY_DOWN)
+	var overlapping_zipline: Node = null
+	for area in hazard_detector.get_overlapping_areas():
+		if area.is_in_group("zipline_track"):
+			overlapping_zipline = area.get_parent()
+			break
+	if is_ziplining and (overlapping_zipline == null or overlapping_zipline != active_zipline):
+		is_ziplining = false
+		active_zipline = null
+	if overlapping_zipline != null and not is_ziplining and Input.is_key_pressed(KEY_UP):
+		is_ziplining = true
+		active_zipline = overlapping_zipline
+		if active_zipline.has_method("nearest_ratio"):
+			zipline_ratio = active_zipline.nearest_ratio(global_position)
+		velocity = Vector2.ZERO
+	if is_ziplining and active_zipline != null:
+		if (jump_pressed and not was_jump_pressed) or down_held:
+			is_ziplining = false
+			active_zipline = null
+			velocity.y = JUMP_VELOCITY * 0.35
+		else:
+			var travel_len := maxf(active_zipline.travel_length(), 1.0) if active_zipline.has_method("travel_length") else 1.0
+			if move_axis != 0.0:
+				zipline_ratio = clampf(zipline_ratio + move_axis * (MOVE_SPEED * 0.85) * delta / travel_len, 0.0, 1.0)
+			if active_zipline.has_method("point_at_ratio"):
+				global_position = active_zipline.point_at_ratio(zipline_ratio) + Vector2(0, -10)
+			var tangent: Vector2 = active_zipline.travel_direction() if active_zipline.has_method("travel_direction") else Vector2.RIGHT
+			velocity = tangent * move_axis * MOVE_SPEED * 0.85
+			was_jump_pressed = jump_pressed
+			was_down_pressed = down_held
+			return
 	var overlapping_rope = false
 	var rope_x_pos = 0.0
 	for area in hazard_detector.get_overlapping_areas():
@@ -507,13 +559,11 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 			var vert_move: float = 0.0
 			if Input.is_key_pressed(KEY_UP): vert_move = -1.0
 			elif Input.is_key_pressed(KEY_DOWN): vert_move = 1.0
-			velocity.y = vert_move * MOVE_SPEED * 0.8
+			velocity.y = vert_move * MOVE_SPEED * move_speed_mult * 0.8
 			velocity.x = 0.0
 			move_and_slide()
 			was_jump_pressed = jump_pressed
 			return
-
-	var down_held: bool = Input.is_key_pressed(KEY_DOWN)
 
 	# ─── Coyote / jump buffer ─────────────────────────────────────────────────
 	if is_on_floor():
@@ -621,7 +671,7 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 
 	# ─── Speed / acceleration ─────────────────────────────────────────────────
 	var spd_multiplier: float = 0.3 if is_crawling else 1.0
-	var move_target: float = move_axis * MOVE_SPEED * spd_multiplier
+	var move_target: float = move_axis * MOVE_SPEED * move_speed_mult * spd_multiplier
 	if absf(move_target) > 0.01:
 		velocity.x = move_toward(velocity.x, move_target, ACCEL * delta)
 	else:
@@ -686,26 +736,26 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		if is_ledge_hanging:
 			# Vault up: pull up onto the ledge
 			is_ledge_hanging = false
-			velocity.y = JUMP_VELOCITY * 0.7
+			velocity.y = JUMP_VELOCITY * jump_velocity_mult * 0.7
 			velocity.x = ledge_hang_dir * MOVE_SPEED * 0.5
 			jump_buffer_timer = 0.0
 			visual_root.scale = Vector2(0.7, 1.3)
 			dust.restart()
 		elif coyote_timer > 0.0:
-			velocity.y = JUMP_VELOCITY
+			velocity.y = JUMP_VELOCITY * jump_velocity_mult
 			jump_buffer_timer = 0.0
 			coyote_timer = 0.0
 			visual_root.scale = Vector2(0.7, 1.3)
 			dust.restart()
 		elif is_grabbing_wall:
 			is_ledge_hanging = false
-			velocity.y = JUMP_VELOCITY * 0.9
+			velocity.y = JUMP_VELOCITY * jump_velocity_mult * 0.9
 			velocity.x = -sign(move_axis) * 350.0
 			jump_buffer_timer = 0.0
 			visual_root.scale = Vector2(1.2, 0.8)
 			dust.restart()
 		elif not has_double_jumped and not is_on_floor():
-			velocity.y = JUMP_VELOCITY * 1.15
+			velocity.y = JUMP_VELOCITY * jump_velocity_mult * 1.15
 			jump_buffer_timer = 0.0
 			has_double_jumped = true
 			visual_root.scale = Vector2(0.5, 1.5)
@@ -749,18 +799,43 @@ func simulate_step(move_axis: float, jump_pressed: bool, delta: float) -> void:
 		if velocity.y > 800:
 			shake_intensity = 5.0
 
-
-func apply_snapshot(pos: Vector2, vel: Vector2, _alpha: float = 0.0, _network_on_floor: bool = false) -> void:
-	# Update networked targets.
+func apply_snapshot(state: Dictionary, _network_on_floor: bool = false) -> void:
+	var pos: Vector2 = state.get("p", global_position)
+	var vel: Vector2 = state.get("v", velocity)
+	
 	if not net_initialized:
 		global_position = pos
+		health = int(state.get("h", health)) # Initial health sync
 		net_initialized = true
 	
 	net_pos = pos
 	net_vel = vel
-	
-	# Explicitly sync state visually if remote!
 	_remote_on_floor = _network_on_floor
+	
+	# Host-authoritative health sync for remote actors
+	if state.has("h"):
+		var h = int(state["h"])
+		if h != health:
+			health = h
+			_on_health_reconciled()
+	if state.has("b") or state.has("r"):
+		set_spelunky_item_counts(int(state.get("b", inventory_bombs)), int(state.get("r", inventory_ropes)))
+
+func _on_health_reconciled() -> void:
+	if health <= 0:
+		dead = true
+		modulate = Color(1.0, 1.0, 1.0, 0.4)
+	else:
+		dead = false
+		modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+func apply_damage(amt: int) -> void:
+	if dead: return
+	health -= amt
+	velocity.y = -350
+	velocity.x = -velocity.x * 0.5 # recoil
+	shake_intensity = 15.0
+	_on_health_reconciled()
 
 func _sync_is_on_floor() -> bool:
 	return is_on_floor() if is_multiplayer_authority() else _remote_on_floor
@@ -776,3 +851,26 @@ func set_carrying_artifact(carrying: bool) -> void:
 
 func is_carrying_artifact() -> bool:
 	return carrying_artifact
+
+func set_spelunky_item_counts(bombs: int, ropes: int) -> void:
+	inventory_bombs = maxi(bombs, 0)
+	inventory_ropes = maxi(ropes, 0)
+
+func get_spelunky_item_counts() -> Dictionary:
+	return {"bomb": inventory_bombs, "rope": inventory_ropes}
+
+func set_item_affordances(light_scale: float, move_speed: float, jump_velocity: float) -> void:
+	light_scale_mult = maxf(light_scale, 0.2)
+	move_speed_mult = maxf(move_speed, 0.5)
+	jump_velocity_mult = maxf(jump_velocity, 0.5)
+
+func is_ziplining_now() -> bool:
+	return is_ziplining
+
+func can_mount_zipline_now() -> bool:
+	if is_ziplining or hazard_detector == null:
+		return false
+	for area in hazard_detector.get_overlapping_areas():
+		if area.is_in_group("zipline_track"):
+			return true
+	return false

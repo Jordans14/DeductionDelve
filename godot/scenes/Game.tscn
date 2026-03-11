@@ -27,7 +27,7 @@ script = ExtResource("2_u367n")
 offset_left = 16.0
 offset_top = 12.0
 offset_right = 520.0
-offset_bottom = 92.0
+offset_bottom = 120.0
 
 [node name="Status" type="Label" parent="CanvasLayer/HUD"]
 layout_mode = 2
@@ -47,26 +47,34 @@ offset_right = 321.0
 offset_bottom = 67.0
 text = "Carrying: None"
 
-[node name="Prompt" type="Label" parent="CanvasLayer/HUD"]
+[node name="Goal" type="Label" parent="CanvasLayer/HUD"]
 layout_mode = 2
 offset_top = 58.0
+offset_right = 640.0
+offset_bottom = 84.0
+text = ""
+autowrap_mode = 2
+
+[node name="Prompt" type="Label" parent="CanvasLayer/HUD"]
+layout_mode = 2
+offset_top = 82.0
 offset_right = 540.0
-offset_bottom = 86.0
+offset_bottom = 110.0
 text = ""
 
 [node name="Timeline" type="Label" parent="CanvasLayer/HUD"]
 layout_mode = 2
-offset_top = 92.0
+offset_top = 118.0
 offset_right = 640.0
-offset_bottom = 300.0
+offset_bottom = 326.0
 text = "Timeline"
 autowrap_mode = 2
 
 [node name="HintLabel" type="Label" parent="CanvasLayer/HUD"]
 layout_mode = 2
-offset_top = 78.0
+offset_top = 100.0
 offset_right = 620.0
-offset_bottom = 100.0
+offset_bottom = 122.0
 text = ""
 autowrap_mode = 2
 
@@ -75,7 +83,7 @@ visible = false
 offset_left = 520.0
 offset_top = 16.0
 offset_right = 1120.0
-offset_bottom = 220.0
+offset_bottom = 250.0
 
 [node name="HelpLabel" type="Label" parent="CanvasLayer/HelpPanel"]
 layout_mode = 2

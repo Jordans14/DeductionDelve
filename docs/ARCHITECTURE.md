@@ -8,12 +8,16 @@
 - `godot/src/gen/`: Deterministic room and cavern generation bridging verticality with room scaling (`room_builder.gd`, `run_generator.gd`).
 - `godot/src/roles/`: Private role assignment payloads and sabotage affordances (`role_service.gd`).
 - `godot/src/items/`: Physics-enabled tools (ropes, bombs) and trace/synergy logic.
+- `godot/src/product/`: Local-only persistence, progression, catalog, profile, codex, and cosmetic ownership services.
+- `godot/config/`: Data-driven product and cosmetic catalog definitions validated at startup/test time.
 - `godot/src/ui/`: Suspicion notebook, end-of-run timeline, and situational HUDs.
 - `godot/src/entities/`: Complex state objects (Player rigs, physical Evidence, Hazards, and Environmental Clue Decals).
 
 ## System Boundaries
-- **Game vs. Lobby:** The Lobby orchestrates peer discovery and seed assignment. Over upon transition to the Game scene, which drives physics and simulation.
+- **Game vs. Lobby:** The Lobby now acts as the product shell: peer discovery, seed assignment, profile surfaces, collection/codex browsing, cosmetic loadout selection, accessibility/settings toggles, and last-run review. The Game scene remains the run-time simulation owner.
 - **Physical Clues vs. Logic:** Core logic handles collisions and state (e.g., an artifact is dropped); the visual layer algorithmically renders the *ambiguous physical traces* (e.g., footstep decals, dust trails, or lantern visibility radii) that players use to interpret those states. 
+- **Run Truth vs. Product Truth:** The run writes deterministic local summary data at `run_ended`; profile/progression/codex services consume that summary locally and never alter host-authoritative run state.
+- **Catalog Truth vs. Runtime Truth:** Product catalog data defines cosmetics, codex entries, mastery ladders, and achievement rules. Runtime code validates and consumes that catalog, but gameplay authority remains in the run/network modules.
 
 ## Determinism Boundaries
 - **Strictly Deterministic from Seed:** Global cavern generation, artifact spawn locations, hazard configurations, and item tables are entirely locked to the Host's single run seed.
@@ -28,6 +32,7 @@
 - Systemic actions log strictly to the `EventLog` autoload, forming the definitive, unalterable Source of Truth.
 - All entries are timestamped using a deterministic `tick` counter and a monotonic `event_id`.
 - Real-world wall-clock times are explicitly withheld to guarantee strict playback reproducibility.
+- Local product services may derive diagnostics and retention summaries from run-end payloads, but those diagnostics are read-only interpretations and never rewrite event truth.
 
 ## Information Visibility and Secrecy Rules
 - **Private Data:** Roles, notebook entries, local inventory intent, and precise sabotage confirmations (e.g., `forge` success) remain strictly on the local Client. The Host routes these securely via `rpc_id`.

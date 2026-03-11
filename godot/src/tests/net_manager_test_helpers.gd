@@ -35,6 +35,10 @@ func public_meta_allowlist(event_type: String, meta: Dictionary) -> Dictionary:
 			return _pick_meta_fields(meta, ["label"])
 		"noise_trace":
 			return {}
+		"bomb_exploded":
+			return {}
+		"room_callout":
+			return _pick_meta_fields(meta, ["kind"])
 		"extraction_completed":
 			return _pick_meta_fields(meta, ["artifact_id"])
 		_:
