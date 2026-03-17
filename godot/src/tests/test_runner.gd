@@ -23,6 +23,7 @@ const FRAMING_SERVICE_SCRIPT = preload("res://src/product/framing_service.gd")
 const ARCHIVE_SERVICE_SCRIPT = preload("res://src/product/archive_service.gd")
 const WORLD_MEMORY_SERVICE_SCRIPT = preload("res://src/product/world_memory_service.gd")
 const CRAWL_SERVICE_SCRIPT = preload("res://src/product/crawl_service.gd")
+const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
 const DELVE_KERNEL_SCRIPT = preload("res://src/delve/delve_kernel.gd")
 const DELVE_WORLD_MODEL_SCRIPT = preload("res://src/delve/world_model.gd")
 const DOCTRINE_ENGINE_SCRIPT = preload("res://src/delve/doctrine_engine.gd")
@@ -135,6 +136,10 @@ func _init() -> void:
 	_test_phase6_doctrine_vocabulary_and_compile_honesty(failures)
 	_test_phase6_persistence_and_lineage_cleanup(failures)
 	_test_phase6_shell_proof_fast_path(failures)
+	_test_phase7_evaluation_schema_and_owner(failures)
+	_test_phase7_learning_loop_determinism_and_continuity(failures)
+	_test_phase7_immutable_fields_and_invalid_transitions(failures)
+	_test_phase7_compiler_guidance_and_public_traces(failures)
 	_test_expedition_constitution_schema_and_hash(failures)
 	_test_delve_live_handoff_and_summary(failures)
 	_test_runstate_constitution_handoff(failures)
@@ -7230,6 +7235,324 @@ func _test_phase6_shell_proof_fast_path(failures: Array[String]) -> void:
 		failures.append("Phase 6 proof reconnect fix should only emit when the reconnect offer actually changes")
 	elif bool(Dictionary(emitted_offers[0]).get("available", false)) != true or not Dictionary(emitted_offers[1]).is_empty():
 		failures.append("Phase 6 proof reconnect fix should emit one concrete offer and one clear event")
+
+func _test_phase7_evaluation_schema_and_owner(failures: Array[String]) -> void:
+	var evaluation_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.evaluation_schema()
+	for required_dimension in [
+		"hypothesis_yield",
+		"cultural_richness",
+		"ontological_productivity",
+		"narrative_resonance",
+		"fairness_stability",
+		"readability",
+		"replay_distinctiveness",
+		"long_horizon_branch_value"
+	]:
+		if not _string_array_for_test(Array(evaluation_schema.get("dimension_keys", []))).has(required_dimension):
+			failures.append("Phase 7 evaluation schema should include doctrine dimension %s" % required_dimension)
+	for required_outcome in [
+		"strengthen_hypothesis",
+		"weaken_hypothesis",
+		"split_hypothesis",
+		"synthesize_broader_theory",
+		"move_to_recurring",
+		"move_to_rare",
+		"move_to_dormant",
+		"preserve_archival_lineage",
+		"elevate_foundational_inquiry"
+	]:
+		if not _string_array_for_test(Array(evaluation_schema.get("allowed_outcomes", []))).has(required_outcome):
+			failures.append("Phase 7 evaluation schema should include doctrine outcome %s" % required_outcome)
+	var learning_state := DELVEMIND_LEARNING_LOOP_SCRIPT.default_learning_state()
+	var learning_failures := DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(learning_state)
+	if not learning_failures.is_empty():
+		failures.append("Phase 7 learning owner should validate its default learning state cleanly: %s" % "; ".join(learning_failures))
+	var compiler_guidance: Dictionary = Dictionary(learning_state.get("compiler_guidance", {}))
+	for key in [
+		"preferred_topologies",
+		"suppressed_topologies",
+		"preferred_horizons",
+		"suppressed_horizons",
+		"preferred_media",
+		"suppressed_media",
+		"branch_pressure_families",
+		"synthesis_candidates",
+		"revive_candidates",
+		"public_lines",
+		"operator_lines"
+	]:
+		if not compiler_guidance.has(key):
+			failures.append("Phase 7 learning owner should expose compiler_guidance key %s" % key)
+
+func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var run_record := {
+		"seed": 616161,
+		"local_role": "Archivist",
+		"role_result_success": true,
+		"timeline_public_events": [
+			{"type": "artifact_picked", "tick": 1, "room_id": "vault"},
+			{"type": "artifact_dropped", "tick": 2, "room_id": "vault"},
+			{"type": "extraction_window_started", "tick": 3, "room_id": "threshold"},
+			{"type": "extraction_completed", "tick": 5, "room_id": "threshold"}
+		],
+		"action_summary": [
+			"Picked up the artifact under pressure",
+			"Escorted the burden through the extraction window",
+			"Closed the route cleanly"
+		],
+		"key_clues": [
+			"Artifact route held through the threshold",
+			"Custody marks stayed public",
+			"Recovery pressure stayed visible"
+		],
+		"communication_summary": {"total": 3, "danger": 1, "regroup": 2, "artifact": 1},
+		"narrative_motion_facts": {},
+		"gameplay_signal_snapshot": {
+			"group_model": {
+				"dominant_build": "Rescue build",
+				"group_signals": ["ritual answer"],
+				"fault_lines": ["shared caution"],
+				"model_pressure": ["artifact custody"]
+			}
+		},
+		"branch_summary": {},
+		"expedition_constitution_summary": {
+			"experiment_families": ["Stewardship Campaign"],
+			"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
+			"surface_summary": {"lines": ["Carry the answer carefully."]}
+		},
+		"outcome_summary": {
+			"summary_text": "Recovered cleanly",
+			"artifact_result_text": "Authentic artifact extracted",
+			"artifact_result": "authentic",
+			"expedition_success": true,
+			"sabotage_success": false
+		}
+	}
+	var before_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(profile.get("delvemind_experiment_state", {})))
+	var before_hypothesis: Dictionary = Dictionary(Dictionary(before_state.get("hypotheses", {})).get("hyp_stewardship_campaign", {})).duplicate(true)
+	var before_experiment: Dictionary = Dictionary(Dictionary(before_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
+	var first_apply := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, run_record, catalog)
+	var second_apply := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, run_record, catalog)
+	var first_profile: Dictionary = Dictionary(first_apply.get("profile", {}))
+	var second_profile: Dictionary = Dictionary(second_apply.get("profile", {}))
+	if JSON.stringify(Dictionary(first_profile.get("delvemind_experiment_state", {}))) != JSON.stringify(Dictionary(second_profile.get("delvemind_experiment_state", {}))):
+		failures.append("Phase 7 learning updates should remain deterministic for identical profile and run inputs")
+	var updated_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(first_profile.get("delvemind_experiment_state", {})))
+	var learning_state: Dictionary = Dictionary(updated_state.get("learning_state", {}))
+	var learning_records := _dict_array_for_test(learning_state.get("evaluation_records", []))
+	if learning_records.is_empty():
+		failures.append("Phase 7 should record at least one evaluation record after a manifested experiment run")
+	var updated_hypothesis: Dictionary = Dictionary(Dictionary(updated_state.get("hypotheses", {})).get("hyp_stewardship_campaign", {})).duplicate(true)
+	var updated_experiment: Dictionary = Dictionary(Dictionary(updated_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
+	if int(updated_hypothesis.get("confidence", -1)) < int(before_hypothesis.get("confidence", -1)):
+		failures.append("Phase 7 learning should not weaken a strong stewardship manifestation into lower confidence")
+	if str(updated_experiment.get("state", "")).strip_edges() != "recurring":
+		failures.append("Phase 7 learning should move a strong active stewardship experiment into recurring state")
+	if int(updated_experiment.get("recurrence_weight", -1)) <= int(before_experiment.get("recurrence_weight", -1)):
+		failures.append("Phase 7 learning should raise recurrence_weight for a strong recurring-worthy experiment")
+	if _string_array_for_test(Array(learning_state.get("public_lines", []))).is_empty():
+		failures.append("Phase 7 learning should emit public-safe learning lines after evaluation")
+	if _string_array_for_test(Array(Dictionary(first_profile.get("last_run", {})).get("experiment_learning_lines", []))).is_empty():
+		failures.append("Profile continuity should surface Phase 7 learning lines in last_run")
+
+func _test_phase7_immutable_fields_and_invalid_transitions(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var experiment_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(
+		base_state,
+		{
+			"seed": 717171,
+			"local_role": "Archivist",
+			"timeline_public_events": [],
+			"action_summary": ["Tracked the artifact cleanly"],
+			"key_clues": ["Custody stayed visible"],
+			"communication_summary": {"total": 1, "danger": 0, "regroup": 1, "artifact": 1},
+			"narrative_motion_facts": {},
+			"gameplay_signal_snapshot": {},
+			"branch_summary": {},
+			"expedition_constitution_summary": {
+				"experiment_families": ["Stewardship Campaign"],
+				"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
+				"surface_summary": {"lines": ["Carry the answer carefully."]}
+			},
+			"outcome_summary": {
+				"summary_text": "Recovered cleanly",
+				"artifact_result_text": "Authentic artifact extracted",
+				"artifact_result": "authentic",
+				"expedition_success": true,
+				"sabotage_success": false
+			}
+		},
+		RUN_STORY_DIAGNOSTICS_SCRIPT.analyze({
+			"seed": 717171,
+			"local_role": "Archivist",
+			"timeline_public_events": [],
+			"action_summary": ["Tracked the artifact cleanly"],
+			"key_clues": ["Custody stayed visible"],
+			"communication_summary": {"total": 1, "danger": 0, "regroup": 1, "artifact": 1},
+			"narrative_motion_facts": {},
+			"gameplay_signal_snapshot": {},
+			"branch_summary": {},
+			"expedition_constitution_summary": {
+				"experiment_families": ["Stewardship Campaign"],
+				"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
+				"surface_summary": {"lines": ["Carry the answer carefully."]}
+			},
+			"outcome_summary": {
+				"summary_text": "Recovered cleanly",
+				"artifact_result_text": "Authentic artifact extracted",
+				"artifact_result": "authentic",
+				"expedition_success": true,
+				"sabotage_success": false
+			}
+		}),
+		{}
+	)
+	var before_experiment: Dictionary = Dictionary(Dictionary(base_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
+	var after_experiment: Dictionary = Dictionary(Dictionary(experiment_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
+	for immutable_field in ["family_id", "program_id", "target", "axis", "stressor", "ontology_condition", "cultural_medium", "time_horizon", "observation_contract", "topology_type", "expression_mode"]:
+		if JSON.stringify(after_experiment.get(immutable_field)) != JSON.stringify(before_experiment.get(immutable_field)):
+			failures.append("Phase 7 learning should keep experiment field %s immutable" % immutable_field)
+	var invalid_record := {
+		"evaluation_id": "eval_invalid_transition",
+		"run_seed": 1,
+		"hypothesis_id": "hyp_custody_foundation",
+		"experiment_id": "exp_custody_foundation",
+		"family_id": "custody_foundation",
+		"dimensions": {
+			"hypothesis_yield": 4,
+			"cultural_richness": 4,
+			"ontological_productivity": 4,
+			"narrative_resonance": 4,
+			"fairness_stability": 4,
+			"readability": 4,
+			"replay_distinctiveness": 4,
+			"long_horizon_branch_value": 4
+		},
+		"outcomes": ["strengthen_hypothesis"],
+		"supporting_evidence": ["seed_1"],
+		"contradicting_evidence": [],
+		"continuity_effects": {
+			"confidence_delta": 1,
+			"recurrence_delta": 0,
+			"state_transition": {"from": "foundational", "to": "dormant"},
+			"persistence_transition": {"from": "foundational", "to": "dormant"},
+			"branch_pressure_family": "",
+			"synthesis_cue": "",
+			"revive_candidate": "",
+			"fairness_vetoed": false
+		},
+		"observation_signature": {"runtime_state": "illegal"},
+		"public_trace_lines": ["Illegal"],
+		"operator_trace_lines": []
+	}
+	var invalid_text := "; ".join(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_evaluation_record(
+		invalid_record,
+		Dictionary(base_state.get("hypotheses", {})),
+		Dictionary(base_state.get("experiments", {}))
+	))
+	if invalid_text.find("state transition foundational -> dormant is not allowed") == -1:
+		failures.append("Phase 7 validation should reject invalid foundational state transitions")
+	if invalid_text.find("must not expose runtime-only fields") == -1:
+		failures.append("Phase 7 validation should reject runtime-only fields in evaluation records")
+
+func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var run_record := {
+		"seed": 818181,
+		"local_role": "Archivist",
+		"role_result_success": true,
+		"timeline_public_events": [
+			{"type": "artifact_picked", "tick": 1, "room_id": "vault"},
+			{"type": "extraction_window_started", "tick": 2, "room_id": "threshold"},
+			{"type": "extraction_completed", "tick": 4, "room_id": "threshold"}
+		],
+		"action_summary": ["Closed the route cleanly", "Kept the burden public"],
+		"key_clues": ["Stewardship line held", "The answer stayed readable"],
+		"communication_summary": {"total": 2, "danger": 0, "regroup": 1, "artifact": 1},
+		"narrative_motion_facts": {},
+		"gameplay_signal_snapshot": {
+			"group_model": {
+				"dominant_build": "Rescue build",
+				"group_signals": ["public care"],
+				"fault_lines": ["shared caution"],
+				"model_pressure": ["artifact custody"]
+			}
+		},
+		"branch_summary": {},
+		"expedition_constitution_summary": {
+			"experiment_families": ["Stewardship Campaign"],
+			"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
+			"surface_summary": {"lines": ["Carry the answer carefully."]},
+			"protocol_state": "Intimate Protocol",
+			"doctrine_family": "custody_ritual",
+			"doctrine_label": "Custody Ritual",
+			"pressure_line": "Carry the answer through ritual custody.",
+			"world_goal": "Keep the route legible under burden.",
+			"dominant_minds": ["Archivist"],
+			"dominant_forces": ["Memory"],
+			"dominant_domains": ["artifact_families"],
+			"pacing_profile": "steady",
+			"pressure_grammar": ["Delay"],
+			"symbolic_motifs": ["Threshold Marks"],
+			"item_ecology_bias": "burden stewardship",
+			"group_tension_bias": "measured caution",
+			"archive_tone": "memory custody",
+			"convergence_axis": "artifact custody"
+		},
+		"outcome_summary": {
+			"summary_text": "Recovered cleanly",
+			"artifact_result_text": "Authentic artifact extracted",
+			"artifact_result": "authentic",
+			"expedition_success": true,
+			"sabotage_success": false
+		}
+	}
+	var applied := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, run_record, catalog)
+	var updated_profile: Dictionary = Dictionary(applied.get("profile", {}))
+	var session_context := {
+		"player_count": 3,
+		"peer_ids": [2, 3, 4],
+		"protocol_state": "Intimate Protocol",
+		"gameplay_snapshot": {
+			"protocol_state": "Intimate Protocol",
+			"group_model": {
+				"dominant_build": "Rescue build",
+				"group_signals": ["public care"],
+				"fault_lines": ["shared caution"],
+				"model_pressure": ["artifact custody"]
+			}
+		}
+	}
+	var constitution := DELVE_KERNEL_SCRIPT.plan_constitution(updated_profile, session_context, 818181, 10)
+	var experimental_state: Dictionary = Dictionary(constitution.get("experimental_ontology_state", {}))
+	var learning_guidance: Dictionary = Dictionary(experimental_state.get("learning_guidance", {}))
+	if learning_guidance.is_empty():
+		failures.append("Phase 7 constitution outputs should carry compiler-facing learning_guidance")
+	if _string_array_for_test(Array(learning_guidance.get("preferred_topologies", []))).is_empty():
+		failures.append("Phase 7 compiler-facing guidance should learn preferred topologies")
+	if _string_array_for_test(Array(learning_guidance.get("public_lines", []))).is_empty():
+		failures.append("Phase 7 compiler-facing guidance should emit public-safe learning lines")
+	var constitution_summary: Dictionary = Dictionary(constitution.get("constitution_summary", {}))
+	var summary_lines := _string_array_for_test(Array(constitution_summary.get("experiment_surface_lines", [])))
+	var learned_public_lines := _string_array_for_test(Array(learning_guidance.get("public_lines", [])))
+	var learned_public_line := learned_public_lines[0] if not learned_public_lines.is_empty() else ""
+	if not learned_public_line.is_empty() and not summary_lines.has(learned_public_line):
+		failures.append("Phase 7 constitution summary should surface learned public guidance through experiment_surface_lines")
+	var compile_metadata: Dictionary = Dictionary(constitution.get("compile_metadata", {}))
+	if str(compile_metadata.get("evaluation_schema", "")) != "DelveMindEvaluation":
+		failures.append("Phase 7 compile metadata should preserve evaluation schema traceability")
+	if JSON.stringify(experimental_state).find("\"runtime_state\"") != -1:
+		failures.append("Phase 7 compiler-facing state must not expose runtime-only fields")
+	var overview_lines := PROFILE_SERVICE_SCRIPT.build_home_overview_lines(updated_profile, session_context, catalog)
+	var diagnostic_lines := PROFILE_SERVICE_SCRIPT.build_last_run_diagnostic_lines(updated_profile)
+	if "\n".join(overview_lines).find("Research:") == -1:
+		failures.append("Phase 7 product shell should surface learning guidance in home overview lines")
+	if "\n".join(diagnostic_lines).find("Research:") == -1:
+		failures.append("Phase 7 product shell should surface learning guidance in last-run diagnostics")
 
 func _test_expedition_constitution_schema_and_hash(failures: Array[String]) -> void:
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())

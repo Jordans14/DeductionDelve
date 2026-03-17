@@ -1,0 +1,108 @@
+{
+  "schema_name": "DelveMindEvaluation",
+  "schema_version": 1,
+  "evaluation_required_fields": [
+    "evaluation_id",
+    "run_seed",
+    "hypothesis_id",
+    "experiment_id",
+    "family_id",
+    "dimensions",
+    "outcomes",
+    "supporting_evidence",
+    "contradicting_evidence",
+    "continuity_effects",
+    "observation_signature",
+    "public_trace_lines",
+    "operator_trace_lines"
+  ],
+  "dimension_keys": [
+    "hypothesis_yield",
+    "cultural_richness",
+    "ontological_productivity",
+    "narrative_resonance",
+    "fairness_stability",
+    "readability",
+    "replay_distinctiveness",
+    "long_horizon_branch_value"
+  ],
+  "allowed_outcomes": [
+    "strengthen_hypothesis",
+    "weaken_hypothesis",
+    "split_hypothesis",
+    "synthesize_broader_theory",
+    "move_to_recurring",
+    "move_to_rare",
+    "move_to_dormant",
+    "preserve_archival_lineage",
+    "elevate_foundational_inquiry"
+  ],
+  "allowed_persistence_states": [
+    "active",
+    "recurring",
+    "rare",
+    "dormant",
+    "archival",
+    "foundational"
+  ],
+  "meta_learning_required_fields": [
+    "topology_effectiveness",
+    "topology_counts",
+    "horizon_effectiveness",
+    "horizon_counts",
+    "medium_effectiveness",
+    "medium_counts",
+    "expression_mode_effectiveness",
+    "expression_mode_counts",
+    "noise_signatures"
+  ],
+  "guidance_required_fields": [
+    "preferred_topologies",
+    "suppressed_topologies",
+    "preferred_horizons",
+    "suppressed_horizons",
+    "preferred_media",
+    "suppressed_media",
+    "branch_pressure_families",
+    "synthesis_candidates",
+    "revive_candidates",
+    "public_lines",
+    "operator_lines"
+  ],
+  "immutable_hypothesis_fields": [
+    "hypothesis_id",
+    "domain",
+    "thesis",
+    "target_layers",
+    "target_populations",
+    "open_branches",
+    "foundational_flag"
+  ],
+  "immutable_experiment_fields": [
+    "experiment_id",
+    "family_id",
+    "family_label",
+    "program_id",
+    "hypothesis_id",
+    "target",
+    "axis",
+    "stressor",
+    "ontology_condition",
+    "cultural_medium",
+    "time_horizon",
+    "observation_contract",
+    "topology_type",
+    "expression_mode",
+    "fairness_bounds",
+    "compile_outputs"
+  ],
+  "forbidden_runtime_fields": [
+    "peer_ids",
+    "runtime_state",
+    "event_log",
+    "physics_override",
+    "legality_override",
+    "artifact_truth_override",
+    "runtime_ai_arbitration"
+  ]
+}

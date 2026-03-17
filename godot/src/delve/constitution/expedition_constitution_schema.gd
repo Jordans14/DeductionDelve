@@ -3,6 +3,7 @@ extends RefCounted
 
 const SCHEMA_VERSION := 1
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
+const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
 
 static func build(
 	seed_value: int,
@@ -476,6 +477,7 @@ static func _default_experimental_ontology_state() -> Dictionary:
 		"dominant_families": [],
 		"lineage_index": {},
 		"grammar_manifest": [],
+		"learning_guidance": DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_compiler_guidance({}),
 		"compile_outputs": {},
 		"public_surface": {
 			"lines": [],
@@ -504,6 +506,9 @@ static func _normalize_experimental_ontology_state(raw: Dictionary) -> Dictionar
 	normalized["dominant_families"] = _unique_string_array(Array(normalized.get("dominant_families", [])))
 	normalized["lineage_index"] = Dictionary(rebuilt_state.get("lineage_index", {})).duplicate(true)
 	normalized["grammar_manifest"] = Array(normalized.get("grammar_manifest", [])).duplicate(true)
+	normalized["learning_guidance"] = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_compiler_guidance(
+		Dictionary(normalized.get("learning_guidance", {}))
+	)
 	normalized["compile_outputs"] = Dictionary(normalized.get("compile_outputs", {})).duplicate(true)
 	var public_surface: Dictionary = Dictionary(normalized.get("public_surface", {})).duplicate(true)
 	public_surface["lines"] = _unique_string_array(Array(public_surface.get("lines", [])))

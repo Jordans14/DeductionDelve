@@ -116,7 +116,15 @@ static func compile(
 			"live_experiment_ids": _string_array(experimental_ontology_state.get("live_experiment_ids", [])),
 			"expression_modes": _string_array(Dictionary(experimental_ontology_state.get("public_surface", {})).get("expression_modes", [])),
 			"compile_targets": _string_array(Dictionary(experimental_ontology_state.get("compile_outputs", {})).get("compile_targets", [])),
-			"lineage_state_bands": Dictionary(Dictionary(experimental_ontology_state.get("lineage_index", {})).get("state_bands", {})).duplicate(true)
+			"lineage_state_bands": Dictionary(Dictionary(experimental_ontology_state.get("lineage_index", {})).get("state_bands", {})).duplicate(true),
+			"learning_guidance": {
+				"preferred_topologies": _string_array(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("preferred_topologies", [])),
+				"preferred_horizons": _string_array(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("preferred_horizons", [])),
+				"preferred_media": _string_array(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("preferred_media", [])),
+				"branch_pressure_families": _string_array(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("branch_pressure_families", [])),
+				"synthesis_candidates": _string_array(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("synthesis_candidates", [])),
+				"revive_candidates": _string_array(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("revive_candidates", []))
+			}
 		}
 	}
 	var compile_metadata := {
@@ -130,6 +138,8 @@ static func compile(
 		"narrative_pressure_schema_version": int(SCHEMA_REGISTRY_SCRIPT.narrative_pressure_schema().get("schema_version", 1)),
 		"experiment_schema": str(SCHEMA_REGISTRY_SCRIPT.experiment_schema().get("schema_name", "DelveMindExperiment")),
 		"experiment_schema_version": int(SCHEMA_REGISTRY_SCRIPT.experiment_schema().get("schema_version", 1)),
+		"evaluation_schema": str(SCHEMA_REGISTRY_SCRIPT.evaluation_schema().get("schema_name", "DelveMindEvaluation")),
+		"evaluation_schema_version": int(SCHEMA_REGISTRY_SCRIPT.evaluation_schema().get("schema_version", 1)),
 		"doctrine_family": str(compiled_doctrine.get("id", "")),
 		"doctrine_variant_id": doctrine_variant_id,
 		"lineage_id": str(compiled_doctrine.get("lineage_id", doctrine_family.get("lineage_id", ""))),
@@ -138,6 +148,7 @@ static func compile(
 		"experiment_families": _string_array(experimental_ontology_state.get("dominant_families", [])),
 		"experiment_expression_modes": _string_array(Dictionary(experimental_ontology_state.get("public_surface", {})).get("expression_modes", [])),
 		"experiment_compile_targets": _string_array(Dictionary(experimental_ontology_state.get("compile_outputs", {})).get("compile_targets", [])),
+		"experiment_learning_guidance": Dictionary(experimental_ontology_state.get("learning_guidance", {})).duplicate(true),
 		"dominant_lineages": Array(ontology_routing.get("dominant_lineages", [])).duplicate(true),
 		"required_generation_surface_keys": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_generation_surface_keys", [])).duplicate(true),
 		"required_symbolic_fields": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_symbolic_fields", [])).duplicate(true),
@@ -197,6 +208,8 @@ static func validate_compile_output(bundle: Dictionary) -> Array[String]:
 		failures.append("compile metadata missing narrative_pressure_schema")
 	if str(compile_metadata.get("experiment_schema", "")).strip_edges().is_empty():
 		failures.append("compile metadata missing experiment_schema")
+	if str(compile_metadata.get("evaluation_schema", "")).strip_edges().is_empty():
+		failures.append("compile metadata missing evaluation_schema")
 	for field in _string_array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_symbolic_fields", [])):
 		if field == "constitution_id" or field == "continuity_hooks":
 			continue

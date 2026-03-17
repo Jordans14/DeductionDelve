@@ -16,6 +16,7 @@ const PROFILE_SHELL_BUILDERS_SCRIPT = preload("res://src/product/profile_shell_b
 const PROFILE_IDENTITY_STATE_SCRIPT = preload("res://src/product/profile_identity_state.gd")
 const MULTIMODAL_CONTRACT_SERVICE_SCRIPT = preload("res://src/product/multimodal_contract_service.gd")
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
+const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
 
 const SAVE_PATH := "user://profile/player_profile.json"
 const HISTORY_LIMIT := 24
@@ -293,12 +294,19 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	var unlocked_achievements := _unlock_achievements(next_profile, run_record, current_catalog)
 	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
 	var frame := FRAMING_SERVICE_SCRIPT.build_run_frame(run_record, diagnostics, next_profile)
-	next_profile["delvemind_experiment_state"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.advance_persistence(
+	var experiment_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.advance_persistence(
 		Dictionary(next_profile.get("delvemind_experiment_state", {})),
 		run_record,
 		diagnostics,
 		frame
 	)
+	experiment_state = DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(
+		experiment_state,
+		run_record,
+		diagnostics,
+		frame
+	)
+	next_profile["delvemind_experiment_state"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(experiment_state)
 	var crawl_result := CRAWL_SERVICE_SCRIPT.apply_run(next_profile, run_record, diagnostics, frame)
 	next_profile["cookbook_state"] = _advance_cookbook_state(
 		Dictionary(next_profile.get("cookbook_state", {})),
@@ -342,6 +350,11 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		world_memory,
 		archive_state
 	)
+	var learning_state: Dictionary = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_learning_state(
+		Dictionary(Dictionary(next_profile.get("delvemind_experiment_state", {})).get("learning_state", {}))
+	)
+	var learning_public_lines := _to_string_array(learning_state.get("public_lines", []))
+	var learning_operator_lines := _to_string_array(learning_state.get("operator_lines", []))
 
 	var last_run := {
 		"seed": int(run_record.get("seed", 0)),
@@ -367,6 +380,8 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
 		"archive_preview": ARCHIVE_SERVICE_SCRIPT.build_archive_lines(next_profile),
 		"world_memory_lines": WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory),
+		"experiment_learning_lines": learning_public_lines.slice(0, 2),
+		"experiment_learning_operator_lines": learning_operator_lines.slice(0, 2),
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).duplicate(),
 		"action_summary": Array(run_record.get("action_summary", [])).duplicate(),
@@ -395,7 +410,8 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).slice(0, 3),
-		"action_summary": Array(run_record.get("action_summary", [])).slice(0, 3)
+		"action_summary": Array(run_record.get("action_summary", [])).slice(0, 3),
+		"experiment_learning_lines": learning_public_lines.slice(0, 2)
 	}
 	var history: Array = Array(next_profile.get("run_history", []))
 	history.push_front(history_entry)
@@ -593,6 +609,9 @@ static func build_home_overview_lines(profile: Dictionary, session_overview: Dic
 	var governance_line := str(last_frame.get("governance_line", "")).strip_edges()
 	if not governance_line.is_empty():
 		lines.append("World pressure: %s" % governance_line)
+	var learning_lines := _to_string_array(Dictionary(current.get("last_run", {})).get("experiment_learning_lines", []))
+	if not learning_lines.is_empty():
+		lines.append("Research: %s" % learning_lines[0])
 	var carryover := str(last_frame.get("ritual_pressure", "")).strip_edges()
 	if carryover.is_empty():
 		carryover = str(Dictionary(current.get("active_crawl", {})).get("promise_pressure", "")).strip_edges()
@@ -1045,7 +1064,10 @@ static func build_last_run_diagnostic_lines(profile: Dictionary) -> Array[String
 	if not frame.is_empty():
 		lines.append("Broadcast: %s" % str(frame.get("broadcast_headline", "Run story ready")))
 		lines.append("Heat: %s" % FRAMING_SERVICE_SCRIPT.build_home_heat_line(frame))
-	return lines.slice(0, 4)
+	var learning_lines := _to_string_array(last_run.get("experiment_learning_lines", []))
+	if not learning_lines.is_empty():
+		lines.append("Research: %s" % learning_lines[0])
+	return lines.slice(0, 5)
 
 static func build_continue_guidance_lines(profile: Dictionary, session_overview: Dictionary = {}) -> Array[String]:
 	var current := normalize_profile(profile)

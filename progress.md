@@ -5240,3 +5240,158 @@ All doctrine domains that were still PARTIAL at the start of this pass received 
   - ontology persistence semantics are clean
   - experiment continuity now evolves lawfully without becoming a learning loop
   - runtime/proof authority remains untouched
+
+## 2026-03-17 Phase 7 Evaluation Engine + Learning Loop - Pre-Edit Note
+
+- Exact Phase 7 doctrine goals being implemented now:
+  - add the canonical post-run evaluation owner for DelveMind experiment/hypothesis assessment
+  - add structured evaluation records and bounded scoring dimensions
+  - evolve persistent experiment continuity state lawfully after runs
+  - add compiler-facing learned state surfaces that remain symbolic and non-runtime-authoritative
+  - add public-safe/operator-safe learning traces where useful without leaking hidden ontology
+
+- Exact files about to be changed:
+  - `godot/config/evaluation_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/product/delvemind_evaluation_engine.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact things explicitly out of scope for this pass:
+  - no runtime gameplay-owner experiment logic
+  - no runtime legality or authority mutation
+  - no adaptive live balancing
+  - no secret player targeting
+  - no Phase 8 tooling wave beyond minimal schema/validation truth
+  - no broad UI redesign
+
+## 2026-03-17 Phase 7 Evaluation Engine + Learning Loop - Execution Trail
+
+- Repo-truth findings that shaped the implementation:
+  - Phase 6 experiment state was already canonical in the product/continuity owner path and safe to extend
+  - the missing Phase 7 seam was a post-run, continuity-owned evaluation/learning owner plus compiler-facing learned guidance
+  - runtime owners did not need to change; Phase 7 could remain fully outside host-authoritative gameplay law
+
+- Exact Phase 7 systems implemented:
+  - added canonical evaluation schema at `godot/config/evaluation_schema.json`
+    - defines required evaluation fields, doctrine scoring dimensions, allowed outcomes, persistence states, guidance fields, immutable fields, and forbidden runtime fields
+  - added canonical learning/evaluation owner at `godot/src/product/delvemind_learning_loop.gd`
+    - validates evaluation records
+    - applies deterministic post-run learning updates
+    - evolves hypothesis/experiment continuity state lawfully
+    - derives compiler-facing learned guidance
+  - extended `godot/src/product/delvemind_experiment_engine.gd`
+    - normalizes and validates embedded `learning_state`
+    - exposes `learning_guidance` in compiled experimental ontology
+    - applies bounded compiler-facing activation bias from learned guidance
+    - keeps compiled experiment state validation limited to compile-safe surfaces rather than persistent-only structures
+  - extended `godot/src/product/profile_service.gd`
+    - runs the learning loop after lawful Phase 6 persistence updates
+    - stores learning traces in continuity history and last-run product surfaces
+  - extended `godot/src/gen/constitution_compiler.gd`
+    - records evaluation schema traceability in compile metadata
+    - exposes learned compiler guidance through experimental ontology trace surfaces
+  - extended `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - persists compiler-facing `learning_guidance` in `experimental_ontology_state`
+  - extended `godot/src/gen/doctrine_schema_registry.gd`
+    - loads and validates the new Phase 7 schema
+
+- Exact continuity variables that now evolve lawfully:
+  - hypothesis `confidence`
+  - hypothesis `recurrence_weight`
+  - hypothesis `persistence_state`
+  - hypothesis `dormancy_state`
+  - hypothesis `supporting_evidence_ids`
+  - hypothesis `contradicting_evidence_ids`
+  - experiment `state`
+  - experiment `recurrence_weight`
+  - experiment-state `learning_state.evaluation_records`
+  - experiment-state `learning_state.meta_learning`
+  - experiment-state `learning_state.compiler_guidance`
+  - experiment-state `learning_state.public_lines`
+  - experiment-state `learning_state.operator_lines`
+  - profile `last_run.experiment_learning_lines`
+  - profile `last_run.experiment_learning_operator_lines`
+  - profile history entries `experiment_learning_lines`
+
+- Exact invariants deliberately kept immutable:
+  - experiment `family_id`
+  - experiment `program_id`
+  - experiment `target`
+  - experiment `axis`
+  - experiment `stressor`
+  - experiment `ontology_condition`
+  - experiment `cultural_medium`
+  - experiment `time_horizon`
+  - experiment `observation_contract`
+  - experiment `topology_type`
+  - experiment `expression_mode`
+  - runtime authority, legality, replication, artifact truth, and role truth
+
+- Exact scoring/evaluation dimensions added:
+  - `hypothesis_yield`
+  - `cultural_richness`
+  - `ontological_productivity`
+  - `narrative_resonance`
+  - `fairness_stability`
+  - `readability`
+  - `replay_distinctiveness`
+  - `long_horizon_branch_value`
+
+- Exact compiler-facing learned outputs added:
+  - `preferred_topologies`
+  - `suppressed_topologies`
+  - `preferred_horizons`
+  - `suppressed_horizons`
+  - `preferred_media`
+  - `suppressed_media`
+  - `branch_pressure_families`
+  - `synthesis_candidates`
+  - `revive_candidates`
+  - `public_lines`
+  - `operator_lines`
+  - compile metadata trace fields:
+    - `evaluation_schema`
+    - `evaluation_schema_version`
+    - `experiment_learning_guidance`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - added `_test_phase7_evaluation_schema_and_owner`
+    - added `_test_phase7_learning_loop_determinism_and_continuity`
+    - added `_test_phase7_immutable_fields_and_invalid_transitions`
+    - added `_test_phase7_compiler_guidance_and_public_traces`
+  - strengthened existing Phase 6/constitution coverage indirectly by requiring compiled experiment state and constitution summaries to remain validation-clean under the new learning guidance path
+
+- Exact files changed:
+  - `godot/config/evaluation_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/product/delvemind_learning_loop.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on `2026-03-17`
+  - `./scripts/run_headless_proof.ps1` -> passed on `2026-03-17`
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Remaining real debt after this Phase 7 pass:
+  - no material Phase 7 blocker remains inside the implemented owner path
+  - later phases may still want richer operator-facing inspection, but that belongs to later doctrine/tooling work rather than this Phase 7 implementation seam
+
+- Closing truth note:
+  - Phase 7 is now materially real
+  - DelveMind can evaluate manifested experiments after runs, evolve lawful continuity state, and emit bounded compiler-facing guidance without touching runtime authority
+  - the repo is now lawfully ready for the next doctrine phase after Phase 7

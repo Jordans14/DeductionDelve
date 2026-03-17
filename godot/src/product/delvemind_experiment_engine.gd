@@ -2,6 +2,7 @@ class_name DelveMindExperimentEngine
 extends RefCounted
 
 const SCHEMA_REGISTRY_SCRIPT = preload("res://src/gen/doctrine_schema_registry.gd")
+const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
 
 const RUNTIME_FORBIDDEN_FIELDS := [
 	"peer_ids",
@@ -53,6 +54,7 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["history_lines"] = _string_array(current.get("history_lines", []))
 	current["hypotheses"] = hypothesis_registry
 	current["experiments"] = experiment_registry
+	current["learning_state"] = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_learning_state(Dictionary(current.get("learning_state", {})))
 	current["foundational_ids"] = _sorted_strings(_foundational_ids(experiment_registry))
 	current["archival_ids"] = _sorted_strings(_archival_ids(experiment_registry))
 	current["lineage_index"] = _build_lineage_index(experiment_registry)
@@ -86,6 +88,7 @@ static func validate_state(state: Dictionary) -> Array[String]:
 		for source_id in _string_array(experiment.get("synthesis_sources", [])):
 			if not _experiment_exists(experiments, source_id):
 				failures.append("experiment %s synthesis_source %s is missing" % [str(experiment.get("experiment_id", "")), source_id])
+	failures.append_array(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(Dictionary(state.get("learning_state", {})), hypotheses, experiments))
 	return _sorted_strings(failures)
 
 static func validate_hypothesis(hypothesis: Dictionary) -> Array[String]:
@@ -172,11 +175,13 @@ static func compile_state(
 	var current := normalize(state)
 	var hypothesis_registry: Dictionary = Dictionary(current.get("hypotheses", {}))
 	var experiment_registry: Dictionary = Dictionary(current.get("experiments", {}))
+	var learning_state: Dictionary = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_learning_state(Dictionary(current.get("learning_state", {})))
+	var learning_guidance: Dictionary = DELVEMIND_LEARNING_LOOP_SCRIPT.guidance_from_learning_state(learning_state)
 	var activation_scores: Dictionary = {}
 	var selected_experiments: Array[Dictionary] = []
 	for experiment_id in _sorted_strings(experiment_registry.keys()):
 		var experiment: Dictionary = Dictionary(experiment_registry.get(experiment_id, {})).duplicate(true)
-		var score := _activation_score(experiment, hypothesis_registry, world_model, ontology_snapshot, ontology_routing)
+		var score := _activation_score(experiment, hypothesis_registry, world_model, ontology_snapshot, ontology_routing, learning_guidance)
 		activation_scores[experiment_id] = score
 		if _is_live_experiment(experiment, score, world_model, ontology_snapshot):
 			experiment["activation_score"] = score
@@ -192,7 +197,7 @@ static func compile_state(
 	var dominant_families: Array[String] = []
 	var expression_modes: Array[String] = []
 	var horizons: Array[String] = []
-	var public_lines: Array[String] = []
+	var experiment_public_lines: Array[String] = []
 	var grammar_manifest: Array[Dictionary] = []
 	var compile_outputs := _default_compile_outputs()
 	var lineage_index: Dictionary = Dictionary(current.get("lineage_index", {})).duplicate(true)
@@ -212,10 +217,14 @@ static func compile_state(
 		var horizon := str(experiment.get("time_horizon", "")).strip_edges()
 		if not horizon.is_empty() and not horizons.has(horizon):
 			horizons.append(horizon)
-		public_lines = _merge_string_arrays(public_lines, _string_array(experiment.get("public_lines", [])))
+		experiment_public_lines = _merge_string_arrays(experiment_public_lines, _string_array(experiment.get("public_lines", [])))
 		grammar_manifest.append(_grammar_manifest_entry(experiment))
 		compile_outputs = _merge_compile_outputs(compile_outputs, Dictionary(experiment.get("compile_outputs", {})))
-	public_lines = _merge_string_arrays(public_lines, _string_array(Dictionary(compile_outputs.get("public_activation", {})).get("surface_lines", [])))
+	var public_lines := _compose_public_surface_lines(
+		experiment_public_lines,
+		_string_array(learning_guidance.get("public_lines", [])),
+		_string_array(Dictionary(compile_outputs.get("public_activation", {})).get("surface_lines", []))
+	)
 	var selected_hypotheses: Array[Dictionary] = []
 	for hypothesis_id in selected_hypothesis_ids:
 		if hypothesis_registry.has(hypothesis_id):
@@ -232,9 +241,10 @@ static func compile_state(
 		"dominant_families": _sorted_strings(dominant_families),
 		"lineage_index": lineage_index.duplicate(true),
 		"grammar_manifest": _sorted_dict_array(grammar_manifest, "experiment_id"),
+		"learning_guidance": learning_guidance.duplicate(true),
 		"compile_outputs": compile_outputs,
 		"public_surface": {
-			"lines": public_lines.slice(0, 3),
+			"lines": public_lines,
 			"family_labels": _family_labels(_sorted_strings(dominant_families)),
 			"expression_modes": _sorted_strings(expression_modes),
 			"horizons": _sorted_strings(horizons)
@@ -251,7 +261,16 @@ static func compile_state(
 			"ontology_domains": _string_array(ontology_snapshot.get("dominant_domains", [])),
 			"route_bias_tags": _string_array(ontology_routing.get("route_bias_tags", [])),
 			"archival_ids": _sorted_strings(Array(current.get("archival_ids", []))),
-			"foundational_ids": _sorted_strings(Array(current.get("foundational_ids", [])))
+			"foundational_ids": _sorted_strings(Array(current.get("foundational_ids", []))),
+			"learning_guidance": {
+				"preferred_topologies": _string_array(learning_guidance.get("preferred_topologies", [])),
+				"preferred_horizons": _string_array(learning_guidance.get("preferred_horizons", [])),
+				"preferred_media": _string_array(learning_guidance.get("preferred_media", [])),
+				"branch_pressure_families": _string_array(learning_guidance.get("branch_pressure_families", [])),
+				"synthesis_candidates": _string_array(learning_guidance.get("synthesis_candidates", [])),
+				"revive_candidates": _string_array(learning_guidance.get("revive_candidates", []))
+			},
+			"recent_evaluation_ids": _recent_evaluation_ids(learning_state)
 		},
 		"validation_failures": _merge_string_arrays(_string_array(current.get("validation_failures", [])), [])
 	}
@@ -259,10 +278,14 @@ static func compile_state(
 	return compiled
 
 static func validate_compile_state(compiled: Dictionary) -> Array[String]:
-	var failures := validate_state({
-		"hypotheses": _map_from_registry(_dict_array(compiled.get("hypothesis_registry", [])), "hypothesis_id"),
-		"experiments": _map_from_registry(_dict_array(compiled.get("experiment_registry", [])), "experiment_id")
-	})
+	var hypothesis_map := _map_from_registry(_dict_array(compiled.get("hypothesis_registry", [])), "hypothesis_id")
+	var experiment_map := _map_from_registry(_dict_array(compiled.get("experiment_registry", [])), "experiment_id")
+	var failures: Array[String] = []
+	for hypothesis_raw in hypothesis_map.values():
+		failures.append_array(validate_hypothesis(Dictionary(hypothesis_raw)))
+	for experiment_raw in experiment_map.values():
+		failures.append_array(validate_experiment(Dictionary(experiment_raw)))
+	failures.append_array(_validate_registry_links(hypothesis_map, experiment_map))
 	var schema := SCHEMA_REGISTRY_SCRIPT.experiment_schema()
 	for field in [
 		"hypothesis_registry",
@@ -274,6 +297,7 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 		"dominant_families",
 		"lineage_index",
 		"grammar_manifest",
+		"learning_guidance",
 		"compile_outputs",
 		"public_surface",
 		"compiler_trace"
@@ -302,6 +326,7 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 	for field in ["parent_to_branches", "synthesis_to_children", "state_bands", "recurrence_weights", "rediscovery_hooks"]:
 		if not lineage_index.has(field):
 			failures.append("experimental ontology lineage_index missing %s" % field)
+	failures.append_array(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_compiler_guidance(Dictionary(compiled.get("learning_guidance", {}))))
 	if _contains_runtime_key(compile_outputs) or _contains_runtime_key(Dictionary(compiled.get("compiler_trace", {}))):
 		failures.append("experimental ontology compile outputs must not expose runtime-only fields")
 	return _sorted_strings(failures)
@@ -310,8 +335,12 @@ static func build_world_lines(state: Dictionary) -> Array[String]:
 	var current := normalize(state)
 	var lines: Array[String] = []
 	var history_lines := _string_array(current.get("history_lines", []))
+	var learning_state: Dictionary = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_learning_state(Dictionary(current.get("learning_state", {})))
 	if not history_lines.is_empty():
 		lines.append(history_lines[0])
+	var learning_public_lines := _string_array(learning_state.get("public_lines", []))
+	if not learning_public_lines.is_empty() and not lines.has(learning_public_lines[0]):
+		lines.append(learning_public_lines[0])
 	for experiment_raw in _sorted_dict_array_from_map(Dictionary(current.get("experiments", {})), "experiment_id"):
 		var experiment: Dictionary = Dictionary(experiment_raw)
 		var public_lines := _string_array(experiment.get("public_lines", []))
@@ -329,6 +358,7 @@ static func _default_shell() -> Dictionary:
 		"schema_version": 1,
 		"hypotheses": {},
 		"experiments": {},
+		"learning_state": DELVEMIND_LEARNING_LOOP_SCRIPT.default_learning_state(),
 		"history_lines": [],
 		"foundational_ids": [],
 		"archival_ids": [],
@@ -535,7 +565,7 @@ static func _rediscovery_ready(experiment: Dictionary, world_model: Dictionary, 
 	var cultural: Dictionary = Dictionary(world_model.get("cultural_model", {}))
 	return int(cultural.get("counterfactual_heat", 0)) >= 2 or int(cultural.get("revision_pressure", 0)) >= 2
 
-static func _activation_score(experiment: Dictionary, hypotheses: Dictionary, world_model: Dictionary, ontology_snapshot: Dictionary, ontology_routing: Dictionary) -> int:
+static func _activation_score(experiment: Dictionary, hypotheses: Dictionary, world_model: Dictionary, ontology_snapshot: Dictionary, ontology_routing: Dictionary, learning_guidance: Dictionary = {}) -> int:
 	var score := int(experiment.get("recurrence_weight", 0))
 	match str(experiment.get("state", "dormant")).strip_edges():
 		"foundational":
@@ -553,6 +583,7 @@ static func _activation_score(experiment: Dictionary, hypotheses: Dictionary, wo
 	score += _axis_signal_score(str(experiment.get("axis", "")), world_model)
 	score += _stressor_signal_score(str(experiment.get("stressor", "")), world_model)
 	score += _ontology_condition_score(str(experiment.get("ontology_condition", "")), ontology_snapshot, ontology_routing)
+	score += _learning_guidance_bias(experiment, learning_guidance)
 	if bool(hypothesis.get("foundational_flag", false)):
 		score += 1
 	return clampi(score, 0, 12)
@@ -673,6 +704,83 @@ static func _ontology_condition_score(condition: String, ontology_snapshot: Dict
 			return 2 if _string_array(ontology_routing.get("dominant_lineages", [])).has("ritual_custody_lineage") else 1 if _string_array(ontology_snapshot.get("dominant_domains", [])).has("ritual_families") else 0
 		_:
 			return 0
+
+static func _learning_guidance_bias(experiment: Dictionary, learning_guidance: Dictionary) -> int:
+	var bias := 0
+	var topology := str(experiment.get("topology_type", "")).strip_edges()
+	var horizon := str(experiment.get("time_horizon", "")).strip_edges()
+	var medium := str(experiment.get("cultural_medium", "")).strip_edges()
+	var experiment_id := str(experiment.get("experiment_id", "")).strip_edges()
+	var family_id := str(experiment.get("family_id", "")).strip_edges()
+	if _string_array(learning_guidance.get("preferred_topologies", [])).has(topology):
+		bias += 1
+	if _string_array(learning_guidance.get("preferred_horizons", [])).has(horizon):
+		bias += 1
+	if _string_array(learning_guidance.get("preferred_media", [])).has(medium):
+		bias += 1
+	if _string_array(learning_guidance.get("suppressed_topologies", [])).has(topology):
+		bias -= 1
+	if _string_array(learning_guidance.get("suppressed_horizons", [])).has(horizon):
+		bias -= 1
+	if _string_array(learning_guidance.get("suppressed_media", [])).has(medium):
+		bias -= 1
+	if _string_array(learning_guidance.get("revive_candidates", [])).has(experiment_id):
+		bias += 1
+	if _string_array(learning_guidance.get("branch_pressure_families", [])).has(family_id):
+		bias += 1
+	if _string_array(learning_guidance.get("synthesis_candidates", [])).has(experiment_id):
+		bias += 1
+	return clampi(bias, -1, 2)
+
+static func _recent_evaluation_ids(learning_state: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	for record_raw in _dict_array(learning_state.get("evaluation_records", [])).slice(0, 3):
+		var evaluation_id := str(Dictionary(record_raw).get("evaluation_id", "")).strip_edges()
+		if not evaluation_id.is_empty():
+			result.append(evaluation_id)
+	return result
+
+static func _validate_registry_links(hypotheses: Dictionary, experiments: Dictionary) -> Array[String]:
+	var failures: Array[String] = []
+	for hypothesis_raw in hypotheses.values():
+		var hypothesis: Dictionary = Dictionary(hypothesis_raw)
+		for branch_id in _string_array(hypothesis.get("open_branches", [])):
+			if not _experiment_exists(experiments, branch_id):
+				failures.append("hypothesis open_branches references missing experiment %s" % branch_id)
+	for experiment_raw in experiments.values():
+		var experiment: Dictionary = Dictionary(experiment_raw)
+		var hypothesis_id := str(experiment.get("hypothesis_id", "")).strip_edges()
+		if not _hypothesis_exists(hypotheses, hypothesis_id):
+			failures.append("experiment %s references missing hypothesis %s" % [str(experiment.get("experiment_id", "")), hypothesis_id])
+		var parent_id := str(experiment.get("lineage_parent_id", "")).strip_edges()
+		if not parent_id.is_empty() and not _experiment_exists(experiments, parent_id):
+			failures.append("experiment %s lineage_parent_id %s is missing" % [str(experiment.get("experiment_id", "")), parent_id])
+		for branch_id in _string_array(experiment.get("branch_ids", [])):
+			if not _experiment_exists(experiments, branch_id):
+				failures.append("experiment %s branch_id %s is missing" % [str(experiment.get("experiment_id", "")), branch_id])
+		for source_id in _string_array(experiment.get("synthesis_sources", [])):
+			if not _experiment_exists(experiments, source_id):
+				failures.append("experiment %s synthesis_source %s is missing" % [str(experiment.get("experiment_id", "")), source_id])
+	return _sorted_strings(failures)
+
+static func _compose_public_surface_lines(experiment_lines: Array[String], learning_lines: Array[String], activation_lines: Array[String]) -> Array[String]:
+	var result: Array[String] = []
+	if not experiment_lines.is_empty() and not result.has(experiment_lines[0]):
+		result.append(experiment_lines[0])
+	if not learning_lines.is_empty() and not result.has(learning_lines[0]):
+		result.append(learning_lines[0])
+	if not activation_lines.is_empty() and not result.has(activation_lines[0]):
+		result.append(activation_lines[0])
+	for line in experiment_lines:
+		if not result.has(line):
+			result.append(line)
+	for line in learning_lines:
+		if not result.has(line):
+			result.append(line)
+	for line in activation_lines:
+		if not result.has(line):
+			result.append(line)
+	return result.slice(0, 3)
 
 static func _merge_compile_outputs(base_outputs: Dictionary, addition_outputs: Dictionary) -> Dictionary:
 	var base := _normalize_compile_outputs(base_outputs)

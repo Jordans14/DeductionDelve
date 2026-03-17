@@ -4,6 +4,7 @@ extends RefCounted
 const CONSTITUTION_SCHEMA_PATH := "res://config/constitution_schema.json"
 const ONTOLOGY_SCHEMA_PATH := "res://config/ontology_schema.json"
 const EXPERIMENT_SCHEMA_PATH := "res://config/experiment_schema.json"
+const EVALUATION_SCHEMA_PATH := "res://config/evaluation_schema.json"
 const CULTURAL_ACTOR_SCHEMA_PATH := "res://config/cultural_actor_schema.json"
 const NARRATIVE_PRESSURE_SCHEMA_PATH := "res://config/narrative_pressure_schema.json"
 const DOCTRINE_FAMILY_CATALOG_PATH := "res://config/doctrine_family_catalog.json"
@@ -343,6 +344,108 @@ const FALLBACK_CULTURAL_ACTOR_SCHEMA := {
 		"archive_position"
 	],
 	"allowed_actor_types": ["institution", "school", "crew", "public", "ritual_holder"]
+}
+
+const FALLBACK_EVALUATION_SCHEMA := {
+	"schema_name": "DelveMindEvaluation",
+	"schema_version": 1,
+	"evaluation_required_fields": [
+		"evaluation_id",
+		"run_seed",
+		"hypothesis_id",
+		"experiment_id",
+		"family_id",
+		"dimensions",
+		"outcomes",
+		"supporting_evidence",
+		"contradicting_evidence",
+		"continuity_effects",
+		"observation_signature",
+		"public_trace_lines",
+		"operator_trace_lines"
+	],
+	"dimension_keys": [
+		"hypothesis_yield",
+		"cultural_richness",
+		"ontological_productivity",
+		"narrative_resonance",
+		"fairness_stability",
+		"readability",
+		"replay_distinctiveness",
+		"long_horizon_branch_value"
+	],
+	"allowed_outcomes": [
+		"strengthen_hypothesis",
+		"weaken_hypothesis",
+		"split_hypothesis",
+		"synthesize_broader_theory",
+		"move_to_recurring",
+		"move_to_rare",
+		"move_to_dormant",
+		"preserve_archival_lineage",
+		"elevate_foundational_inquiry"
+	],
+	"allowed_persistence_states": ["active", "recurring", "rare", "dormant", "archival", "foundational"],
+	"meta_learning_required_fields": [
+		"topology_effectiveness",
+		"topology_counts",
+		"horizon_effectiveness",
+		"horizon_counts",
+		"medium_effectiveness",
+		"medium_counts",
+		"expression_mode_effectiveness",
+		"expression_mode_counts",
+		"noise_signatures"
+	],
+	"guidance_required_fields": [
+		"preferred_topologies",
+		"suppressed_topologies",
+		"preferred_horizons",
+		"suppressed_horizons",
+		"preferred_media",
+		"suppressed_media",
+		"branch_pressure_families",
+		"synthesis_candidates",
+		"revive_candidates",
+		"public_lines",
+		"operator_lines"
+	],
+	"immutable_hypothesis_fields": [
+		"hypothesis_id",
+		"domain",
+		"thesis",
+		"target_layers",
+		"target_populations",
+		"open_branches",
+		"foundational_flag"
+	],
+	"immutable_experiment_fields": [
+		"experiment_id",
+		"family_id",
+		"family_label",
+		"program_id",
+		"hypothesis_id",
+		"target",
+		"axis",
+		"stressor",
+		"ontology_condition",
+		"cultural_medium",
+		"time_horizon",
+		"observation_contract",
+		"topology_type",
+		"expression_mode",
+		"fairness_bounds",
+		"compile_outputs"
+	],
+	"forbidden_runtime_fields": [
+		"peer_ids",
+		"runtime_state",
+		"event_log",
+		"physics_override",
+		"legality_override",
+		"artifact_truth_override",
+		"runtime_ai_arbitration"
+	]
 }
 
 const FALLBACK_NARRATIVE_PRESSURE_SCHEMA := {
@@ -989,6 +1092,9 @@ static func ontology_schema() -> Dictionary:
 static func experiment_schema() -> Dictionary:
 	return _load_json(EXPERIMENT_SCHEMA_PATH, FALLBACK_EXPERIMENT_SCHEMA)
 
+static func evaluation_schema() -> Dictionary:
+	return _load_json(EVALUATION_SCHEMA_PATH, FALLBACK_EVALUATION_SCHEMA)
+
 static func cultural_actor_schema() -> Dictionary:
 	return _load_json(CULTURAL_ACTOR_SCHEMA_PATH, FALLBACK_CULTURAL_ACTOR_SCHEMA)
 
@@ -1028,6 +1134,7 @@ static func validate_registry() -> Array[String]:
 	failures.append_array(_validate_constitution_schema(constitution_schema()))
 	failures.append_array(_validate_ontology_schema(ontology_schema()))
 	failures.append_array(_validate_experiment_schema(experiment_schema()))
+	failures.append_array(_validate_evaluation_schema(evaluation_schema()))
 	failures.append_array(_validate_basic_schema(cultural_actor_schema(), "CulturalActor", ["required_fields", "allowed_actor_types"]))
 	failures.append_array(_validate_narrative_pressure_schema(narrative_pressure_schema()))
 	failures.append_array(_validate_doctrine_catalog(doctrine_family_catalog()))
@@ -1166,6 +1273,94 @@ static func _validate_narrative_pressure_schema(schema: Dictionary) -> Array[Str
 		failures.append("NarrativePressureState min_axis_value must stay at 0")
 	if int(schema.get("max_axis_value", 0)) < 4:
 		failures.append("NarrativePressureState max_axis_value must allow doctrine-scale pressure values")
+	return failures
+
+static func _validate_evaluation_schema(schema: Dictionary) -> Array[String]:
+	var failures: Array[String] = []
+	if str(schema.get("schema_name", "")) != "DelveMindEvaluation":
+		failures.append("DelveMindEvaluation schema_name mismatch")
+	for key in [
+		"evaluation_required_fields",
+		"dimension_keys",
+		"allowed_outcomes",
+		"allowed_persistence_states",
+		"meta_learning_required_fields",
+		"guidance_required_fields",
+		"immutable_hypothesis_fields",
+		"immutable_experiment_fields",
+		"forbidden_runtime_fields"
+	]:
+		if not schema.has(key):
+			failures.append("DelveMindEvaluation missing %s" % key)
+	_require_values(_string_array(schema.get("evaluation_required_fields", [])), [
+		"evaluation_id",
+		"run_seed",
+		"hypothesis_id",
+		"experiment_id",
+		"family_id",
+		"dimensions",
+		"outcomes",
+		"supporting_evidence",
+		"contradicting_evidence",
+		"continuity_effects",
+		"observation_signature",
+		"public_trace_lines",
+		"operator_trace_lines"
+	], "DelveMindEvaluation evaluation_required_fields", failures)
+	_require_values(_string_array(schema.get("dimension_keys", [])), [
+		"hypothesis_yield",
+		"cultural_richness",
+		"ontological_productivity",
+		"narrative_resonance",
+		"fairness_stability",
+		"readability",
+		"replay_distinctiveness",
+		"long_horizon_branch_value"
+	], "DelveMindEvaluation dimension_keys", failures)
+	_require_values(_string_array(schema.get("allowed_outcomes", [])), [
+		"strengthen_hypothesis",
+		"weaken_hypothesis",
+		"split_hypothesis",
+		"synthesize_broader_theory",
+		"move_to_recurring",
+		"move_to_rare",
+		"move_to_dormant",
+		"preserve_archival_lineage",
+		"elevate_foundational_inquiry"
+	], "DelveMindEvaluation allowed_outcomes", failures)
+	_require_values(_string_array(schema.get("allowed_persistence_states", [])), [
+		"active", "recurring", "rare", "dormant", "archival", "foundational"
+	], "DelveMindEvaluation allowed_persistence_states", failures)
+	_require_values(_string_array(schema.get("meta_learning_required_fields", [])), [
+		"topology_effectiveness",
+		"topology_counts",
+		"horizon_effectiveness",
+		"horizon_counts",
+		"medium_effectiveness",
+		"medium_counts",
+		"expression_mode_effectiveness",
+		"expression_mode_counts",
+		"noise_signatures"
+	], "DelveMindEvaluation meta_learning_required_fields", failures)
+	_require_values(_string_array(schema.get("guidance_required_fields", [])), [
+		"preferred_topologies",
+		"suppressed_topologies",
+		"preferred_horizons",
+		"suppressed_horizons",
+		"preferred_media",
+		"suppressed_media",
+		"branch_pressure_families",
+		"synthesis_candidates",
+		"revive_candidates",
+		"public_lines",
+		"operator_lines"
+	], "DelveMindEvaluation guidance_required_fields", failures)
+	_require_values(_string_array(schema.get("immutable_hypothesis_fields", [])), [
+		"hypothesis_id", "domain", "thesis", "target_layers", "open_branches", "foundational_flag"
+	], "DelveMindEvaluation immutable_hypothesis_fields", failures)
+	_require_values(_string_array(schema.get("immutable_experiment_fields", [])), [
+		"experiment_id", "family_id", "program_id", "target", "axis", "stressor", "ontology_condition", "cultural_medium", "time_horizon", "observation_contract", "topology_type", "expression_mode", "fairness_bounds", "compile_outputs"
+	], "DelveMindEvaluation immutable_experiment_fields", failures)
 	return failures
 
 static func _validate_ontology_schema(schema: Dictionary) -> Array[String]:
