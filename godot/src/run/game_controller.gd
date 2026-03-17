@@ -2042,6 +2042,31 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 			expedition_constitution_summary = NetworkManager.get_current_delve_public_summary()
 	if constitution_hash.is_empty() and NetworkManager != null and NetworkManager.has_method("get_current_constitution_hash"):
 		constitution_hash = str(NetworkManager.get_current_constitution_hash()).strip_edges()
+	var live_experiment_ids: Array[String] = []
+	var live_hypothesis_ids: Array[String] = []
+	if RunState != null:
+		var expedition_constitution: Dictionary = Dictionary(RunState.expedition_constitution)
+		var experimental_ontology_state: Dictionary = Dictionary(expedition_constitution.get("experimental_ontology_state", {}))
+		for experiment_id_variant in Array(experimental_ontology_state.get("live_experiment_ids", [])):
+			var experiment_id := str(experiment_id_variant).strip_edges()
+			if not experiment_id.is_empty() and not live_experiment_ids.has(experiment_id):
+				live_experiment_ids.append(experiment_id)
+		for hypothesis_id_variant in Array(experimental_ontology_state.get("live_hypothesis_ids", [])):
+			var hypothesis_id := str(hypothesis_id_variant).strip_edges()
+			if not hypothesis_id.is_empty() and not live_hypothesis_ids.has(hypothesis_id):
+				live_hypothesis_ids.append(hypothesis_id)
+	for experiment_id_variant in Array(expedition_constitution_summary.get("live_experiment_ids", [])):
+		var experiment_id := str(experiment_id_variant).strip_edges()
+		if not experiment_id.is_empty() and not live_experiment_ids.has(experiment_id):
+			live_experiment_ids.append(experiment_id)
+	for hypothesis_id_variant in Array(expedition_constitution_summary.get("live_hypothesis_ids", [])):
+		var hypothesis_id := str(hypothesis_id_variant).strip_edges()
+		if not hypothesis_id.is_empty() and not live_hypothesis_ids.has(hypothesis_id):
+			live_hypothesis_ids.append(hypothesis_id)
+	live_experiment_ids.sort()
+	live_hypothesis_ids.sort()
+	expedition_constitution_summary["live_experiment_ids"] = live_experiment_ids.duplicate()
+	expedition_constitution_summary["live_hypothesis_ids"] = live_hypothesis_ids.duplicate()
 	var mutation_replay_signature := EXPEDITION_MUTATION_ENGINE_SCRIPT.replay_signature(mutation_history)
 	return {
 		"seed": int(end_payload.get("seed", RunState.run_seed)),
@@ -2069,6 +2094,9 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"narrative_motion_facts": motion_facts,
 		"gameplay_signal_snapshot": gameplay_signal_snapshot,
 		"constitution_hash": constitution_hash,
+		"manifested_experiment_ids": live_experiment_ids.duplicate(),
+		"live_experiment_ids": live_experiment_ids.duplicate(),
+		"live_hypothesis_ids": live_hypothesis_ids.duplicate(),
 		"expedition_constitution_summary": expedition_constitution_summary.duplicate(true),
 		"delve_directive_summary": expedition_constitution_summary.duplicate(true),
 		"mutation_history": mutation_history,

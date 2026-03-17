@@ -140,6 +140,10 @@ func _init() -> void:
 	_test_phase7_learning_loop_determinism_and_continuity(failures)
 	_test_phase7_immutable_fields_and_invalid_transitions(failures)
 	_test_phase7_compiler_guidance_and_public_traces(failures)
+	_test_phase7_duplicate_evaluation_dedup_and_meta_consistency(failures)
+	_test_phase7_manifestation_identity_and_collision_handling(failures)
+	_test_phase7_malformed_persisted_learning_state_cleanup(failures)
+	_test_phase7_branch_synthesis_persistence_honesty(failures)
 	_test_expedition_constitution_schema_and_hash(failures)
 	_test_delve_live_handoff_and_summary(failures)
 	_test_runstate_constitution_handoff(failures)
@@ -7236,61 +7240,14 @@ func _test_phase6_shell_proof_fast_path(failures: Array[String]) -> void:
 	elif bool(Dictionary(emitted_offers[0]).get("available", false)) != true or not Dictionary(emitted_offers[1]).is_empty():
 		failures.append("Phase 6 proof reconnect fix should emit one concrete offer and one clear event")
 
-func _test_phase7_evaluation_schema_and_owner(failures: Array[String]) -> void:
-	var evaluation_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.evaluation_schema()
-	for required_dimension in [
-		"hypothesis_yield",
-		"cultural_richness",
-		"ontological_productivity",
-		"narrative_resonance",
-		"fairness_stability",
-		"readability",
-		"replay_distinctiveness",
-		"long_horizon_branch_value"
-	]:
-		if not _string_array_for_test(Array(evaluation_schema.get("dimension_keys", []))).has(required_dimension):
-			failures.append("Phase 7 evaluation schema should include doctrine dimension %s" % required_dimension)
-	for required_outcome in [
-		"strengthen_hypothesis",
-		"weaken_hypothesis",
-		"split_hypothesis",
-		"synthesize_broader_theory",
-		"move_to_recurring",
-		"move_to_rare",
-		"move_to_dormant",
-		"preserve_archival_lineage",
-		"elevate_foundational_inquiry"
-	]:
-		if not _string_array_for_test(Array(evaluation_schema.get("allowed_outcomes", []))).has(required_outcome):
-			failures.append("Phase 7 evaluation schema should include doctrine outcome %s" % required_outcome)
-	var learning_state := DELVEMIND_LEARNING_LOOP_SCRIPT.default_learning_state()
-	var learning_failures := DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(learning_state)
-	if not learning_failures.is_empty():
-		failures.append("Phase 7 learning owner should validate its default learning state cleanly: %s" % "; ".join(learning_failures))
-	var compiler_guidance: Dictionary = Dictionary(learning_state.get("compiler_guidance", {}))
-	for key in [
-		"preferred_topologies",
-		"suppressed_topologies",
-		"preferred_horizons",
-		"suppressed_horizons",
-		"preferred_media",
-		"suppressed_media",
-		"branch_pressure_families",
-		"synthesis_candidates",
-		"revive_candidates",
-		"public_lines",
-		"operator_lines"
-	]:
-		if not compiler_guidance.has(key):
-			failures.append("Phase 7 learning owner should expose compiler_guidance key %s" % key)
-
-func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[String]) -> void:
-	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
-	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
-	var run_record := {
-		"seed": 616161,
+func _phase7_run_record(seed: int, overrides: Dictionary = {}) -> Dictionary:
+	var base := {
+		"seed": seed,
 		"local_role": "Archivist",
 		"role_result_success": true,
+		"manifested_experiment_ids": ["exp_stewardship_campaign"],
+		"live_experiment_ids": ["exp_stewardship_campaign"],
+		"live_hypothesis_ids": ["hyp_stewardship_campaign"],
 		"timeline_public_events": [
 			{"type": "artifact_picked", "tick": 1, "room_id": "vault"},
 			{"type": "artifact_dropped", "tick": 2, "room_id": "vault"},
@@ -7321,7 +7278,26 @@ func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[Strin
 		"expedition_constitution_summary": {
 			"experiment_families": ["Stewardship Campaign"],
 			"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
-			"surface_summary": {"lines": ["Carry the answer carefully."]}
+			"experiment_expression_modes": ["mirror_mode"],
+			"experiment_horizons": ["short_cycle"],
+			"live_experiment_ids": ["exp_stewardship_campaign"],
+			"live_hypothesis_ids": ["hyp_stewardship_campaign"],
+			"surface_summary": {"lines": ["Carry the answer carefully."]},
+			"protocol_state": "Intimate Protocol",
+			"doctrine_family": "custody_ritual",
+			"doctrine_label": "Custody Ritual",
+			"pressure_line": "Carry the answer through ritual custody.",
+			"world_goal": "Keep the route legible under burden.",
+			"dominant_minds": ["Archivist"],
+			"dominant_forces": ["Memory"],
+			"dominant_domains": ["artifact_families"],
+			"pacing_profile": "steady",
+			"pressure_grammar": ["Delay"],
+			"symbolic_motifs": ["Threshold Marks"],
+			"item_ecology_bias": "burden stewardship",
+			"group_tension_bias": "measured caution",
+			"archive_tone": "memory custody",
+			"convergence_axis": "artifact custody"
 		},
 		"outcome_summary": {
 			"summary_text": "Recovered cleanly",
@@ -7331,6 +7307,100 @@ func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[Strin
 			"sabotage_success": false
 		}
 	}
+	for key in overrides.keys():
+		base[key] = overrides[key]
+	return base
+
+func _test_phase7_evaluation_schema_and_owner(failures: Array[String]) -> void:
+	var evaluation_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.evaluation_schema()
+	for required_dimension in [
+		"hypothesis_yield",
+		"cultural_richness",
+		"ontological_productivity",
+		"narrative_resonance",
+		"fairness_stability",
+		"readability",
+		"replay_distinctiveness",
+		"long_horizon_branch_value"
+	]:
+		if not _string_array_for_test(Array(evaluation_schema.get("dimension_keys", []))).has(required_dimension):
+			failures.append("Phase 7 evaluation schema should include doctrine dimension %s" % required_dimension)
+	for required_outcome in [
+		"strengthen_hypothesis",
+		"weaken_hypothesis",
+		"split_hypothesis",
+		"synthesize_broader_theory",
+		"move_to_recurring",
+		"move_to_rare",
+		"move_to_dormant",
+		"preserve_archival_lineage",
+		"elevate_foundational_inquiry"
+	]:
+		if not _string_array_for_test(Array(evaluation_schema.get("allowed_outcomes", []))).has(required_outcome):
+			failures.append("Phase 7 evaluation schema should include doctrine outcome %s" % required_outcome)
+	for required_effect in [
+		"confidence_delta",
+		"recurrence_delta",
+		"state_transition",
+		"persistence_transition",
+		"branch_pressure_family",
+		"branch_open_ids",
+		"synthesis_experiment_id",
+		"synthesis_source_ids",
+		"revive_candidate",
+		"fairness_vetoed"
+	]:
+		if not _string_array_for_test(Array(evaluation_schema.get("continuity_effects_required_fields", []))).has(required_effect):
+			failures.append("Phase 7 evaluation schema should include nested continuity field %s" % required_effect)
+	for required_signature in [
+		"story_tone",
+		"artifact_result",
+		"local_role",
+		"build_identity",
+		"topology_type",
+		"time_horizon",
+		"cultural_medium",
+		"expression_mode",
+		"retellability_score",
+		"legend_density_score",
+		"revisit_score",
+		"interrupted"
+	]:
+		if not _string_array_for_test(Array(evaluation_schema.get("observation_signature_required_fields", []))).has(required_signature):
+			failures.append("Phase 7 evaluation schema should include nested observation field %s" % required_signature)
+	var learning_state := DELVEMIND_LEARNING_LOOP_SCRIPT.default_learning_state()
+	var learning_failures := DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(learning_state)
+	if not learning_failures.is_empty():
+		failures.append("Phase 7 learning owner should validate its default learning state cleanly: %s" % "; ".join(learning_failures))
+	var compiler_guidance: Dictionary = Dictionary(learning_state.get("compiler_guidance", {}))
+	for key in [
+		"preferred_topologies",
+		"suppressed_topologies",
+		"preferred_horizons",
+		"suppressed_horizons",
+		"preferred_media",
+		"suppressed_media",
+		"branch_pressure_families",
+		"synthesis_candidates",
+		"revive_candidates",
+		"accepted_evaluation_ids",
+		"evaluation_count",
+		"branch_signal_counts",
+		"synthesis_signal_counts",
+		"revive_signal_counts",
+		"bias_basis",
+		"public_lines",
+		"operator_lines"
+	]:
+		if not compiler_guidance.has(key):
+			failures.append("Phase 7 learning owner should expose compiler_guidance key %s" % key)
+	if not Dictionary(compiler_guidance.get("bias_basis", {})).has("topology_averages"):
+		failures.append("Phase 7 compiler guidance should carry nested bias_basis trace fields")
+
+func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var run_record := _phase7_run_record(616161)
 	var before_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(profile.get("delvemind_experiment_state", {})))
 	var before_hypothesis: Dictionary = Dictionary(Dictionary(before_state.get("hypotheses", {})).get("hyp_stewardship_campaign", {})).duplicate(true)
 	var before_experiment: Dictionary = Dictionary(Dictionary(before_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
@@ -7345,6 +7415,9 @@ func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[Strin
 	var learning_records := _dict_array_for_test(learning_state.get("evaluation_records", []))
 	if learning_records.is_empty():
 		failures.append("Phase 7 should record at least one evaluation record after a manifested experiment run")
+	var first_record: Dictionary = Dictionary(learning_records[0]) if not learning_records.is_empty() else {}
+	if str(first_record.get("experiment_id", "")).strip_edges() != "exp_stewardship_campaign":
+		failures.append("Phase 7 learning should attribute manifested experiments through canonical experiment ids")
 	var updated_hypothesis: Dictionary = Dictionary(Dictionary(updated_state.get("hypotheses", {})).get("hyp_stewardship_campaign", {})).duplicate(true)
 	var updated_experiment: Dictionary = Dictionary(Dictionary(updated_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
 	if int(updated_hypothesis.get("confidence", -1)) < int(before_hypothesis.get("confidence", -1)):
@@ -7355,59 +7428,23 @@ func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[Strin
 		failures.append("Phase 7 learning should raise recurrence_weight for a strong recurring-worthy experiment")
 	if _string_array_for_test(Array(learning_state.get("public_lines", []))).is_empty():
 		failures.append("Phase 7 learning should emit public-safe learning lines after evaluation")
+	if _string_array_for_test(Array(Dictionary(learning_state.get("meta_learning", {})).get("accepted_evaluation_ids", []))).is_empty():
+		failures.append("Phase 7 learning should track canonical accepted evaluation ids in meta_learning")
+	if int(Dictionary(learning_state.get("compiler_guidance", {})).get("evaluation_count", 0)) != learning_records.size():
+		failures.append("Phase 7 compiler guidance should keep evaluation_count aligned with canonical evaluation_records")
 	if _string_array_for_test(Array(Dictionary(first_profile.get("last_run", {})).get("experiment_learning_lines", []))).is_empty():
 		failures.append("Profile continuity should surface Phase 7 learning lines in last_run")
+	if not _string_array_for_test(Array(Dictionary(first_profile.get("last_run", {})).get("manifested_experiment_ids", []))).has("exp_stewardship_campaign"):
+		failures.append("Profile continuity should preserve canonical manifested_experiment_ids for post-run traceability")
 
 func _test_phase7_immutable_fields_and_invalid_transitions(failures: Array[String]) -> void:
 	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var run_record := _phase7_run_record(717171)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
 	var experiment_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(
 		base_state,
-		{
-			"seed": 717171,
-			"local_role": "Archivist",
-			"timeline_public_events": [],
-			"action_summary": ["Tracked the artifact cleanly"],
-			"key_clues": ["Custody stayed visible"],
-			"communication_summary": {"total": 1, "danger": 0, "regroup": 1, "artifact": 1},
-			"narrative_motion_facts": {},
-			"gameplay_signal_snapshot": {},
-			"branch_summary": {},
-			"expedition_constitution_summary": {
-				"experiment_families": ["Stewardship Campaign"],
-				"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
-				"surface_summary": {"lines": ["Carry the answer carefully."]}
-			},
-			"outcome_summary": {
-				"summary_text": "Recovered cleanly",
-				"artifact_result_text": "Authentic artifact extracted",
-				"artifact_result": "authentic",
-				"expedition_success": true,
-				"sabotage_success": false
-			}
-		},
-		RUN_STORY_DIAGNOSTICS_SCRIPT.analyze({
-			"seed": 717171,
-			"local_role": "Archivist",
-			"timeline_public_events": [],
-			"action_summary": ["Tracked the artifact cleanly"],
-			"key_clues": ["Custody stayed visible"],
-			"communication_summary": {"total": 1, "danger": 0, "regroup": 1, "artifact": 1},
-			"narrative_motion_facts": {},
-			"gameplay_signal_snapshot": {},
-			"branch_summary": {},
-			"expedition_constitution_summary": {
-				"experiment_families": ["Stewardship Campaign"],
-				"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
-				"surface_summary": {"lines": ["Carry the answer carefully."]}
-			},
-			"outcome_summary": {
-				"summary_text": "Recovered cleanly",
-				"artifact_result_text": "Authentic artifact extracted",
-				"artifact_result": "authentic",
-				"expedition_success": true,
-				"sabotage_success": false
-			}
-		}),
+		run_record,
+		diagnostics,
 		{}
 	)
 	var before_experiment: Dictionary = Dictionary(Dictionary(base_state.get("experiments", {})).get("exp_stewardship_campaign", {})).duplicate(true)
@@ -7440,11 +7477,27 @@ func _test_phase7_immutable_fields_and_invalid_transitions(failures: Array[Strin
 			"state_transition": {"from": "foundational", "to": "dormant"},
 			"persistence_transition": {"from": "foundational", "to": "dormant"},
 			"branch_pressure_family": "",
-			"synthesis_cue": "",
+			"branch_open_ids": [],
+			"synthesis_experiment_id": "",
+			"synthesis_source_ids": [],
 			"revive_candidate": "",
 			"fairness_vetoed": false
 		},
-		"observation_signature": {"runtime_state": "illegal"},
+		"observation_signature": {
+			"story_tone": "Quiet",
+			"artifact_result": "authentic",
+			"local_role": "Archivist",
+			"build_identity": "Rescue build",
+			"topology_type": "linear",
+			"time_horizon": "short_cycle",
+			"cultural_medium": "rumor_field",
+			"expression_mode": "mirror_mode",
+			"retellability_score": 3,
+			"legend_density_score": 2,
+			"revisit_score": 2,
+			"interrupted": false,
+			"runtime_state": "illegal"
+		},
 		"public_trace_lines": ["Illegal"],
 		"operator_trace_lines": []
 	}
@@ -7457,14 +7510,20 @@ func _test_phase7_immutable_fields_and_invalid_transitions(failures: Array[Strin
 		failures.append("Phase 7 validation should reject invalid foundational state transitions")
 	if invalid_text.find("must not expose runtime-only fields") == -1:
 		failures.append("Phase 7 validation should reject runtime-only fields in evaluation records")
+	var canonical_record := DELVEMIND_LEARNING_LOOP_SCRIPT._normalize_evaluation_record(invalid_record)
+	canonical_record["evaluation_id"] = "eval_user_supplied"
+	var canonical_text := "; ".join(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_evaluation_record(
+		canonical_record,
+		Dictionary(base_state.get("hypotheses", {})),
+		Dictionary(base_state.get("experiments", {}))
+	))
+	if canonical_text.find("evaluation_id must match canonical content") == -1:
+		failures.append("Phase 7 validation should reject non-canonical supplied evaluation ids")
 
 func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
-	var run_record := {
-		"seed": 818181,
-		"local_role": "Archivist",
-		"role_result_success": true,
+	var run_record := _phase7_run_record(818181, {
 		"timeline_public_events": [
 			{"type": "artifact_picked", "tick": 1, "room_id": "vault"},
 			{"type": "extraction_window_started", "tick": 2, "room_id": "threshold"},
@@ -7473,7 +7532,6 @@ func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -
 		"action_summary": ["Closed the route cleanly", "Kept the burden public"],
 		"key_clues": ["Stewardship line held", "The answer stayed readable"],
 		"communication_summary": {"total": 2, "danger": 0, "regroup": 1, "artifact": 1},
-		"narrative_motion_facts": {},
 		"gameplay_signal_snapshot": {
 			"group_model": {
 				"dominant_build": "Rescue build",
@@ -7481,36 +7539,8 @@ func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -
 				"fault_lines": ["shared caution"],
 				"model_pressure": ["artifact custody"]
 			}
-		},
-		"branch_summary": {},
-		"expedition_constitution_summary": {
-			"experiment_families": ["Stewardship Campaign"],
-			"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
-			"surface_summary": {"lines": ["Carry the answer carefully."]},
-			"protocol_state": "Intimate Protocol",
-			"doctrine_family": "custody_ritual",
-			"doctrine_label": "Custody Ritual",
-			"pressure_line": "Carry the answer through ritual custody.",
-			"world_goal": "Keep the route legible under burden.",
-			"dominant_minds": ["Archivist"],
-			"dominant_forces": ["Memory"],
-			"dominant_domains": ["artifact_families"],
-			"pacing_profile": "steady",
-			"pressure_grammar": ["Delay"],
-			"symbolic_motifs": ["Threshold Marks"],
-			"item_ecology_bias": "burden stewardship",
-			"group_tension_bias": "measured caution",
-			"archive_tone": "memory custody",
-			"convergence_axis": "artifact custody"
-		},
-		"outcome_summary": {
-			"summary_text": "Recovered cleanly",
-			"artifact_result_text": "Authentic artifact extracted",
-			"artifact_result": "authentic",
-			"expedition_success": true,
-			"sabotage_success": false
 		}
-	}
+	})
 	var applied := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, run_record, catalog)
 	var updated_profile: Dictionary = Dictionary(applied.get("profile", {}))
 	var session_context := {
@@ -7540,11 +7570,17 @@ func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -
 	var summary_lines := _string_array_for_test(Array(constitution_summary.get("experiment_surface_lines", [])))
 	var learned_public_lines := _string_array_for_test(Array(learning_guidance.get("public_lines", [])))
 	var learned_public_line := learned_public_lines[0] if not learned_public_lines.is_empty() else ""
-	if not learned_public_line.is_empty() and not summary_lines.has(learned_public_line):
-		failures.append("Phase 7 constitution summary should surface learned public guidance through experiment_surface_lines")
+	if not learned_public_line.is_empty() and summary_lines.has(learned_public_line):
+		failures.append("Phase 7 constitution summary should keep learned guidance separate from public experiment texture")
 	var compile_metadata: Dictionary = Dictionary(constitution.get("compile_metadata", {}))
 	if str(compile_metadata.get("evaluation_schema", "")) != "DelveMindEvaluation":
 		failures.append("Phase 7 compile metadata should preserve evaluation schema traceability")
+	if Dictionary(compile_metadata.get("experiment_learning_bias_trace", {})).is_empty():
+		failures.append("Phase 7 compile metadata should expose explicit experiment_learning_bias_trace")
+	var compiler_trace: Dictionary = Dictionary(constitution.get("compiler_trace", {}))
+	var bias_trace: Dictionary = Dictionary(Dictionary(compiler_trace.get("experimental_ontology", {})).get("learning_guidance_bias_trace", {}))
+	if bias_trace.is_empty():
+		failures.append("Phase 7 compiler trace should expose explicit learning_guidance_bias_trace")
 	if JSON.stringify(experimental_state).find("\"runtime_state\"") != -1:
 		failures.append("Phase 7 compiler-facing state must not expose runtime-only fields")
 	var overview_lines := PROFILE_SERVICE_SCRIPT.build_home_overview_lines(updated_profile, session_context, catalog)
@@ -7553,6 +7589,213 @@ func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -
 		failures.append("Phase 7 product shell should surface learning guidance in home overview lines")
 	if "\n".join(diagnostic_lines).find("Research:") == -1:
 		failures.append("Phase 7 product shell should surface learning guidance in last-run diagnostics")
+
+func _test_phase7_duplicate_evaluation_dedup_and_meta_consistency(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var run_record := _phase7_run_record(828282)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	var first_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(base_state, run_record, diagnostics, {})
+	var second_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(first_state, run_record, diagnostics, {})
+	var first_learning: Dictionary = Dictionary(first_state.get("learning_state", {}))
+	var second_learning: Dictionary = Dictionary(second_state.get("learning_state", {}))
+	if JSON.stringify(Array(first_learning.get("evaluation_records", []))) != JSON.stringify(Array(second_learning.get("evaluation_records", []))):
+		failures.append("Phase 7 duplicate evaluations should not drift canonical evaluation_records on repeated identical runs")
+	if JSON.stringify(Dictionary(first_learning.get("meta_learning", {}))) != JSON.stringify(Dictionary(second_learning.get("meta_learning", {}))):
+		failures.append("Phase 7 duplicate evaluations should not drift meta_learning after canonical dedupe")
+	if JSON.stringify(Dictionary(first_learning.get("compiler_guidance", {}))) != JSON.stringify(Dictionary(second_learning.get("compiler_guidance", {}))):
+		failures.append("Phase 7 duplicate evaluations should not drift compiler_guidance after canonical dedupe")
+
+func _test_phase7_manifestation_identity_and_collision_handling(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var experiments := Dictionary(base_state.get("experiments", {})).duplicate(true)
+	var collision_experiment: Dictionary = Dictionary(experiments.get("exp_custody_foundation", {})).duplicate(true)
+	collision_experiment["family_label"] = "Stewardship Campaign"
+	collision_experiment["public_lines"] = ["Stewardship claims are starting to travel faster than extraction talk."]
+	experiments["exp_custody_foundation"] = collision_experiment
+	base_state["experiments"] = experiments
+	base_state = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(base_state)
+	var run_record := _phase7_run_record(838383)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	var learned_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(base_state, run_record, diagnostics, {})
+	var learning_records := _dict_array_for_test(Dictionary(learned_state.get("learning_state", {})).get("evaluation_records", []))
+	if learning_records.is_empty():
+		failures.append("Phase 7 canonical manifestation attribution should still learn from a canonically identified manifested experiment")
+	elif str(Dictionary(learning_records[0]).get("experiment_id", "")).strip_edges() != "exp_stewardship_campaign":
+		failures.append("Phase 7 should prefer canonical manifested_experiment_ids over surface-label collisions")
+	var invalid_run_record := _phase7_run_record(838384)
+	var invalid_summary: Dictionary = Dictionary(invalid_run_record.get("expedition_constitution_summary", {})).duplicate(true)
+	invalid_summary["live_experiment_ids"] = ["exp_missing"]
+	invalid_run_record["manifested_experiment_ids"] = ["exp_missing"]
+	invalid_run_record["live_experiment_ids"] = ["exp_missing"]
+	invalid_run_record["expedition_constitution_summary"] = invalid_summary
+	var invalid_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(base_state, invalid_run_record, RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(invalid_run_record), {})
+	if JSON.stringify(Dictionary(invalid_state.get("hypotheses", {}))) != JSON.stringify(Dictionary(base_state.get("hypotheses", {}))):
+		failures.append("Phase 7 should reject invalid canonical manifestation ids without mutating hypothesis continuity")
+	var invalid_failures := _string_array_for_test(Array(Dictionary(invalid_state.get("learning_state", {})).get("validation_failures", [])))
+	if "\n".join(invalid_failures).find("unknown manifested experiment exp_missing") == -1:
+		failures.append("Phase 7 should surface invalid canonical manifested experiment ids as validation failures")
+
+func _test_phase7_malformed_persisted_learning_state_cleanup(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var malformed_learning_state := {
+		"evaluation_records": [{
+			"evaluation_id": "eval_bad",
+			"run_seed": 1,
+			"hypothesis_id": "hyp_stewardship_campaign",
+			"experiment_id": "exp_stewardship_campaign",
+			"family_id": "stewardship_campaign",
+			"dimensions": {"hypothesis_yield": 4},
+			"outcomes": ["not_allowed"],
+			"supporting_evidence": [],
+			"contradicting_evidence": [],
+			"continuity_effects": {
+				"confidence_delta": 0,
+				"recurrence_delta": 0,
+				"state_transition": {"from": "active", "to": ""},
+				"persistence_transition": {"from": "active", "to": "recurring"},
+				"branch_pressure_family": "",
+				"branch_open_ids": ["exp_missing"],
+				"synthesis_experiment_id": "",
+				"synthesis_source_ids": [],
+				"revive_candidate": "",
+				"fairness_vetoed": false
+			},
+			"observation_signature": {"story_tone": "Quiet"},
+			"public_trace_lines": [],
+			"operator_trace_lines": []
+		}],
+		"meta_learning": {
+			"topology_effectiveness": {},
+			"topology_counts": {},
+			"horizon_effectiveness": {},
+			"horizon_counts": {},
+			"medium_effectiveness": {},
+			"medium_counts": {},
+			"expression_mode_effectiveness": {},
+			"expression_mode_counts": {},
+			"noise_signatures": [],
+			"accepted_evaluation_ids": ["eval_dup", "", "eval_dup"],
+			"branch_signal_counts": {"": 1},
+			"synthesis_signal_counts": {},
+			"revive_signal_counts": {}
+		},
+		"compiler_guidance": {
+			"preferred_topologies": [],
+			"suppressed_topologies": [],
+			"preferred_horizons": [],
+			"suppressed_horizons": [],
+			"preferred_media": [],
+			"suppressed_media": [],
+			"branch_pressure_families": [],
+			"synthesis_candidates": [],
+			"revive_candidates": [],
+			"accepted_evaluation_ids": ["eval_dup", "eval_dup"],
+			"evaluation_count": 0,
+			"branch_signal_counts": {},
+			"synthesis_signal_counts": {},
+			"revive_signal_counts": {},
+			"bias_basis": {
+				"topology_averages": {"linear": "bad"},
+				"horizon_averages": {},
+				"medium_averages": {},
+				"expression_mode_averages": {},
+				"noise_signatures": []
+			},
+			"public_lines": [],
+			"operator_lines": []
+		},
+		"public_lines": [],
+		"operator_lines": []
+	}
+	var malformed_failures := "; ".join(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(
+		malformed_learning_state,
+		Dictionary(base_state.get("hypotheses", {})),
+		Dictionary(base_state.get("experiments", {}))
+	))
+	for required_snippet in [
+		"accepted_evaluation_ids",
+		"evaluation outcome not_allowed is not allowed",
+		"state_transition must include non-empty from/to",
+		"branch_open_id exp_missing is missing",
+		"bias_basis topology_averages linear must remain numeric"
+	]:
+		if malformed_failures.find(required_snippet) == -1:
+			failures.append("Phase 7 malformed-state validation should surface %s" % required_snippet)
+
+func _test_phase7_branch_synthesis_persistence_honesty(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var hypotheses := Dictionary(base_state.get("hypotheses", {}))
+	var experiments := Dictionary(base_state.get("experiments", {}))
+	var record := DELVEMIND_LEARNING_LOOP_SCRIPT._normalize_evaluation_record({
+		"run_seed": 848484,
+		"hypothesis_id": "hyp_stewardship_campaign",
+		"experiment_id": "exp_stewardship_campaign",
+		"family_id": "stewardship_campaign",
+		"dimensions": {
+			"hypothesis_yield": 4,
+			"cultural_richness": 3,
+			"ontological_productivity": 4,
+			"narrative_resonance": 3,
+			"fairness_stability": 4,
+			"readability": 3,
+			"replay_distinctiveness": 3,
+			"long_horizon_branch_value": 4
+		},
+		"outcomes": ["strengthen_hypothesis", "split_hypothesis", "synthesize_broader_theory", "move_to_recurring"],
+		"supporting_evidence": ["seed_848484", "yield_confirmed"],
+		"contradicting_evidence": [],
+		"continuity_effects": {
+			"confidence_delta": 1,
+			"recurrence_delta": 1,
+			"state_transition": {"from": "active", "to": "recurring"},
+			"persistence_transition": {"from": "active", "to": "recurring"},
+			"branch_pressure_family": "stewardship_campaign",
+			"branch_open_ids": ["exp_fracture_echo"],
+			"synthesis_experiment_id": "exp_stewardship_campaign",
+			"synthesis_source_ids": ["exp_custody_foundation"],
+			"revive_candidate": "",
+			"fairness_vetoed": false
+		},
+		"observation_signature": {
+			"story_tone": "Charged",
+			"artifact_result": "authentic",
+			"local_role": "Archivist",
+			"build_identity": "Rescue build",
+			"topology_type": "branching",
+			"time_horizon": "short_cycle",
+			"cultural_medium": "public_shorthand",
+			"expression_mode": "mirror_mode",
+			"retellability_score": 4,
+			"legend_density_score": 3,
+			"revisit_score": 3,
+			"interrupted": false
+		},
+		"public_trace_lines": ["Stewardship keeps splitting into readable public arguments."],
+		"operator_trace_lines": ["exp_stewardship_campaign branch/synthesis test"]
+	})
+	var record_failures := DELVEMIND_LEARNING_LOOP_SCRIPT.validate_evaluation_record(record, hypotheses, experiments)
+	if not record_failures.is_empty():
+		failures.append("Phase 7 branch/synthesis persistence test record should validate cleanly: %s" % "; ".join(record_failures))
+		return
+	var updated_hypothesis := DELVEMIND_LEARNING_LOOP_SCRIPT._apply_hypothesis_update(
+		Dictionary(hypotheses.get("hyp_stewardship_campaign", {})).duplicate(true),
+		record
+	)
+	if not _string_array_for_test(Array(updated_hypothesis.get("open_branches", []))).has("exp_fracture_echo"):
+		failures.append("Phase 7 should persist branch_open_ids into hypothesis continuity instead of leaving them as hollow cues")
+	var meta_learning := DELVEMIND_LEARNING_LOOP_SCRIPT._apply_meta_learning(
+		Dictionary(DELVEMIND_LEARNING_LOOP_SCRIPT.default_learning_state().get("meta_learning", {})).duplicate(true),
+		record
+	)
+	var guidance := DELVEMIND_LEARNING_LOOP_SCRIPT._derive_compiler_guidance(meta_learning, [record], experiments)
+	if not _string_array_for_test(Array(guidance.get("branch_pressure_families", []))).has("stewardship_campaign"):
+		failures.append("Phase 7 branch signals should produce count-backed branch_pressure_families guidance")
+	if not _string_array_for_test(Array(guidance.get("synthesis_candidates", []))).has("exp_stewardship_campaign"):
+		failures.append("Phase 7 synthesis signals should produce count-backed synthesis_candidates guidance")
+	if int(Dictionary(guidance.get("branch_signal_counts", {})).get("stewardship_campaign", 0)) != 1:
+		failures.append("Phase 7 branch guidance should expose explicit branch_signal_counts")
+	if int(Dictionary(guidance.get("synthesis_signal_counts", {})).get("exp_stewardship_campaign", 0)) != 1:
+		failures.append("Phase 7 synthesis guidance should expose explicit synthesis_signal_counts")
 
 func _test_expedition_constitution_schema_and_hash(failures: Array[String]) -> void:
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())

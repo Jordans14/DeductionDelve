@@ -5395,3 +5395,36 @@ All doctrine domains that were still PARTIAL at the start of this pass received 
   - Phase 7 is now materially real
   - DelveMind can evaluate manifested experiments after runs, evolve lawful continuity state, and emit bounded compiler-facing guidance without touching runtime authority
   - the repo is now lawfully ready for the next doctrine phase after Phase 7
+
+## 2026-03-17 Phase 7 Cleanup / Hardening - Pre-Edit Note
+
+- Exact hostile-audit debts being corrected now:
+  - replace text-derived manifestation attribution with canonical experiment-id flow
+  - carry canonical manifested/live experiment ids through the run-record seam
+  - make evaluation ids canonical instead of trusting supplied ids
+  - remove duplicate-evaluation drift between evaluation history and meta-learning
+  - switch the learning loop to validation-first candidate application instead of mutate-then-validate
+  - make branch/synthesis outputs more structured and less cue-only without opening a future-phase branch engine
+  - deepen nested Phase 7 validation for continuity effects, observation signatures, compiler guidance, and persisted learning state
+  - separate learned meta-guidance from public experiment texture more cleanly
+  - make learned guidance bias contribution explicit in compile trace and metadata
+  - harden hostile regression coverage around malformed state, attribution collisions, duplicate collapse, public/meta separation, and guidance trace visibility
+
+- Exact files being touched:
+  - `godot/src/product/delvemind_learning_loop.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/config/evaluation_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact things this pass will NOT do:
+  - no Phase 8 tooling wave
+  - no new runtime-authority logic
+  - no learning-driven runtime legality mutation
+  - no new experiment substrate or parallel continuity owner
+  - no gameplay redesign outside the audited Phase 7 cleanup seams

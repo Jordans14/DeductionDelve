@@ -45,6 +45,36 @@
     "archival",
     "foundational"
   ],
+  "continuity_effects_required_fields": [
+    "confidence_delta",
+    "recurrence_delta",
+    "state_transition",
+    "persistence_transition",
+    "branch_pressure_family",
+    "branch_open_ids",
+    "synthesis_experiment_id",
+    "synthesis_source_ids",
+    "revive_candidate",
+    "fairness_vetoed"
+  ],
+  "transition_required_fields": [
+    "from",
+    "to"
+  ],
+  "observation_signature_required_fields": [
+    "story_tone",
+    "artifact_result",
+    "local_role",
+    "build_identity",
+    "topology_type",
+    "time_horizon",
+    "cultural_medium",
+    "expression_mode",
+    "retellability_score",
+    "legend_density_score",
+    "revisit_score",
+    "interrupted"
+  ],
   "meta_learning_required_fields": [
     "topology_effectiveness",
     "topology_counts",
@@ -54,7 +84,11 @@
     "medium_counts",
     "expression_mode_effectiveness",
     "expression_mode_counts",
-    "noise_signatures"
+    "noise_signatures",
+    "accepted_evaluation_ids",
+    "branch_signal_counts",
+    "synthesis_signal_counts",
+    "revive_signal_counts"
   ],
   "guidance_required_fields": [
     "preferred_topologies",
@@ -66,8 +100,21 @@
     "branch_pressure_families",
     "synthesis_candidates",
     "revive_candidates",
+    "accepted_evaluation_ids",
+    "evaluation_count",
+    "branch_signal_counts",
+    "synthesis_signal_counts",
+    "revive_signal_counts",
+    "bias_basis",
     "public_lines",
     "operator_lines"
+  ],
+  "guidance_bias_basis_required_fields": [
+    "topology_averages",
+    "horizon_averages",
+    "medium_averages",
+    "expression_mode_averages",
+    "noise_signatures"
   ],
   "immutable_hypothesis_fields": [
     "hypothesis_id",

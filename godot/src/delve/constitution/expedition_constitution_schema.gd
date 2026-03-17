@@ -279,6 +279,8 @@ static func build_public_summary(
 		"experiment_families": [],
 		"experiment_expression_modes": [],
 		"experiment_horizons": [],
+		"live_hypothesis_ids": [],
+		"live_experiment_ids": [],
 		"surface_summary": {
 			"lines": Array(surface_summary.get("lines", [])).duplicate(true)
 		}
@@ -317,6 +319,8 @@ static func build_runtime_summary(summary: Dictionary, constitution_hash: String
 		"experiment_families": Array(normalized_summary.get("experiment_families", [])).duplicate(true),
 		"experiment_expression_modes": Array(normalized_summary.get("experiment_expression_modes", [])).duplicate(true),
 		"experiment_horizons": Array(normalized_summary.get("experiment_horizons", [])).duplicate(true),
+		"live_hypothesis_ids": Array(normalized_summary.get("live_hypothesis_ids", [])).duplicate(true),
+		"live_experiment_ids": Array(normalized_summary.get("live_experiment_ids", [])).duplicate(true),
 		"generation_surface": {},
 		"generation_contract": {},
 		"control_surfaces": {}
@@ -497,12 +501,44 @@ static func _normalize_experimental_ontology_state(raw: Dictionary) -> Dictionar
 		"hypotheses": _registry_map(Array(normalized.get("hypothesis_registry", [])), "hypothesis_id"),
 		"experiments": _registry_map(Array(normalized.get("experiment_registry", [])), "experiment_id")
 	})
+	var rebuilt_hypotheses: Dictionary = Dictionary(rebuilt_state.get("hypotheses", {}))
+	var rebuilt_experiments: Dictionary = Dictionary(rebuilt_state.get("experiments", {}))
 	normalized["hypothesis_registry"] = _sorted_registry_array(Dictionary(rebuilt_state.get("hypotheses", {})), "hypothesis_id")
 	normalized["experiment_registry"] = _sorted_registry_array(Dictionary(rebuilt_state.get("experiments", {})), "experiment_id")
 	normalized["live_hypothesis_ids"] = _unique_string_array(Array(normalized.get("live_hypothesis_ids", [])))
 	normalized["live_experiment_ids"] = _unique_string_array(Array(normalized.get("live_experiment_ids", [])))
-	normalized["live_hypotheses"] = _sorted_registry_array(_registry_map(Array(normalized.get("live_hypotheses", [])), "hypothesis_id"), "hypothesis_id")
-	normalized["live_experiments"] = _sorted_registry_array(_registry_map(Array(normalized.get("live_experiments", [])), "experiment_id"), "experiment_id")
+	if Array(normalized.get("live_hypothesis_ids", [])).is_empty():
+		var derived_live_hypothesis_ids: Array = []
+		for entry_raw in _sorted_registry_array(_registry_map(Array(normalized.get("live_hypotheses", [])), "hypothesis_id"), "hypothesis_id"):
+			var entry: Dictionary = Dictionary(entry_raw)
+			var hypothesis_id := str(entry.get("hypothesis_id", "")).strip_edges()
+			if not hypothesis_id.is_empty():
+				derived_live_hypothesis_ids.append(hypothesis_id)
+		normalized["live_hypothesis_ids"] = _unique_string_array(derived_live_hypothesis_ids)
+	if Array(normalized.get("live_experiment_ids", [])).is_empty():
+		var derived_live_experiment_ids: Array = []
+		for entry_raw in _sorted_registry_array(_registry_map(Array(normalized.get("live_experiments", [])), "experiment_id"), "experiment_id"):
+			var entry: Dictionary = Dictionary(entry_raw)
+			var experiment_id := str(entry.get("experiment_id", "")).strip_edges()
+			if not experiment_id.is_empty():
+				derived_live_experiment_ids.append(experiment_id)
+		normalized["live_experiment_ids"] = _unique_string_array(derived_live_experiment_ids)
+	var live_hypothesis_map := _registry_map(Array(normalized.get("live_hypotheses", [])), "hypothesis_id")
+	for hypothesis_id in Array(normalized.get("live_hypothesis_ids", [])):
+		var text := str(hypothesis_id).strip_edges()
+		if text.is_empty() or live_hypothesis_map.has(text):
+			continue
+		if rebuilt_hypotheses.has(text):
+			live_hypothesis_map[text] = Dictionary(rebuilt_hypotheses.get(text, {})).duplicate(true)
+	normalized["live_hypotheses"] = _sorted_registry_array(live_hypothesis_map, "hypothesis_id")
+	var live_experiment_map := _registry_map(Array(normalized.get("live_experiments", [])), "experiment_id")
+	for experiment_id in Array(normalized.get("live_experiment_ids", [])):
+		var text := str(experiment_id).strip_edges()
+		if text.is_empty() or live_experiment_map.has(text):
+			continue
+		if rebuilt_experiments.has(text):
+			live_experiment_map[text] = Dictionary(rebuilt_experiments.get(text, {})).duplicate(true)
+	normalized["live_experiments"] = _sorted_registry_array(live_experiment_map, "experiment_id")
 	normalized["dominant_families"] = _unique_string_array(Array(normalized.get("dominant_families", [])))
 	normalized["lineage_index"] = Dictionary(rebuilt_state.get("lineage_index", {})).duplicate(true)
 	normalized["grammar_manifest"] = Array(normalized.get("grammar_manifest", [])).duplicate(true)
@@ -588,6 +624,8 @@ static func _apply_experimental_summary(summary: Dictionary, experimental_ontolo
 	next["experiment_families"] = Array(public_surface.get("family_labels", [])).duplicate(true)
 	next["experiment_expression_modes"] = Array(public_surface.get("expression_modes", [])).duplicate(true)
 	next["experiment_horizons"] = Array(public_surface.get("horizons", [])).duplicate(true)
+	next["live_hypothesis_ids"] = Array(experimental_ontology_state.get("live_hypothesis_ids", [])).duplicate(true)
+	next["live_experiment_ids"] = Array(experimental_ontology_state.get("live_experiment_ids", [])).duplicate(true)
 	var surface_summary: Dictionary = Dictionary(next.get("surface_summary", {})).duplicate(true)
 	var merged_lines: Array = Array(surface_summary.get("lines", [])).duplicate(true)
 	for line in surface_lines:

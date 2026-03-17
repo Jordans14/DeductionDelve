@@ -355,6 +355,9 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	)
 	var learning_public_lines := _to_string_array(learning_state.get("public_lines", []))
 	var learning_operator_lines := _to_string_array(learning_state.get("operator_lines", []))
+	var manifested_experiment_ids := _to_string_array(run_record.get("manifested_experiment_ids", []))
+	var live_experiment_ids := _to_string_array(run_record.get("live_experiment_ids", []))
+	var live_hypothesis_ids := _to_string_array(run_record.get("live_hypothesis_ids", []))
 
 	var last_run := {
 		"seed": int(run_record.get("seed", 0)),
@@ -380,6 +383,9 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
 		"archive_preview": ARCHIVE_SERVICE_SCRIPT.build_archive_lines(next_profile),
 		"world_memory_lines": WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory),
+		"manifested_experiment_ids": manifested_experiment_ids.slice(0, 8),
+		"live_experiment_ids": live_experiment_ids.slice(0, 8),
+		"live_hypothesis_ids": live_hypothesis_ids.slice(0, 8),
 		"experiment_learning_lines": learning_public_lines.slice(0, 2),
 		"experiment_learning_operator_lines": learning_operator_lines.slice(0, 2),
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
@@ -408,6 +414,8 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"frame": frame.duplicate(true),
 		"crawl_id": str(Dictionary(crawl_result.get("crawl_packet", {})).get("crawl_id", "")),
 		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
+		"manifested_experiment_ids": manifested_experiment_ids.slice(0, 4),
+		"live_experiment_ids": live_experiment_ids.slice(0, 4),
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).slice(0, 3),
 		"action_summary": Array(run_record.get("action_summary", [])).slice(0, 3),

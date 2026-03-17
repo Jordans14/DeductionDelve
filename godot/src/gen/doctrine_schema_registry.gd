@@ -386,6 +386,33 @@ const FALLBACK_EVALUATION_SCHEMA := {
 		"elevate_foundational_inquiry"
 	],
 	"allowed_persistence_states": ["active", "recurring", "rare", "dormant", "archival", "foundational"],
+	"continuity_effects_required_fields": [
+		"confidence_delta",
+		"recurrence_delta",
+		"state_transition",
+		"persistence_transition",
+		"branch_pressure_family",
+		"branch_open_ids",
+		"synthesis_experiment_id",
+		"synthesis_source_ids",
+		"revive_candidate",
+		"fairness_vetoed"
+	],
+	"transition_required_fields": ["from", "to"],
+	"observation_signature_required_fields": [
+		"story_tone",
+		"artifact_result",
+		"local_role",
+		"build_identity",
+		"topology_type",
+		"time_horizon",
+		"cultural_medium",
+		"expression_mode",
+		"retellability_score",
+		"legend_density_score",
+		"revisit_score",
+		"interrupted"
+	],
 	"meta_learning_required_fields": [
 		"topology_effectiveness",
 		"topology_counts",
@@ -395,7 +422,11 @@ const FALLBACK_EVALUATION_SCHEMA := {
 		"medium_counts",
 		"expression_mode_effectiveness",
 		"expression_mode_counts",
-		"noise_signatures"
+		"noise_signatures",
+		"accepted_evaluation_ids",
+		"branch_signal_counts",
+		"synthesis_signal_counts",
+		"revive_signal_counts"
 	],
 	"guidance_required_fields": [
 		"preferred_topologies",
@@ -407,8 +438,21 @@ const FALLBACK_EVALUATION_SCHEMA := {
 		"branch_pressure_families",
 		"synthesis_candidates",
 		"revive_candidates",
+		"accepted_evaluation_ids",
+		"evaluation_count",
+		"branch_signal_counts",
+		"synthesis_signal_counts",
+		"revive_signal_counts",
+		"bias_basis",
 		"public_lines",
 		"operator_lines"
+	],
+	"guidance_bias_basis_required_fields": [
+		"topology_averages",
+		"horizon_averages",
+		"medium_averages",
+		"expression_mode_averages",
+		"noise_signatures"
 	],
 	"immutable_hypothesis_fields": [
 		"hypothesis_id",
@@ -1284,8 +1328,12 @@ static func _validate_evaluation_schema(schema: Dictionary) -> Array[String]:
 		"dimension_keys",
 		"allowed_outcomes",
 		"allowed_persistence_states",
+		"continuity_effects_required_fields",
+		"transition_required_fields",
+		"observation_signature_required_fields",
 		"meta_learning_required_fields",
 		"guidance_required_fields",
+		"guidance_bias_basis_required_fields",
 		"immutable_hypothesis_fields",
 		"immutable_experiment_fields",
 		"forbidden_runtime_fields"
@@ -1331,6 +1379,36 @@ static func _validate_evaluation_schema(schema: Dictionary) -> Array[String]:
 	_require_values(_string_array(schema.get("allowed_persistence_states", [])), [
 		"active", "recurring", "rare", "dormant", "archival", "foundational"
 	], "DelveMindEvaluation allowed_persistence_states", failures)
+	_require_values(_string_array(schema.get("continuity_effects_required_fields", [])), [
+		"confidence_delta",
+		"recurrence_delta",
+		"state_transition",
+		"persistence_transition",
+		"branch_pressure_family",
+		"branch_open_ids",
+		"synthesis_experiment_id",
+		"synthesis_source_ids",
+		"revive_candidate",
+		"fairness_vetoed"
+	], "DelveMindEvaluation continuity_effects_required_fields", failures)
+	_require_values(_string_array(schema.get("transition_required_fields", [])), [
+		"from",
+		"to"
+	], "DelveMindEvaluation transition_required_fields", failures)
+	_require_values(_string_array(schema.get("observation_signature_required_fields", [])), [
+		"story_tone",
+		"artifact_result",
+		"local_role",
+		"build_identity",
+		"topology_type",
+		"time_horizon",
+		"cultural_medium",
+		"expression_mode",
+		"retellability_score",
+		"legend_density_score",
+		"revisit_score",
+		"interrupted"
+	], "DelveMindEvaluation observation_signature_required_fields", failures)
 	_require_values(_string_array(schema.get("meta_learning_required_fields", [])), [
 		"topology_effectiveness",
 		"topology_counts",
@@ -1340,7 +1418,11 @@ static func _validate_evaluation_schema(schema: Dictionary) -> Array[String]:
 		"medium_counts",
 		"expression_mode_effectiveness",
 		"expression_mode_counts",
-		"noise_signatures"
+		"noise_signatures",
+		"accepted_evaluation_ids",
+		"branch_signal_counts",
+		"synthesis_signal_counts",
+		"revive_signal_counts"
 	], "DelveMindEvaluation meta_learning_required_fields", failures)
 	_require_values(_string_array(schema.get("guidance_required_fields", [])), [
 		"preferred_topologies",
@@ -1352,9 +1434,22 @@ static func _validate_evaluation_schema(schema: Dictionary) -> Array[String]:
 		"branch_pressure_families",
 		"synthesis_candidates",
 		"revive_candidates",
+		"accepted_evaluation_ids",
+		"evaluation_count",
+		"branch_signal_counts",
+		"synthesis_signal_counts",
+		"revive_signal_counts",
+		"bias_basis",
 		"public_lines",
 		"operator_lines"
 	], "DelveMindEvaluation guidance_required_fields", failures)
+	_require_values(_string_array(schema.get("guidance_bias_basis_required_fields", [])), [
+		"topology_averages",
+		"horizon_averages",
+		"medium_averages",
+		"expression_mode_averages",
+		"noise_signatures"
+	], "DelveMindEvaluation guidance_bias_basis_required_fields", failures)
 	_require_values(_string_array(schema.get("immutable_hypothesis_fields", [])), [
 		"hypothesis_id", "domain", "thesis", "target_layers", "open_branches", "foundational_flag"
 	], "DelveMindEvaluation immutable_hypothesis_fields", failures)

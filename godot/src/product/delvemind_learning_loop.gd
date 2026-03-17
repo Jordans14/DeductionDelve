@@ -67,10 +67,30 @@ static func normalize_compiler_guidance(raw: Dictionary) -> Dictionary:
 		"branch_pressure_families",
 		"synthesis_candidates",
 		"revive_candidates",
+		"accepted_evaluation_ids",
 		"public_lines",
 		"operator_lines"
 	]:
 		current[key] = _slice_strings(_string_array(current.get(key, [])), MAX_GUIDANCE_VALUES if key.find("lines") == -1 else MAX_TRACE_LINES)
+	current["evaluation_count"] = maxi(int(current.get("evaluation_count", 0)), 0)
+	for key in [
+		"branch_signal_counts",
+		"synthesis_signal_counts",
+		"revive_signal_counts"
+	]:
+		current[key] = _normalize_count_map(Dictionary(current.get(key, {})))
+	var bias_basis := _default_guidance_bias_basis()
+	for key in Dictionary(current.get("bias_basis", {})).keys():
+		bias_basis[key] = Dictionary(current.get("bias_basis", {})).get(key)
+	for key in [
+		"topology_averages",
+		"horizon_averages",
+		"medium_averages",
+		"expression_mode_averages"
+	]:
+		bias_basis[key] = _normalize_average_map(Dictionary(bias_basis.get(key, {})))
+	bias_basis["noise_signatures"] = _slice_strings(_string_array(bias_basis.get("noise_signatures", [])), 8)
+	current["bias_basis"] = bias_basis
 	return current
 
 static func guidance_from_learning_state(raw: Dictionary) -> Dictionary:
@@ -86,6 +106,7 @@ static func validate_learning_state(learning_state: Dictionary, hypotheses: Dict
 	for key in _string_array(schema.get("meta_learning_required_fields", [])):
 		if not meta_learning.has(key):
 			failures.append("DelveMindLearningState meta_learning missing %s" % key)
+	failures.append_array(_validate_meta_learning(meta_learning))
 	var guidance_failures := validate_compiler_guidance(Dictionary(learning_state.get("compiler_guidance", {})))
 	if not guidance_failures.is_empty():
 		failures.append_array(guidance_failures)
@@ -101,6 +122,27 @@ static func validate_compiler_guidance(guidance: Dictionary) -> Array[String]:
 	for key in _string_array(schema.get("guidance_required_fields", [])):
 		if not guidance.has(key):
 			failures.append("DelveMind compiler_guidance missing %s" % key)
+	var accepted_evaluation_ids := _string_array(guidance.get("accepted_evaluation_ids", []))
+	if accepted_evaluation_ids.size() != Array(guidance.get("accepted_evaluation_ids", [])).size():
+		failures.append("DelveMind compiler_guidance accepted_evaluation_ids must remain unique and non-blank")
+	if int(guidance.get("evaluation_count", -1)) < 0:
+		failures.append("DelveMind compiler_guidance evaluation_count must remain non-negative")
+	elif int(guidance.get("evaluation_count", 0)) < accepted_evaluation_ids.size():
+		failures.append("DelveMind compiler_guidance evaluation_count must not undercount accepted evaluations")
+	for key in ["branch_signal_counts", "synthesis_signal_counts", "revive_signal_counts"]:
+		failures.append_array(_validate_non_negative_int_map(
+			Dictionary(guidance.get(key, {})),
+			"DelveMind compiler_guidance %s" % key
+		))
+	var bias_basis: Dictionary = Dictionary(guidance.get("bias_basis", {}))
+	for key in _string_array(schema.get("guidance_bias_basis_required_fields", [])):
+		if not bias_basis.has(key):
+			failures.append("DelveMind compiler_guidance bias_basis missing %s" % key)
+	for key in ["topology_averages", "horizon_averages", "medium_averages", "expression_mode_averages"]:
+		failures.append_array(_validate_numeric_map(
+			Dictionary(bias_basis.get(key, {})),
+			"DelveMind compiler_guidance bias_basis %s" % key
+		))
 	if _contains_runtime_key(guidance):
 		failures.append("DelveMind compiler_guidance must not expose runtime-only fields")
 	return _sorted_strings(failures)
@@ -108,20 +150,24 @@ static func validate_compiler_guidance(guidance: Dictionary) -> Array[String]:
 static func validate_evaluation_record(record: Dictionary, hypotheses: Dictionary = {}, experiments: Dictionary = {}) -> Array[String]:
 	var schema := SCHEMA_REGISTRY_SCRIPT.evaluation_schema()
 	var failures: Array[String] = []
+	var supplied_evaluation_id := str(record.get("evaluation_id", "")).strip_edges()
+	var normalized_record := _normalize_evaluation_record(record)
 	for field in _string_array(schema.get("evaluation_required_fields", [])):
-		if not record.has(field):
+		if not normalized_record.has(field):
 			failures.append("evaluation record missing %s" % field)
-	var dimensions: Dictionary = Dictionary(record.get("dimensions", {}))
+	if not supplied_evaluation_id.is_empty() and supplied_evaluation_id != str(normalized_record.get("evaluation_id", "")).strip_edges():
+		failures.append("evaluation record evaluation_id must match canonical content")
+	var dimensions: Dictionary = Dictionary(normalized_record.get("dimensions", {}))
 	for key in _string_array(schema.get("dimension_keys", [])):
 		if not dimensions.has(key):
 			failures.append("evaluation record dimensions missing %s" % key)
 		elif int(dimensions.get(key, -1)) < 0 or int(dimensions.get(key, -1)) > 4:
 			failures.append("evaluation record dimension %s must remain within 0..4" % key)
-	for outcome in _string_array(record.get("outcomes", [])):
+	for outcome in _string_array(normalized_record.get("outcomes", [])):
 		if not _string_array(schema.get("allowed_outcomes", [])).has(outcome):
 			failures.append("evaluation outcome %s is not allowed" % outcome)
-	var hypothesis_id := str(record.get("hypothesis_id", "")).strip_edges()
-	var experiment_id := str(record.get("experiment_id", "")).strip_edges()
+	var hypothesis_id := str(normalized_record.get("hypothesis_id", "")).strip_edges()
+	var experiment_id := str(normalized_record.get("experiment_id", "")).strip_edges()
 	if not hypotheses.is_empty() and not _registry_has(hypotheses, hypothesis_id, "hypothesis_id"):
 		failures.append("evaluation record references missing hypothesis %s" % hypothesis_id)
 	if not experiments.is_empty():
@@ -131,15 +177,28 @@ static func validate_evaluation_record(record: Dictionary, hypotheses: Dictionar
 			var experiment: Dictionary = Dictionary(experiments.get(experiment_id, {}))
 			if str(experiment.get("hypothesis_id", "")).strip_edges() != hypothesis_id:
 				failures.append("evaluation record experiment %s does not match hypothesis %s" % [experiment_id, hypothesis_id])
-	var continuity_effects: Dictionary = Dictionary(record.get("continuity_effects", {}))
+	var continuity_effects: Dictionary = Dictionary(normalized_record.get("continuity_effects", {}))
+	for field in _string_array(schema.get("continuity_effects_required_fields", [])):
+		if not continuity_effects.has(field):
+			failures.append("evaluation record continuity_effects missing %s" % field)
 	var state_transition: Dictionary = Dictionary(continuity_effects.get("state_transition", {}))
+	for field in _string_array(schema.get("transition_required_fields", [])):
+		if not state_transition.has(field):
+			failures.append("evaluation record state_transition missing %s" % field)
 	var from_state := str(state_transition.get("from", "")).strip_edges()
 	var to_state := str(state_transition.get("to", "")).strip_edges()
+	if from_state.is_empty() or to_state.is_empty():
+		failures.append("evaluation record state_transition must include non-empty from/to")
 	if not from_state.is_empty() and not to_state.is_empty() and not _allowed_state_transition(from_state, to_state):
 		failures.append("evaluation record state transition %s -> %s is not allowed" % [from_state, to_state])
 	var persistence_transition: Dictionary = Dictionary(continuity_effects.get("persistence_transition", {}))
+	for field in _string_array(schema.get("transition_required_fields", [])):
+		if not persistence_transition.has(field):
+			failures.append("evaluation record persistence_transition missing %s" % field)
 	var from_persistence := str(persistence_transition.get("from", "")).strip_edges()
 	var to_persistence := str(persistence_transition.get("to", "")).strip_edges()
+	if from_persistence.is_empty() or to_persistence.is_empty():
+		failures.append("evaluation record persistence_transition must include non-empty from/to")
 	if not from_persistence.is_empty() and not to_persistence.is_empty() and not _allowed_persistence_transition(from_persistence, to_persistence):
 		failures.append("evaluation record persistence transition %s -> %s is not allowed" % [from_persistence, to_persistence])
 	var confidence_delta := int(continuity_effects.get("confidence_delta", 0))
@@ -148,7 +207,28 @@ static func validate_evaluation_record(record: Dictionary, hypotheses: Dictionar
 	var recurrence_delta := int(continuity_effects.get("recurrence_delta", 0))
 	if recurrence_delta < -1 or recurrence_delta > 1:
 		failures.append("evaluation record recurrence_delta must remain within -1..1")
-	if _contains_runtime_key(record):
+	for branch_id in _string_array(continuity_effects.get("branch_open_ids", [])):
+		if not experiments.is_empty() and not _registry_has(experiments, branch_id, "experiment_id"):
+			failures.append("evaluation record branch_open_id %s is missing" % branch_id)
+	var synthesis_experiment_id := str(continuity_effects.get("synthesis_experiment_id", "")).strip_edges()
+	if not synthesis_experiment_id.is_empty() and not experiments.is_empty() and not _registry_has(experiments, synthesis_experiment_id, "experiment_id"):
+		failures.append("evaluation record synthesis_experiment_id %s is missing" % synthesis_experiment_id)
+	for source_id in _string_array(continuity_effects.get("synthesis_source_ids", [])):
+		if not experiments.is_empty() and not _registry_has(experiments, source_id, "experiment_id"):
+			failures.append("evaluation record synthesis_source_id %s is missing" % source_id)
+	var revive_candidate := str(continuity_effects.get("revive_candidate", "")).strip_edges()
+	if not revive_candidate.is_empty() and not experiments.is_empty() and not _registry_has(experiments, revive_candidate, "experiment_id"):
+		failures.append("evaluation record revive_candidate %s is missing" % revive_candidate)
+	var observation_signature: Dictionary = Dictionary(normalized_record.get("observation_signature", {}))
+	for field in _string_array(schema.get("observation_signature_required_fields", [])):
+		if not observation_signature.has(field):
+			failures.append("evaluation record observation_signature missing %s" % field)
+	for key in ["retellability_score", "legend_density_score", "revisit_score"]:
+		if int(observation_signature.get(key, -1)) < 0:
+			failures.append("evaluation record observation_signature %s must remain non-negative" % key)
+	if typeof(observation_signature.get("interrupted", false)) != TYPE_BOOL:
+		failures.append("evaluation record observation_signature interrupted must be boolean")
+	if _contains_runtime_key(normalized_record):
 		failures.append("evaluation record must not expose runtime-only fields")
 	return _sorted_strings(failures)
 
@@ -161,44 +241,94 @@ static func apply_post_run_learning(
 	var hypotheses := Dictionary(state.get("hypotheses", {})).duplicate(true)
 	var experiments := Dictionary(state.get("experiments", {})).duplicate(true)
 	var learning_state := normalize_learning_state(Dictionary(state.get("learning_state", {})))
-	var evaluation_records: Array = Array(learning_state.get("evaluation_records", [])).duplicate(true)
-	var manifested_ids := _manifested_experiment_ids(experiments, run_record, diagnostics)
+	var existing_records := _dict_array(learning_state.get("evaluation_records", []))
+	var base_failures := validate_learning_state(learning_state, hypotheses, experiments)
+	var manifestation := _manifested_experiment_payload(experiments, run_record, diagnostics)
+	var manifested_ids := _string_array(manifestation.get("ids", []))
+	var manifestation_failures := _string_array(manifestation.get("failures", []))
 	if manifested_ids.is_empty():
 		var untouched := state.duplicate(true)
+		learning_state["validation_failures"] = _sorted_strings(_merge_string_arrays(
+			_string_array(learning_state.get("validation_failures", [])),
+			_merge_string_arrays(base_failures, manifestation_failures)
+		))
 		untouched["learning_state"] = learning_state
 		return untouched
-	var recent_records: Array[Dictionary] = []
+	var candidate_records: Array[Dictionary] = []
+	var candidate_failures: Array[String] = []
 	for experiment_id in manifested_ids:
 		var experiment: Dictionary = Dictionary(experiments.get(experiment_id, {})).duplicate(true)
 		var hypothesis: Dictionary = Dictionary(hypotheses.get(str(experiment.get("hypothesis_id", "")), {})).duplicate(true)
 		if experiment.is_empty() or hypothesis.is_empty():
+			candidate_failures.append("manifested experiment %s is missing from continuity registries" % experiment_id)
 			continue
 		var record := _build_evaluation_record(experiment, hypothesis, run_record, diagnostics, frame)
-		recent_records.append(record)
-		evaluation_records.push_front(record)
-		hypotheses[record["hypothesis_id"]] = _apply_hypothesis_update(hypothesis, record)
-		experiments[record["experiment_id"]] = _apply_experiment_update(experiment, record)
-	var normalized_records := _normalize_evaluation_records(evaluation_records)
+		var record_failures := validate_evaluation_record(record, hypotheses, experiments)
+		if not record_failures.is_empty():
+			candidate_failures.append_array(record_failures)
+			continue
+		candidate_records.append(record)
+	var merge_result := _merge_evaluation_records(existing_records, candidate_records)
+	var accepted_recent_records := _dict_array(merge_result.get("accepted_records", []))
+	if accepted_recent_records.is_empty():
+		var untouched := state.duplicate(true)
+		learning_state["validation_failures"] = _sorted_strings(_merge_string_arrays(
+			_string_array(learning_state.get("validation_failures", [])),
+			_merge_string_arrays(_merge_string_arrays(base_failures, manifestation_failures), candidate_failures)
+		))
+		untouched["learning_state"] = learning_state
+		return untouched
+	var candidate_hypotheses := hypotheses.duplicate(true)
+	var candidate_experiments := experiments.duplicate(true)
+	for record_raw in accepted_recent_records:
+		var record: Dictionary = Dictionary(record_raw)
+		var hypothesis: Dictionary = Dictionary(candidate_hypotheses.get(str(record.get("hypothesis_id", "")), {})).duplicate(true)
+		var experiment: Dictionary = Dictionary(candidate_experiments.get(str(record.get("experiment_id", "")), {})).duplicate(true)
+		if hypothesis.is_empty() or experiment.is_empty():
+			candidate_failures.append("accepted evaluation %s references missing continuity owner" % str(record.get("evaluation_id", "")))
+			continue
+		candidate_hypotheses[record["hypothesis_id"]] = _apply_hypothesis_update(hypothesis, record)
+		candidate_experiments[record["experiment_id"]] = _apply_experiment_update(experiment, record)
+	var normalized_records := _dict_array(merge_result.get("records", []))
 	var meta_learning := _normalize_meta_learning(Dictionary(learning_state.get("meta_learning", {})))
-	for record_raw in recent_records:
+	for record_raw in accepted_recent_records:
 		meta_learning = _apply_meta_learning(meta_learning, Dictionary(record_raw))
-	var compiler_guidance := _derive_compiler_guidance(meta_learning, normalized_records, experiments)
-	learning_state["evaluation_records"] = normalized_records
-	learning_state["meta_learning"] = meta_learning
-	learning_state["compiler_guidance"] = compiler_guidance
-	learning_state["public_lines"] = _slice_strings(_merge_string_arrays(
-		_slice_strings(_trace_lines_from_records(recent_records, "public_trace_lines"), 2),
-		_string_array(compiler_guidance.get("public_lines", []))
-	), MAX_TRACE_LINES)
-	learning_state["operator_lines"] = _slice_strings(_merge_string_arrays(
-		_slice_strings(_trace_lines_from_records(recent_records, "operator_trace_lines"), 2),
-		_string_array(compiler_guidance.get("operator_lines", []))
-	), MAX_TRACE_LINES)
-	learning_state["validation_failures"] = validate_learning_state(learning_state, hypotheses, experiments)
+	var compiler_guidance := _derive_compiler_guidance(meta_learning, normalized_records, candidate_experiments)
+	var candidate_learning_state := {
+		"schema_name": "DelveMindLearningState",
+		"schema_version": int(learning_state.get("schema_version", 1)),
+		"evaluation_records": normalized_records.duplicate(true),
+		"meta_learning": meta_learning.duplicate(true),
+		"compiler_guidance": compiler_guidance.duplicate(true),
+		"public_lines": _slice_strings(_merge_string_arrays(
+			_slice_strings(_trace_lines_from_records(accepted_recent_records, "public_trace_lines"), 2),
+			_string_array(compiler_guidance.get("public_lines", []))
+		), MAX_TRACE_LINES),
+		"operator_lines": _slice_strings(_merge_string_arrays(
+			_slice_strings(_trace_lines_from_records(accepted_recent_records, "operator_trace_lines"), 2),
+			_string_array(compiler_guidance.get("operator_lines", []))
+		), MAX_TRACE_LINES),
+		"validation_failures": []
+	}
+	candidate_learning_state = normalize_learning_state(candidate_learning_state)
+	var candidate_validation_failures := validate_learning_state(candidate_learning_state, candidate_hypotheses, candidate_experiments)
+	candidate_validation_failures = _merge_string_arrays(
+		candidate_validation_failures,
+		_merge_string_arrays(_merge_string_arrays(base_failures, manifestation_failures), candidate_failures)
+	)
+	if not candidate_validation_failures.is_empty():
+		var untouched := state.duplicate(true)
+		learning_state["validation_failures"] = _sorted_strings(_merge_string_arrays(
+			_string_array(learning_state.get("validation_failures", [])),
+			candidate_validation_failures
+		))
+		untouched["learning_state"] = learning_state
+		return untouched
+	candidate_learning_state["validation_failures"] = []
 	var next := state.duplicate(true)
-	next["hypotheses"] = hypotheses
-	next["experiments"] = experiments
-	next["learning_state"] = learning_state
+	next["hypotheses"] = candidate_hypotheses
+	next["experiments"] = candidate_experiments
+	next["learning_state"] = candidate_learning_state
 	return next
 
 static func _build_evaluation_record(
@@ -224,7 +354,15 @@ static func _build_evaluation_record(
 			"to": target_persistence
 		},
 		"branch_pressure_family": str(experiment.get("family_id", "")).strip_edges() if outcomes.has("split_hypothesis") else "",
-		"synthesis_cue": str(experiment.get("experiment_id", "")).strip_edges() if outcomes.has("synthesize_broader_theory") else "",
+		"branch_open_ids": _slice_strings(
+			_merge_string_arrays(
+				_string_array(hypothesis.get("open_branches", [])),
+				_string_array(experiment.get("branch_ids", []))
+			),
+			4
+		) if outcomes.has("split_hypothesis") else [],
+		"synthesis_experiment_id": str(experiment.get("experiment_id", "")).strip_edges() if outcomes.has("synthesize_broader_theory") else "",
+		"synthesis_source_ids": _slice_strings(_string_array(experiment.get("synthesis_sources", [])), 4) if outcomes.has("synthesize_broader_theory") else [],
 		"revive_candidate": str(experiment.get("experiment_id", "")).strip_edges() if _revived_state(str(experiment.get("state", "")), target_state) else "",
 		"fairness_vetoed": int(dimensions.get("fairness_stability", 0)) <= 1
 	}
@@ -260,13 +398,39 @@ static func _normalize_evaluation_records(values: Array) -> Array:
 		deduped.append(record)
 	return deduped.slice(0, MAX_EVALUATION_RECORDS)
 
+static func _merge_evaluation_records(existing_values: Array, recent_values: Array) -> Dictionary:
+	var existing_records := _normalize_evaluation_records(existing_values)
+	var seen: Dictionary = {}
+	for record_raw in existing_records:
+		var existing_record: Dictionary = Dictionary(record_raw)
+		var evaluation_id := str(existing_record.get("evaluation_id", "")).strip_edges()
+		if not evaluation_id.is_empty():
+			seen[evaluation_id] = true
+	var accepted_records: Array[Dictionary] = []
+	for record_raw in recent_values:
+		var record := _normalize_evaluation_record(Dictionary(record_raw))
+		var evaluation_id := str(record.get("evaluation_id", "")).strip_edges()
+		if evaluation_id.is_empty() or seen.has(evaluation_id):
+			continue
+		seen[evaluation_id] = true
+		accepted_records.append(record)
+	var merged: Array[Dictionary] = []
+	merged.append_array(accepted_records)
+	merged.append_array(existing_records)
+	return {
+		"records": _normalize_evaluation_records(merged),
+		"accepted_records": accepted_records
+	}
+
 static func _normalize_evaluation_record(raw: Dictionary) -> Dictionary:
 	var schema := SCHEMA_REGISTRY_SCRIPT.evaluation_schema()
 	var dimensions: Dictionary = {}
 	for key in _string_array(schema.get("dimension_keys", [])):
 		dimensions[key] = clampi(int(Dictionary(raw.get("dimensions", {})).get(key, 0)), 0, 4)
+	var continuity_effects_raw: Dictionary = Dictionary(raw.get("continuity_effects", {}))
+	var observation_signature_raw: Dictionary = Dictionary(raw.get("observation_signature", {}))
 	var current := {
-		"evaluation_id": str(raw.get("evaluation_id", "")).strip_edges(),
+		"evaluation_id": "",
 		"run_seed": int(raw.get("run_seed", 0)),
 		"hypothesis_id": str(raw.get("hypothesis_id", "")).strip_edges(),
 		"experiment_id": str(raw.get("experiment_id", "")).strip_edges(),
@@ -276,27 +440,41 @@ static func _normalize_evaluation_record(raw: Dictionary) -> Dictionary:
 		"supporting_evidence": _slice_strings(_string_array(raw.get("supporting_evidence", [])), 6),
 		"contradicting_evidence": _slice_strings(_string_array(raw.get("contradicting_evidence", [])), 6),
 		"continuity_effects": {
-			"confidence_delta": clampi(int(Dictionary(raw.get("continuity_effects", {})).get("confidence_delta", 0)), -1, 1),
-			"recurrence_delta": clampi(int(Dictionary(raw.get("continuity_effects", {})).get("recurrence_delta", 0)), -1, 1),
+			"confidence_delta": clampi(int(continuity_effects_raw.get("confidence_delta", 0)), -1, 1),
+			"recurrence_delta": clampi(int(continuity_effects_raw.get("recurrence_delta", 0)), -1, 1),
 			"state_transition": {
-				"from": str(Dictionary(Dictionary(raw.get("continuity_effects", {})).get("state_transition", {})).get("from", "")).strip_edges(),
-				"to": str(Dictionary(Dictionary(raw.get("continuity_effects", {})).get("state_transition", {})).get("to", "")).strip_edges()
+				"from": str(Dictionary(continuity_effects_raw.get("state_transition", {})).get("from", "")).strip_edges(),
+				"to": str(Dictionary(continuity_effects_raw.get("state_transition", {})).get("to", "")).strip_edges()
 			},
 			"persistence_transition": {
-				"from": str(Dictionary(Dictionary(raw.get("continuity_effects", {})).get("persistence_transition", {})).get("from", "")).strip_edges(),
-				"to": str(Dictionary(Dictionary(raw.get("continuity_effects", {})).get("persistence_transition", {})).get("to", "")).strip_edges()
+				"from": str(Dictionary(continuity_effects_raw.get("persistence_transition", {})).get("from", "")).strip_edges(),
+				"to": str(Dictionary(continuity_effects_raw.get("persistence_transition", {})).get("to", "")).strip_edges()
 			},
-			"branch_pressure_family": str(Dictionary(raw.get("continuity_effects", {})).get("branch_pressure_family", "")).strip_edges(),
-			"synthesis_cue": str(Dictionary(raw.get("continuity_effects", {})).get("synthesis_cue", "")).strip_edges(),
-			"revive_candidate": str(Dictionary(raw.get("continuity_effects", {})).get("revive_candidate", "")).strip_edges(),
-			"fairness_vetoed": bool(Dictionary(raw.get("continuity_effects", {})).get("fairness_vetoed", false))
+			"branch_pressure_family": str(continuity_effects_raw.get("branch_pressure_family", "")).strip_edges(),
+			"branch_open_ids": _slice_strings(_string_array(continuity_effects_raw.get("branch_open_ids", [])), 4),
+			"synthesis_experiment_id": str(continuity_effects_raw.get("synthesis_experiment_id", continuity_effects_raw.get("synthesis_cue", ""))).strip_edges(),
+			"synthesis_source_ids": _slice_strings(_string_array(continuity_effects_raw.get("synthesis_source_ids", [])), 4),
+			"revive_candidate": str(continuity_effects_raw.get("revive_candidate", "")).strip_edges(),
+			"fairness_vetoed": bool(continuity_effects_raw.get("fairness_vetoed", false))
 		},
-		"observation_signature": Dictionary(raw.get("observation_signature", {})).duplicate(true),
+		"observation_signature": {
+			"story_tone": str(observation_signature_raw.get("story_tone", "")).strip_edges(),
+			"artifact_result": str(observation_signature_raw.get("artifact_result", "")).strip_edges(),
+			"local_role": str(observation_signature_raw.get("local_role", "")).strip_edges(),
+			"build_identity": str(observation_signature_raw.get("build_identity", "")).strip_edges(),
+			"topology_type": str(observation_signature_raw.get("topology_type", "")).strip_edges(),
+			"time_horizon": str(observation_signature_raw.get("time_horizon", "")).strip_edges(),
+			"cultural_medium": str(observation_signature_raw.get("cultural_medium", "")).strip_edges(),
+			"expression_mode": str(observation_signature_raw.get("expression_mode", "")).strip_edges(),
+			"retellability_score": maxi(int(observation_signature_raw.get("retellability_score", 0)), 0),
+			"legend_density_score": maxi(int(observation_signature_raw.get("legend_density_score", 0)), 0),
+			"revisit_score": maxi(int(observation_signature_raw.get("revisit_score", 0)), 0),
+			"interrupted": bool(observation_signature_raw.get("interrupted", false))
+		},
 		"public_trace_lines": _slice_strings(_string_array(raw.get("public_trace_lines", [])), 3),
 		"operator_trace_lines": _slice_strings(_string_array(raw.get("operator_trace_lines", [])), 4)
 	}
-	if current["evaluation_id"].is_empty():
-		current["evaluation_id"] = _evaluation_id(current)
+	current["evaluation_id"] = _evaluation_id(current)
 	return current
 
 static func _apply_hypothesis_update(hypothesis: Dictionary, record: Dictionary) -> Dictionary:
@@ -316,6 +494,10 @@ static func _apply_hypothesis_update(hypothesis: Dictionary, record: Dictionary)
 	current["contradicting_evidence_ids"] = _merge_string_arrays(
 		_string_array(current.get("contradicting_evidence_ids", [])),
 		_string_array(record.get("contradicting_evidence", []))
+	)
+	current["open_branches"] = _merge_string_arrays(
+		_string_array(current.get("open_branches", [])),
+		_string_array(continuity_effects.get("branch_open_ids", []))
 	)
 	return current
 
@@ -337,6 +519,28 @@ static func _apply_meta_learning(meta_learning: Dictionary, record: Dictionary) 
 	_increment_effectiveness(current, "horizon_effectiveness", "horizon_counts", str(observation_signature.get("time_horizon", "")), aggregate)
 	_increment_effectiveness(current, "medium_effectiveness", "medium_counts", str(observation_signature.get("cultural_medium", "")), aggregate)
 	_increment_effectiveness(current, "expression_mode_effectiveness", "expression_mode_counts", str(observation_signature.get("expression_mode", "")), aggregate)
+	current["accepted_evaluation_ids"] = _push_front_limited(
+		_string_array(current.get("accepted_evaluation_ids", [])),
+		str(record.get("evaluation_id", "")),
+		MAX_EVALUATION_RECORDS
+	)
+	var continuity_effects: Dictionary = Dictionary(record.get("continuity_effects", {}))
+	if _string_array(record.get("outcomes", [])).has("split_hypothesis"):
+		current["branch_signal_counts"] = _increment_signal_count_map(
+			Dictionary(current.get("branch_signal_counts", {})),
+			str(continuity_effects.get("branch_pressure_family", record.get("family_id", ""))).strip_edges()
+		)
+	if _string_array(record.get("outcomes", [])).has("synthesize_broader_theory"):
+		current["synthesis_signal_counts"] = _increment_signal_count_map(
+			Dictionary(current.get("synthesis_signal_counts", {})),
+			str(continuity_effects.get("synthesis_experiment_id", record.get("experiment_id", ""))).strip_edges()
+		)
+	var revive_candidate := str(continuity_effects.get("revive_candidate", "")).strip_edges()
+	if not revive_candidate.is_empty():
+		current["revive_signal_counts"] = _increment_signal_count_map(
+			Dictionary(current.get("revive_signal_counts", {})),
+			revive_candidate
+		)
 	var noise_signatures := _string_array(current.get("noise_signatures", []))
 	if int(dimensions.get("replay_distinctiveness", 0)) >= 2 and int(dimensions.get("hypothesis_yield", 0)) <= 1 and int(dimensions.get("cultural_richness", 0)) <= 1:
 		noise_signatures = _push_front_limited(noise_signatures, "%s:novel_without_insight" % str(record.get("family_id", "")), 8)
@@ -351,19 +555,30 @@ static func _derive_compiler_guidance(meta_learning: Dictionary, evaluation_reco
 	current["suppressed_horizons"] = _ranked_effective_keys(meta_learning, "horizon_effectiveness", "horizon_counts", false)
 	current["preferred_media"] = _ranked_effective_keys(meta_learning, "medium_effectiveness", "medium_counts", true)
 	current["suppressed_media"] = _ranked_effective_keys(meta_learning, "medium_effectiveness", "medium_counts", false)
-	for record_raw in _dict_array(evaluation_records).slice(0, 8):
-		var record: Dictionary = Dictionary(record_raw)
-		var continuity_effects: Dictionary = Dictionary(record.get("continuity_effects", {}))
-		if _string_array(record.get("outcomes", [])).has("split_hypothesis"):
-			current["branch_pressure_families"] = _merge_string_arrays(_string_array(current.get("branch_pressure_families", [])), [str(continuity_effects.get("branch_pressure_family", record.get("family_id", ""))).strip_edges()])
-		if _string_array(record.get("outcomes", [])).has("synthesize_broader_theory"):
-			current["synthesis_candidates"] = _merge_string_arrays(_string_array(current.get("synthesis_candidates", [])), [str(continuity_effects.get("synthesis_cue", record.get("experiment_id", ""))).strip_edges()])
-		var revive_candidate := str(continuity_effects.get("revive_candidate", "")).strip_edges()
-		if not revive_candidate.is_empty():
-			current["revive_candidates"] = _merge_string_arrays(_string_array(current.get("revive_candidates", [])), [revive_candidate])
-	current["branch_pressure_families"] = _filter_to_existing_families(_slice_strings(_string_array(current.get("branch_pressure_families", [])), MAX_GUIDANCE_VALUES), experiments)
-	current["synthesis_candidates"] = _filter_to_existing_experiments(_slice_strings(_string_array(current.get("synthesis_candidates", [])), MAX_GUIDANCE_VALUES), experiments)
-	current["revive_candidates"] = _filter_to_existing_experiments(_slice_strings(_string_array(current.get("revive_candidates", [])), MAX_GUIDANCE_VALUES), experiments)
+	current["accepted_evaluation_ids"] = _slice_strings(_string_array(meta_learning.get("accepted_evaluation_ids", [])), MAX_EVALUATION_RECORDS)
+	current["evaluation_count"] = _dict_array(evaluation_records).size()
+	current["branch_signal_counts"] = _normalize_count_map(Dictionary(meta_learning.get("branch_signal_counts", {})))
+	current["synthesis_signal_counts"] = _normalize_count_map(Dictionary(meta_learning.get("synthesis_signal_counts", {})))
+	current["revive_signal_counts"] = _normalize_count_map(Dictionary(meta_learning.get("revive_signal_counts", {})))
+	current["branch_pressure_families"] = _filter_to_existing_families(
+		_ranked_count_keys(Dictionary(current.get("branch_signal_counts", {}))),
+		experiments
+	)
+	current["synthesis_candidates"] = _filter_to_existing_experiments(
+		_ranked_count_keys(Dictionary(current.get("synthesis_signal_counts", {}))),
+		experiments
+	)
+	current["revive_candidates"] = _filter_to_existing_experiments(
+		_ranked_count_keys(Dictionary(current.get("revive_signal_counts", {}))),
+		experiments
+	)
+	current["bias_basis"] = {
+		"topology_averages": _effectiveness_average_map(meta_learning, "topology_effectiveness", "topology_counts"),
+		"horizon_averages": _effectiveness_average_map(meta_learning, "horizon_effectiveness", "horizon_counts"),
+		"medium_averages": _effectiveness_average_map(meta_learning, "medium_effectiveness", "medium_counts"),
+		"expression_mode_averages": _effectiveness_average_map(meta_learning, "expression_mode_effectiveness", "expression_mode_counts"),
+		"noise_signatures": _slice_strings(_string_array(meta_learning.get("noise_signatures", [])), 8)
+	}
 	current["public_lines"] = _build_public_guidance_lines(current, meta_learning)
 	current["operator_lines"] = _build_operator_guidance_lines(current, meta_learning)
 	return normalize_compiler_guidance(current)
@@ -606,7 +821,11 @@ static func _default_meta_learning() -> Dictionary:
 		"medium_counts": {},
 		"expression_mode_effectiveness": {},
 		"expression_mode_counts": {},
-		"noise_signatures": []
+		"noise_signatures": [],
+		"accepted_evaluation_ids": [],
+		"branch_signal_counts": {},
+		"synthesis_signal_counts": {},
+		"revive_signal_counts": {}
 	}
 
 static func _normalize_meta_learning(raw: Dictionary) -> Dictionary:
@@ -623,14 +842,11 @@ static func _normalize_meta_learning(raw: Dictionary) -> Dictionary:
 		"expression_mode_effectiveness",
 		"expression_mode_counts"
 	]:
-		var normalized_map: Dictionary = {}
-		for map_key in Dictionary(current.get(key, {})).keys():
-			var text := str(map_key).strip_edges()
-			if text.is_empty():
-				continue
-			normalized_map[text] = int(Dictionary(current.get(key, {})).get(map_key, 0))
-		current[key] = normalized_map
+		current[key] = _normalize_count_map(Dictionary(current.get(key, {})))
 	current["noise_signatures"] = _slice_strings(_string_array(current.get("noise_signatures", [])), 8)
+	current["accepted_evaluation_ids"] = _slice_strings(_string_array(current.get("accepted_evaluation_ids", [])), MAX_EVALUATION_RECORDS)
+	for key in ["branch_signal_counts", "synthesis_signal_counts", "revive_signal_counts"]:
+		current[key] = _normalize_count_map(Dictionary(current.get(key, {})))
 	return current
 
 static func _default_compiler_guidance() -> Dictionary:
@@ -644,6 +860,12 @@ static func _default_compiler_guidance() -> Dictionary:
 		"branch_pressure_families": [],
 		"synthesis_candidates": [],
 		"revive_candidates": [],
+		"accepted_evaluation_ids": [],
+		"evaluation_count": 0,
+		"branch_signal_counts": {},
+		"synthesis_signal_counts": {},
+		"revive_signal_counts": {},
+		"bias_basis": _default_guidance_bias_basis(),
 		"public_lines": [],
 		"operator_lines": []
 	}
@@ -692,18 +914,145 @@ static func _ranked_effective_keys(meta_learning: Dictionary, score_key: String,
 		result.append(str(Dictionary(entry_raw).get("token", "")))
 	return result
 
+static func _normalize_count_map(raw: Dictionary) -> Dictionary:
+	var normalized_map: Dictionary = {}
+	for map_key in raw.keys():
+		var text := str(map_key).strip_edges()
+		if text.is_empty():
+			continue
+		normalized_map[text] = maxi(int(raw.get(map_key, 0)), 0)
+	return normalized_map
+
+static func _normalize_average_map(raw: Dictionary) -> Dictionary:
+	var normalized_map: Dictionary = {}
+	for map_key in raw.keys():
+		var text := str(map_key).strip_edges()
+		if text.is_empty():
+			continue
+		normalized_map[text] = float(raw.get(map_key, 0.0))
+	return normalized_map
+
+static func _validate_non_negative_int_map(raw: Dictionary, label: String) -> Array[String]:
+	var failures: Array[String] = []
+	for key_variant in raw.keys():
+		var key := str(key_variant).strip_edges()
+		if key.is_empty():
+			failures.append("%s must not contain blank keys" % label)
+			continue
+		if int(raw.get(key_variant, -1)) < 0:
+			failures.append("%s %s must remain non-negative" % [label, key])
+	return failures
+
+static func _validate_numeric_map(raw: Dictionary, label: String) -> Array[String]:
+	var failures: Array[String] = []
+	for key_variant in raw.keys():
+		var key := str(key_variant).strip_edges()
+		if key.is_empty():
+			failures.append("%s must not contain blank keys" % label)
+			continue
+		var value: Variant = raw.get(key_variant, null)
+		if typeof(value) not in [TYPE_INT, TYPE_FLOAT]:
+			failures.append("%s %s must remain numeric" % [label, key])
+	return failures
+
+static func _validate_meta_learning(meta_learning: Dictionary) -> Array[String]:
+	var failures: Array[String] = []
+	var accepted_evaluation_ids := _string_array(meta_learning.get("accepted_evaluation_ids", []))
+	if accepted_evaluation_ids.size() != Array(meta_learning.get("accepted_evaluation_ids", [])).size():
+		failures.append("DelveMindLearningState meta_learning accepted_evaluation_ids must remain unique and non-blank")
+	for pair in [
+		["topology_effectiveness", "topology_effectiveness"],
+		["topology_counts", "topology_counts"],
+		["horizon_effectiveness", "horizon_effectiveness"],
+		["horizon_counts", "horizon_counts"],
+		["medium_effectiveness", "medium_effectiveness"],
+		["medium_counts", "medium_counts"],
+		["expression_mode_effectiveness", "expression_mode_effectiveness"],
+		["expression_mode_counts", "expression_mode_counts"],
+		["branch_signal_counts", "branch_signal_counts"],
+		["synthesis_signal_counts", "synthesis_signal_counts"],
+		["revive_signal_counts", "revive_signal_counts"]
+	]:
+		failures.append_array(_validate_non_negative_int_map(
+			Dictionary(meta_learning.get(str(pair[0]), {})),
+			"DelveMindLearningState meta_learning %s" % str(pair[1])
+		))
+	return _sorted_strings(failures)
+
+static func _increment_signal_count_map(values: Dictionary, token: String) -> Dictionary:
+	var text := token.strip_edges()
+	if text.is_empty():
+		return _normalize_count_map(values)
+	var normalized := _normalize_count_map(values)
+	normalized[text] = int(normalized.get(text, 0)) + 1
+	return normalized
+
+static func _count_map_summary(tokens: Array[String], counts: Dictionary) -> String:
+	var parts: Array[String] = []
+	for token in tokens:
+		var text := token.strip_edges()
+		if text.is_empty():
+			continue
+		var count := int(Dictionary(counts).get(text, 0))
+		parts.append("%s(%d)" % [text, maxi(count, 1)])
+	return ", ".join(parts)
+
+static func _canonical_manifested_experiment_ids_from_record(run_record: Dictionary) -> Array[String]:
+	var summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	var ids := _merge_string_arrays(
+		_string_array(run_record.get("manifested_experiment_ids", [])),
+		_string_array(run_record.get("live_experiment_ids", []))
+	)
+	ids = _merge_string_arrays(ids, _string_array(summary.get("live_experiment_ids", [])))
+	return _sorted_strings(ids)
+
+static func _ranked_count_keys(values: Dictionary) -> Array[String]:
+	var scored: Array[Dictionary] = []
+	for key_variant in values.keys():
+		var token := str(key_variant).strip_edges()
+		var count := int(values.get(key_variant, 0))
+		if token.is_empty() or count <= 0:
+			continue
+		scored.append({"token": token, "count": count})
+	scored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a.get("count", 0)) == int(b.get("count", 0)):
+			return str(a.get("token", "")) < str(b.get("token", ""))
+		return int(a.get("count", 0)) > int(b.get("count", 0))
+	)
+	var result: Array[String] = []
+	for entry_raw in scored.slice(0, MAX_GUIDANCE_VALUES):
+		result.append(str(Dictionary(entry_raw).get("token", "")))
+	return result
+
+static func _effectiveness_average_map(meta_learning: Dictionary, score_key: String, count_key: String) -> Dictionary:
+	var result: Dictionary = {}
+	var scores := Dictionary(meta_learning.get(score_key, {}))
+	var counts := Dictionary(meta_learning.get(count_key, {}))
+	for token_variant in scores.keys():
+		var token := str(token_variant).strip_edges()
+		var count := int(counts.get(token_variant, counts.get(token, 0)))
+		if token.is_empty() or count <= 0:
+			continue
+		result[token] = round((float(int(scores.get(token_variant, scores.get(token, 0)))) / float(count)) * 100.0) / 100.0
+	return result
+
+static func _default_guidance_bias_basis() -> Dictionary:
+	return {
+		"topology_averages": {},
+		"horizon_averages": {},
+		"medium_averages": {},
+		"expression_mode_averages": {},
+		"noise_signatures": []
+	}
+
 static func _build_public_guidance_lines(guidance: Dictionary, meta_learning: Dictionary) -> Array[String]:
 	var lines: Array[String] = []
-	var preferred_topologies := _string_array(guidance.get("preferred_topologies", []))
 	var preferred_horizons := _string_array(guidance.get("preferred_horizons", []))
 	var preferred_media := _string_array(guidance.get("preferred_media", []))
-	if not preferred_topologies.is_empty() and not preferred_horizons.is_empty():
-		lines.append("%s patterns keep paying off best over %s horizons." % [
-			preferred_topologies[0].replace("_", " "),
-			preferred_horizons[0].replace("_", " ")
-		])
+	if int(guidance.get("evaluation_count", 0)) >= 2 and not preferred_horizons.is_empty():
+		lines.append("Recent lines stay clearest when pressure has %s to answer it." % preferred_horizons[0].replace("_", " "))
 	if not preferred_media.is_empty():
-		lines.append("%s is currently the clearest place to expose these pressures." % preferred_media[0].replace("_", " "))
+		lines.append("%s keeps making these pressures easiest to read." % preferred_media[0].replace("_", " "))
 	if not _string_array(guidance.get("revive_candidates", [])).is_empty():
 		lines.append("A dormant line looks worth revisiting when the world turns that way again.")
 	if lines.is_empty() and not _string_array(meta_learning.get("noise_signatures", [])).is_empty():
@@ -725,11 +1074,20 @@ static func _build_operator_guidance_lines(guidance: Dictionary, meta_learning: 
 	if not suppressed_topologies.is_empty():
 		lines.append("Suppress topology=%s until yield improves" % suppressed_topologies[0])
 	if not _string_array(guidance.get("branch_pressure_families", [])).is_empty():
-		lines.append("Branch pressure families: %s" % ", ".join(_string_array(guidance.get("branch_pressure_families", []))))
+		lines.append("Branch pressure families: %s" % _count_map_summary(
+			_string_array(guidance.get("branch_pressure_families", [])),
+			Dictionary(guidance.get("branch_signal_counts", {}))
+		))
 	if not _string_array(guidance.get("synthesis_candidates", [])).is_empty():
-		lines.append("Synthesis candidates: %s" % ", ".join(_string_array(guidance.get("synthesis_candidates", []))))
+		lines.append("Synthesis candidates: %s" % _count_map_summary(
+			_string_array(guidance.get("synthesis_candidates", [])),
+			Dictionary(guidance.get("synthesis_signal_counts", {}))
+		))
 	if not _string_array(guidance.get("revive_candidates", [])).is_empty():
-		lines.append("Revive candidates: %s" % ", ".join(_string_array(guidance.get("revive_candidates", []))))
+		lines.append("Revive candidates: %s" % _count_map_summary(
+			_string_array(guidance.get("revive_candidates", [])),
+			Dictionary(guidance.get("revive_signal_counts", {}))
+		))
 	if not _string_array(meta_learning.get("noise_signatures", [])).is_empty():
 		lines.append("Noise signatures: %s" % ", ".join(_string_array(meta_learning.get("noise_signatures", [])).slice(0, 2)))
 	return _slice_strings(lines, 4)
@@ -740,13 +1098,27 @@ static func _trace_lines_from_records(records: Array[Dictionary], field: String)
 		result = _merge_string_arrays(result, _string_array(Dictionary(record_raw).get(field, [])))
 	return result
 
-static func _manifested_experiment_ids(experiments: Dictionary, run_record: Dictionary, diagnostics: Dictionary) -> Array[String]:
+static func _manifested_experiment_payload(experiments: Dictionary, run_record: Dictionary, diagnostics: Dictionary) -> Dictionary:
+	var summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	var explicit_present := run_record.has("manifested_experiment_ids") or run_record.has("live_experiment_ids") or summary.has("live_experiment_ids")
+	if explicit_present:
+		var explicit_ids := _canonical_manifested_experiment_ids_from_record(run_record)
+		var valid_ids := _filter_to_existing_experiments(explicit_ids, experiments)
+		var failures: Array[String] = []
+		for experiment_id in explicit_ids:
+			if not valid_ids.has(experiment_id):
+				failures.append("run record references unknown manifested experiment %s" % experiment_id)
+		return {
+			"ids": _sorted_strings(valid_ids),
+			"failures": _sorted_strings(failures),
+			"source": "canonical_ids"
+		}
 	var labels := _merge_string_arrays(
-		_string_array(Dictionary(run_record.get("expedition_constitution_summary", {})).get("experiment_families", [])),
+		_string_array(summary.get("experiment_families", [])),
 		_string_array(diagnostics.get("experiment_families", []))
 	)
 	var surface_lines := _merge_string_arrays(
-		_string_array(Dictionary(run_record.get("expedition_constitution_summary", {})).get("experiment_surface_lines", [])),
+		_string_array(summary.get("experiment_surface_lines", [])),
 		_string_array(diagnostics.get("experiment_surface_lines", []))
 	)
 	var ids: Array[String] = []
@@ -762,7 +1134,11 @@ static func _manifested_experiment_ids(experiments: Dictionary, run_record: Dict
 			if surface_lines.has(public_line):
 				ids.append(str(experiment.get("experiment_id", experiment_id)).strip_edges())
 				break
-	return _sorted_strings(ids)
+	return {
+		"ids": _sorted_strings(ids),
+		"failures": [],
+		"source": "legacy_surface_match"
+	}
 
 static func _allowed_state_transition(from_state: String, to_state: String) -> bool:
 	if from_state == to_state:
@@ -796,7 +1172,21 @@ static func _evaluation_id(record: Dictionary) -> String:
 		"experiment_id": str(record.get("experiment_id", "")).strip_edges(),
 		"family_id": str(record.get("family_id", "")).strip_edges(),
 		"dimensions": Dictionary(record.get("dimensions", {})).duplicate(true),
-		"outcomes": _string_array(record.get("outcomes", [])),
+		"outcomes": _sorted_strings(record.get("outcomes", [])),
+		"supporting_evidence": _sorted_strings(record.get("supporting_evidence", [])),
+		"contradicting_evidence": _sorted_strings(record.get("contradicting_evidence", [])),
+		"continuity_effects": {
+			"confidence_delta": int(Dictionary(record.get("continuity_effects", {})).get("confidence_delta", 0)),
+			"recurrence_delta": int(Dictionary(record.get("continuity_effects", {})).get("recurrence_delta", 0)),
+			"state_transition": Dictionary(Dictionary(record.get("continuity_effects", {})).get("state_transition", {})).duplicate(true),
+			"persistence_transition": Dictionary(Dictionary(record.get("continuity_effects", {})).get("persistence_transition", {})).duplicate(true),
+			"branch_pressure_family": str(Dictionary(record.get("continuity_effects", {})).get("branch_pressure_family", "")).strip_edges(),
+			"branch_open_ids": _sorted_strings(Dictionary(record.get("continuity_effects", {})).get("branch_open_ids", [])),
+			"synthesis_experiment_id": str(Dictionary(record.get("continuity_effects", {})).get("synthesis_experiment_id", "")).strip_edges(),
+			"synthesis_source_ids": _sorted_strings(Dictionary(record.get("continuity_effects", {})).get("synthesis_source_ids", [])),
+			"revive_candidate": str(Dictionary(record.get("continuity_effects", {})).get("revive_candidate", "")).strip_edges(),
+			"fairness_vetoed": bool(Dictionary(record.get("continuity_effects", {})).get("fairness_vetoed", false))
+		},
 		"observation_signature": Dictionary(record.get("observation_signature", {})).duplicate(true)
 	}
 	return "eval_%s" % JSON.stringify(canonical).md5_text().substr(0, 16)
