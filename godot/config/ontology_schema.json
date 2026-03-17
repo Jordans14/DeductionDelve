@@ -1,0 +1,55 @@
+{
+  "schema_name": "OntologySnapshot",
+  "schema_version": 1,
+  "domains": [
+    "artifact_families",
+    "chamber_families",
+    "pressure_families",
+    "doctrine_families",
+    "ritual_families",
+    "transformation_families",
+    "taxonomy_classes",
+    "experiment_families",
+    "verification_classes",
+    "residue_classes"
+  ],
+  "lifecycle_states": [
+    "birth",
+    "expansion",
+    "stabilization",
+    "contestation",
+    "fragmentation",
+    "decline",
+    "dormancy",
+    "rediscovery"
+  ],
+  "absence_types": [
+    "extinct_class",
+    "taboo_class",
+    "missing_verification_method",
+    "dormant_ritual_mode",
+    "residue_only_class"
+  ],
+  "niches": [
+    "verification_niche",
+    "traversal_pressure_niche",
+    "archive_classification_niche",
+    "civic_trust_niche",
+    "ritual_legitimacy_niche",
+    "public_argument_niche",
+    "preparation_culture_niche",
+    "residue_memory_niche",
+    "threshold_pressure_niche"
+  ],
+  "required_node_fields": [
+    "id",
+    "label",
+    "domain",
+    "lineage_id",
+    "lifecycle_state",
+    "niches",
+    "status",
+    "heat",
+    "gravity"
+  ]
+}

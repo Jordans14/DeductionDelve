@@ -1,24 +1,48 @@
 # Game Vision
 
+See also: [THE_DELVE_PROTOCOL](d:/DeductionDelve/docs/THE_DELVE_PROTOCOL.md), [NARRATIVE_WORLD_BIBLE](d:/DeductionDelve/docs/NARRATIVE_WORLD_BIBLE.md), [CORE_LOOPS](d:/DeductionDelve/docs/CORE_LOOPS.md), [DESIGN_ANCHOR](d:/DeductionDelve/docs/DESIGN_ANCHOR.md).
+
 ## Genre Identity
-Deduction Delve is a cooperative extraction platformer where every jump, trap, and loot decision is evaluated as social evidence. The physical traversal risk and platforming of *Spelunky* combines with the run variety and item synergies of *The Binding of Isaac* to create the plausible deniability required for true Social Deduction. Players do not solve mysteries in detached voting meetings; they deduce the truth physically by observing movement, survival tactics, item usage, and evidence handling in the wild.
+The Delve Protocol is a traversal-first social exploration game where players descend through a living labyrinth experiment, survive branch-specific pressures, carry burdens, improvise rescues, confront each other under ambiguity, and become part of a culture that remembers what happened.
 
-## Three-Sentence Unique Pitch
-In Deduction Delve, evidence is loot: clues are physical objects nested deep in dangerous caverns, so extracting the truth requires platforming mastery and shared physical risk. Procedural runs and item builds alter the deception surface, meaning RNG dictates what lies are believable and which "accidents" can be weaponized. The result is a highly replayable rogue-lite where sabotage looks like a missed jump, counter-forensics determine survival, and suspicion is measured by the bloody footprints left behind.
+## Core Fantasy
+- A remembered expedition rather than a disconnected match
+- A living labyrinth that seems to notice repeating pressure
+- A crawl that gains identity across multiple descents
+- A world where Archive, broadcast, and rumor turn runs into culture
 
-## The Social Story Engine
-Every run of Deduction Delve is designed to naturally produce ambiguous, socially interpretable moments that players will excitedly debate afterward. Sabotage isn’t a button press in a menu; it is observable physical behavior. An ally might drop a climbing rope suspiciously close to a lethal hazard. A player might grab the wrong artifact during a chaotic cavern collapse. Another might fall behind and delay extraction, leaving the team to wonder what they were doing in the dark. These actions possess deep *plausible deniability*—meaning players will constantly witness events, observe physical traces, and formulate wildly different interpretations of the exact same moment.
+## Finalized Design Pillars
+- Experiment-driven world
+- Living crawl network
+- Relay recombination
+- Population-adaptive protocol
+- Environmental pressure scaling
+- Branch ideology
+- AI inhabitants
+- Cultural memory
+- Anti-Protocol endgame
 
-## The Emotional Run Arc
-A full run is engineered to escalate tension naturally, moving through specific emotional phases without forced "phases" or UI interruptions:
-1. **Exploration:** The team drops in, gathering resources, scouting procedurally generated paths, and establishing baseline trust.
-2. **Suspicion:** A hazard is triggered too early. Footprints lead to a missing artifact. Trust begins to cleanly fracture.
-3. **Chaos:** The platforming difficulty spikes. Players are wounded, split up, and forced to use bombs and ropes desperately. Saboteurs mask their attacks in the noise of survival.
-4. **Pressure:** The AI "Warden Ghost" spawns, relentlessly hunting stragglers and forcing the separated team to converge on the extraction zone, ready or not.
-5. **Extraction:** A frantic platforming showdown at the exit rope. Players must decide in a split second who to trust and who to leave behind.
-6. **Revelation:** The post-game timeline reveals factual events, sparking explosive arguments over what really happened.
+## Current Live Product Identity
+The live repo currently implements:
+- host-authoritative traversal and extraction play
+- role secrecy and artifact pressure
+- a live AI Delve directive layer that shapes run setup and public-safe doctrine carryover
+- a live visual governance layer that shapes room, shell, and entity presentation without changing mechanics
+- product-shell continuity, Archive, crawl memory, commentary, and world memory
+- deterministic branch-personality shaping plus compact artifact, branch, and crawl comparison signals carried through the same Archive/world-memory path
+
+The finalized game target expands that base into the full Delve Protocol crawl network without replacing the current owner tree.
+
+## Desired Emotional Arc
+- descent and orientation
+- pressure and suspicion
+- rupture or recovery
+- extraction and consequence
+- post-run argument and Archive memory
+- later return under cultural burden
 
 ## Success Criteria
-- Deception arises organically from movement, hazard timing, and inventory choices, not UI menus.
-- Players can articulate suspicion using map geography, triggered traps, dust trails, and lantern light visibility.
-- The game remains fundamentally fun as a pure roguelite platformer, even when all players are honest.
+- physical play remains the source of story
+- replay desire comes from remembered patterns and unfinished pressure
+- shell surfaces feel like expedition culture, not detached menus
+- later truths remain reveal-safe until progression earns reinterpretation

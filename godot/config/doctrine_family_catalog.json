@@ -1,0 +1,131 @@
+{
+  "schema_name": "DoctrineFamilyCatalog",
+  "schema_version": 1,
+  "families": [
+    {
+      "id": "witness_pressure",
+      "label": "Witness Pressure",
+      "lineage_id": "public_threshold_lineage",
+      "focus_tags": ["public_read", "threshold", "crowd"],
+      "niches": ["verification_niche", "public_argument_niche"],
+      "protocol_affinities": ["Expedition Protocol", "Fracture Protocol"],
+      "preferred_surfaces": {
+        "generation": {"witness_exposure": 2, "rescue_geometry": 1},
+        "social": {"blame_ambiguity": 1, "coalition_visibility": 1},
+        "culture": {"public_heat_bias": 1}
+      },
+      "inheritance": {
+        "pressure_verbs": ["Exposure", "Convergence"],
+        "symbolic_motifs": ["Threshold Marks"],
+        "item_ecology_bias": "rescue witness",
+        "group_tension_bias": "public answer appetite",
+        "archive_tone": "forensic dispute",
+        "convergence_axis": "balanced"
+      }
+    },
+    {
+      "id": "burden_chain",
+      "label": "Burden Chain",
+      "lineage_id": "custody_obligation_lineage",
+      "focus_tags": ["burden", "obligation", "route"],
+      "niches": ["civic_trust_niche", "traversal_pressure_niche"],
+      "protocol_affinities": ["Intimate Protocol", "Fracture Protocol"],
+      "preferred_surfaces": {
+        "generation": {"rescue_geometry": 2, "bottleneck_severity": 1},
+        "social": {"obligation_pressure": 2},
+        "economy": {"commitment_cost": 1}
+      },
+      "inheritance": {
+        "pressure_verbs": ["Convergence", "Scarcity"],
+        "symbolic_motifs": ["Burden Halos"],
+        "item_ecology_bias": "burden rescue",
+        "group_tension_bias": "trust fragility",
+        "archive_tone": "memory custody",
+        "convergence_axis": "artifact custody"
+      }
+    },
+    {
+      "id": "split_truth",
+      "label": "Split Truth",
+      "lineage_id": "fractured_verification_lineage",
+      "focus_tags": ["split_read", "private", "fault_line"],
+      "niches": ["verification_niche", "archive_classification_niche"],
+      "protocol_affinities": ["Fracture Protocol", "Exposure Protocol"],
+      "preferred_surfaces": {
+        "social": {"private_evidence_ratio": 2, "blame_ambiguity": 1, "hidden_role_density": 1},
+        "generation": {"loop_probability": 1}
+      },
+      "inheritance": {
+        "pressure_verbs": ["Fragmentation", "Misdirection"],
+        "symbolic_motifs": ["Split Echoes"],
+        "item_ecology_bias": "deception scarcity",
+        "group_tension_bias": "ambiguous fault pressure",
+        "archive_tone": "forensic dispute",
+        "convergence_axis": "fragmentation"
+      }
+    },
+    {
+      "id": "custody_ritual",
+      "label": "Custody Ritual",
+      "lineage_id": "ritual_custody_lineage",
+      "focus_tags": ["ritual", "burden", "symbolic"],
+      "niches": ["ritual_legitimacy_niche", "archive_classification_niche"],
+      "protocol_affinities": ["Intimate Protocol", "Exposure Protocol"],
+      "preferred_surfaces": {
+        "generation": {"ritual_frequency": 2, "rescue_geometry": 1},
+        "social": {"obligation_pressure": 1},
+        "culture": {"archive_emphasis": 2}
+      },
+      "inheritance": {
+        "pressure_verbs": ["Delay", "Convergence"],
+        "symbolic_motifs": ["Burden Halos", "Threshold Marks"],
+        "item_ecology_bias": "burden memory",
+        "group_tension_bias": "measured caution",
+        "archive_tone": "memory custody",
+        "convergence_axis": "artifact custody"
+      }
+    },
+    {
+      "id": "relay_pressure",
+      "label": "Relay Pressure",
+      "lineage_id": "distributed_route_lineage",
+      "focus_tags": ["route", "relay", "public_read"],
+      "niches": ["traversal_pressure_niche", "public_argument_niche"],
+      "protocol_affinities": ["Expedition Protocol", "Fracture Protocol"],
+      "preferred_surfaces": {
+        "generation": {"loop_probability": 1, "witness_exposure": 1},
+        "social": {"coalition_visibility": 1},
+        "economy": {"recovery_cushion": 1}
+      },
+      "inheritance": {
+        "pressure_verbs": ["Convergence", "Delay"],
+        "symbolic_motifs": ["Threshold Marks", "Archive Scars"],
+        "item_ecology_bias": "rescue route",
+        "group_tension_bias": "public answer appetite",
+        "archive_tone": "measured memory",
+        "convergence_axis": "balanced"
+      }
+    },
+    {
+      "id": "exposure_test",
+      "label": "Exposure Test",
+      "lineage_id": "solitude_anomaly_lineage",
+      "focus_tags": ["solitude", "pressure", "private"],
+      "niches": ["threshold_pressure_niche", "verification_niche"],
+      "protocol_affinities": ["Exposure Protocol"],
+      "preferred_surfaces": {
+        "generation": {"traversal_harshness": 1, "bottleneck_severity": 1},
+        "ecology": {"inhabitant_pressure": 1},
+        "economy": {"resource_austerity": 1}
+      },
+      "inheritance": {
+        "pressure_verbs": ["Exposure", "Scarcity"],
+        "symbolic_motifs": ["Split Echoes"],
+        "item_ecology_bias": "scarcity deception",
+        "group_tension_bias": "trust fragility",
+        "archive_tone": "forensic dispute",
+        "convergence_axis": "fragmentation"
+      }
+    }
+  ]
+}

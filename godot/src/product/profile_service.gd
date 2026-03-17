@@ -5,31 +5,31 @@ const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const RUN_STORY_DIAGNOSTICS_SCRIPT = preload("res://src/product/run_story_diagnostics.gd")
+const CRAWL_SERVICE_SCRIPT = preload("res://src/product/crawl_service.gd")
+const FRAMING_SERVICE_SCRIPT = preload("res://src/product/framing_service.gd")
+const ARCHIVE_SERVICE_SCRIPT = preload("res://src/product/archive_service.gd")
+const WORLD_MEMORY_SERVICE_SCRIPT = preload("res://src/product/world_memory_service.gd")
+const WORDING_GUARD_SCRIPT = preload("res://src/product/narrative_wording_guard.gd")
+const PROFILE_PERSISTENCE_SCRIPT = preload("res://src/product/profile_persistence.gd")
+const PROFILE_PROGRESSION_SCRIPT = preload("res://src/product/profile_progression.gd")
+const PROFILE_SHELL_BUILDERS_SCRIPT = preload("res://src/product/profile_shell_builders.gd")
+const PROFILE_IDENTITY_STATE_SCRIPT = preload("res://src/product/profile_identity_state.gd")
+const MULTIMODAL_CONTRACT_SERVICE_SCRIPT = preload("res://src/product/multimodal_contract_service.gd")
+const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
 
 const SAVE_PATH := "user://profile/player_profile.json"
-const HISTORY_LIMIT := 12
+const HISTORY_LIMIT := 24
 
 static func load_profile(path: String = SAVE_PATH, catalog: Dictionary = {}) -> Dictionary:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
-	if not FileAccess.file_exists(path):
-		return create_default_profile(current_catalog)
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return create_default_profile(current_catalog)
-	var parsed = JSON.parse_string(file.get_as_text())
-	if not (parsed is Dictionary):
+	var parsed := PROFILE_PERSISTENCE_SCRIPT.load_json(path)
+	if parsed.is_empty():
 		return create_default_profile(current_catalog)
 	return normalize_profile(parsed, current_catalog)
 
 static func save_profile(profile: Dictionary, path: String = SAVE_PATH, catalog: Dictionary = {}) -> bool:
 	var normalized := normalize_profile(profile, PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog)
-	DirAccess.make_dir_recursive_absolute("user://profile")
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return false
-	file.store_string(JSON.stringify(normalized, "\t"))
-	file.close()
-	return true
+	return PROFILE_PERSISTENCE_SCRIPT.save_json(path, normalized)
 
 static func record_run(run_record: Dictionary, path: String = SAVE_PATH, catalog: Dictionary = {}) -> Dictionary:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -43,10 +43,14 @@ static func create_default_profile(catalog: Dictionary = {}) -> Dictionary:
 	return normalize_profile(_base_default_profile(current_catalog), current_catalog)
 
 static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
+	var mastery_defaults := {}
+	for role_name in ROLE_SERVICE_SCRIPT.new().all_role_names():
+		mastery_defaults[role_name] = {"xp": 0, "level": 1, "runs": 0, "wins": 0}
 	return {
-		"schema_version": 1,
+		"schema_version": 2,
 		"account": {
 			"display_name": "Delver",
+			"public_id": _default_public_id("Delver"),
 			"xp": 0,
 			"level": 1,
 			"runs": 0,
@@ -61,11 +65,7 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 			"counterfeit_extractions": 0,
 			"interrupted_runs": 0
 		},
-		"mastery": {
-			"Warden": {"xp": 0, "level": 1, "runs": 0, "wins": 0},
-			"Veil": {"xp": 0, "level": 1, "runs": 0, "wins": 0},
-			"Scavenger": {"xp": 0, "level": 1, "runs": 0, "wins": 0}
-		},
+		"mastery": mastery_defaults,
 		"discoveries": {
 			"item_defs": [],
 			"room_families": [],
@@ -82,8 +82,32 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 			"last_unlocked": []
 		},
 		"settings": Dictionary(current_catalog.get("settings_defaults", {})).duplicate(true),
+		"multimodal_contract": MULTIMODAL_CONTRACT_SERVICE_SCRIPT.default_state(),
+		"delvemind_experiment_state": DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.default_state(),
 		"last_run": {},
 		"run_history": [],
+		"active_crawl": {},
+		"crawl_history": [],
+		"relationship_fabric": {
+			"players": {},
+			"pairs": {},
+			"crews": {},
+			"recent_pairs": [],
+			"recent_crews": []
+		},
+		"persona_state": {
+			"archetype_scores": {},
+			"risk_posture": {},
+			"public_expectations": []
+		},
+		"archive_state": ARCHIVE_SERVICE_SCRIPT.default_state(),
+		"world_memory": WORLD_MEMORY_SERVICE_SCRIPT.default_state(),
+		"cookbook_state": _normalize_cookbook_state({}),
+		"narrative_progress": {
+			"layer": "public",
+			"core_reached": false,
+			"post_core_flags": []
+		},
 		"first_run_pending": true
 	}
 
@@ -98,6 +122,9 @@ static func normalize_profile(profile: Dictionary, catalog: Dictionary = {}) -> 
 	for key in default_account.keys():
 		if not account.has(key):
 			account[key] = default_account[key]
+	account["public_id"] = str(account.get("public_id", "")).strip_edges()
+	if account["public_id"].is_empty():
+		account["public_id"] = PROFILE_IDENTITY_STATE_SCRIPT.default_public_id(str(account.get("display_name", "Delver")))
 	account["xp"] = int(account.get("xp", 0))
 	account["level"] = int(account.get("level", 1))
 	account["runs"] = int(account.get("runs", 0))
@@ -172,8 +199,15 @@ static func normalize_profile(profile: Dictionary, catalog: Dictionary = {}) -> 
 	for key in Dictionary(normalized.get("settings", {})).keys():
 		settings[key] = Dictionary(normalized.get("settings", {})).get(key)
 	normalized["settings"] = settings
+	normalized["multimodal_contract"] = MULTIMODAL_CONTRACT_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("multimodal_contract", {})))
+	normalized["delvemind_experiment_state"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(normalized.get("delvemind_experiment_state", {})))
 	normalized["run_history"] = Array(normalized.get("run_history", [])).slice(0, HISTORY_LIMIT)
-	normalized["schema_version"] = 1
+	normalized["crawl_history"] = Array(normalized.get("crawl_history", [])).slice(0, CRAWL_SERVICE_SCRIPT.CRAWL_HISTORY_LIMIT)
+	normalized["archive_state"] = ARCHIVE_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("archive_state", {})))
+	normalized["world_memory"] = WORLD_MEMORY_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("world_memory", {})))
+	normalized["cookbook_state"] = _normalize_cookbook_state(Dictionary(normalized.get("cookbook_state", {})))
+	CRAWL_SERVICE_SCRIPT.normalize_profile_fields(normalized)
+	normalized["schema_version"] = 2
 	normalized["first_run_pending"] = bool(normalized.get("first_run_pending", true))
 	_unlock_progression_cosmetics(normalized, current_catalog)
 	return normalized
@@ -258,10 +292,55 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	var unlocked_cosmetics := _new_string_entries(owned_before, Array(Dictionary(next_profile.get("cosmetics", {})).get("owned", [])))
 	var unlocked_achievements := _unlock_achievements(next_profile, run_record, current_catalog)
 	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	var frame := FRAMING_SERVICE_SCRIPT.build_run_frame(run_record, diagnostics, next_profile)
+	var crawl_result := CRAWL_SERVICE_SCRIPT.apply_run(next_profile, run_record, diagnostics, frame)
+	next_profile["cookbook_state"] = _advance_cookbook_state(
+		Dictionary(next_profile.get("cookbook_state", {})),
+		next_profile,
+		run_record,
+		diagnostics,
+		frame
+	)
+	var world_memory := WORLD_MEMORY_SERVICE_SCRIPT.apply_run(
+		Dictionary(next_profile.get("world_memory", {})),
+		{
+			"profile": next_profile,
+			"narrative_progress": Dictionary(next_profile.get("narrative_progress", {})),
+			"run_record": run_record,
+			"diagnostics": diagnostics,
+			"frame": frame,
+			"crawl_packet": Dictionary(crawl_result.get("crawl_packet", {}))
+		}
+	)
+	next_profile["world_memory"] = world_memory
+	var archive_state := ARCHIVE_SERVICE_SCRIPT.apply_run(
+		Dictionary(next_profile.get("archive_state", {})),
+		{
+			"archive_state": Dictionary(next_profile.get("archive_state", {})),
+			"profile": next_profile,
+			"narrative_progress": Dictionary(next_profile.get("narrative_progress", {})),
+			"run_record": run_record,
+			"diagnostics": diagnostics,
+			"frame": frame,
+			"crawl_packet": Dictionary(crawl_result.get("crawl_packet", {})),
+			"world_memory": world_memory
+		}
+	)
+	next_profile["archive_state"] = archive_state
+	next_profile["narrative_progress"] = PROFILE_PROGRESSION_SCRIPT.advance_narrative_progress(
+		Dictionary(next_profile.get("narrative_progress", {})),
+		run_record,
+		diagnostics,
+		frame,
+		Dictionary(crawl_result.get("crawl_packet", {})),
+		world_memory,
+		archive_state
+	)
 
 	var last_run := {
 		"seed": int(run_record.get("seed", 0)),
 		"end_reason": str(run_record.get("end_reason", "")),
+		"local_peer_id": int(run_record.get("local_peer_id", -1)),
 		"local_role": local_role,
 		"role_result_success": role_result_success,
 		"interrupted": interrupted,
@@ -277,6 +356,11 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"unlocked_cosmetics": unlocked_cosmetics.duplicate(),
 		"unlocked_achievements": unlocked_achievements.duplicate(),
 		"diagnostics": diagnostics.duplicate(true),
+		"frame": frame.duplicate(true),
+		"crawl_id": str(Dictionary(crawl_result.get("crawl_packet", {})).get("crawl_id", "")),
+		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
+		"archive_preview": ARCHIVE_SERVICE_SCRIPT.build_archive_lines(next_profile),
+		"world_memory_lines": WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory),
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).duplicate(),
 		"action_summary": Array(run_record.get("action_summary", [])).duplicate(),
@@ -300,6 +384,9 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"mastery_gain": int(rewards.get("mastery_xp", 0)),
 		"report_path": str(run_record.get("report_path", "")),
 		"diagnostics": diagnostics.duplicate(true),
+		"frame": frame.duplicate(true),
+		"crawl_id": str(Dictionary(crawl_result.get("crawl_packet", {})).get("crawl_id", "")),
+		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).slice(0, 3),
 		"action_summary": Array(run_record.get("action_summary", [])).slice(0, 3)
@@ -328,15 +415,16 @@ static func build_profile_summary_lines(profile: Dictionary, catalog: Dictionary
 	var equipped: Dictionary = Dictionary(Dictionary(current.get("cosmetics", {})).get("equipped", {}))
 	var title := _display_name_for_cosmetic(str(equipped.get("title", "")), catalog)
 	var banner := _display_name_for_cosmetic(str(equipped.get("banner", "")), catalog)
-	return [
-		"Rank %d | XP %d" % [int(account.get("level", 1)), int(account.get("xp", 0))],
-		"Runs: %d | Expedition wins: %d | Sabotage wins: %d" % [
-			int(account.get("runs", 0)),
-			int(account.get("expedition_wins", 0)),
-			int(account.get("sabotage_wins", 0))
-		],
-		"Title: %s | Banner: %s" % [title, banner]
-	]
+	var lines: Array[String] = []
+	lines.append("Rank %d | XP %d" % [int(account.get("level", 1)), int(account.get("xp", 0))])
+	lines.append(
+		"Runs: %d | Expedition wins: %d | Sabotage wins: %d"
+		% [int(account.get("runs", 0)), int(account.get("expedition_wins", 0)), int(account.get("sabotage_wins", 0))]
+	)
+	lines.append("Title: %s | Banner: %s" % [title, banner])
+	lines.append_array(CRAWL_SERVICE_SCRIPT.build_active_crawl_lines(current))
+	lines.append_array(CRAWL_SERVICE_SCRIPT.build_persona_lines(current).slice(0, 1))
+	return _to_string_array(lines.slice(0, 5))
 
 static func build_profile_card_lines(profile: Dictionary, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -345,11 +433,27 @@ static func build_profile_card_lines(profile: Dictionary, catalog: Dictionary = 
 	var equipped: Dictionary = Dictionary(Dictionary(current.get("cosmetics", {})).get("equipped", {}))
 	var title := _display_name_for_cosmetic(str(equipped.get("title", "")), current_catalog)
 	var banner := _display_name_for_cosmetic(str(equipped.get("banner", "")), current_catalog)
-	return [
-		"%s // %s" % [title, banner],
-		"Expedition Rank %d" % int(account.get("level", 1)),
-		"Delver history: %d runs logged" % int(account.get("runs", 0))
-	]
+	var lines: Array[String] = []
+	lines.append("%s // %s" % [title, banner])
+	lines.append("Expedition Rank %d" % int(account.get("level", 1)))
+	lines.append("Delver history: %d runs logged" % int(account.get("runs", 0)))
+	var crawl_lines := CRAWL_SERVICE_SCRIPT.build_active_crawl_lines(current)
+	if crawl_lines.size() > 0:
+		lines.append(crawl_lines[0])
+	var persona_lines := CRAWL_SERVICE_SCRIPT.build_persona_lines(current)
+	if not persona_lines.is_empty():
+		lines.append(persona_lines[0])
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines.slice(0, 4))
+
+static func build_public_identity_card(profile: Dictionary, catalog: Dictionary = {}) -> Dictionary:
+	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
+	var current := normalize_profile(profile, current_catalog)
+	return FRAMING_SERVICE_SCRIPT.guard_entry(PROFILE_IDENTITY_STATE_SCRIPT.build_public_identity_card(
+		current,
+		func(cosmetic_id: String) -> String:
+			return _display_name_for_cosmetic(cosmetic_id, current_catalog),
+		FRAMING_SERVICE_SCRIPT.build_home_heat_line(Dictionary(Dictionary(current.get("last_run", {})).get("frame", {})))
+	))
 
 static func build_progression_preview_lines(profile: Dictionary, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -367,7 +471,73 @@ static func build_progression_preview_lines(profile: Dictionary, catalog: Dictio
 	elif not unlocked_achievements.is_empty():
 		var achievement := PRODUCT_CATALOG_SCRIPT.get_achievement(str(unlocked_achievements[0]), current_catalog)
 		lines.append("Recent milestone: %s" % str(achievement.get("display_name", unlocked_achievements[0])))
-	return lines
+	var archive_lines := ARCHIVE_SERVICE_SCRIPT.build_archive_lines(current)
+	if not archive_lines.is_empty():
+		lines.append(archive_lines[0])
+	var progress_lines := PROFILE_PROGRESSION_SCRIPT.build_narrative_progress_lines(
+		Dictionary(current.get("narrative_progress", {})),
+		Dictionary(current.get("archive_state", {})),
+		Dictionary(current.get("world_memory", {}))
+	)
+	var narrative_progress: Dictionary = Dictionary(current.get("narrative_progress", {}))
+	var progress_flags := _to_string_array(narrative_progress.get("post_core_flags", []))
+	var progress_layer := str(narrative_progress.get("layer", "public"))
+	var world_memory := Dictionary(current.get("world_memory", {}))
+	var myth_field := Dictionary(world_memory.get("myth_field", {}))
+	var top_successor := Dictionary(myth_field.get("top_successor", {}))
+	var archive_legends := Array(Dictionary(current.get("archive_state", {})).get("legends", []))
+	var archive_depth_line := ""
+	var progression_signal_line := ""
+	var preferred_progression_markers := [
+		"Separate echoes are beginning to answer each other directly.",
+		"A familiar reading is starting to bend away from itself.",
+		"Competing readings are starting to matter as much as the events themselves.",
+		"Recent reversals are forcing older legends to answer for themselves.",
+		"A newer reading is starting to displace an older legend.",
+		"Archive depth: repeated challenges are starting to read like lessons with motives.",
+		"Archive depth: the same pressures now feel like they are being anticipated in advance."
+	]
+	for line in progress_lines:
+		var text := str(line).strip_edges()
+		if text.is_empty():
+			continue
+		if archive_depth_line.is_empty() and text.begins_with("Archive depth:"):
+			archive_depth_line = text
+			continue
+		var preferred := false
+		for marker in preferred_progression_markers:
+			if text == marker:
+				preferred = true
+				break
+		if preferred:
+			progression_signal_line = text
+			continue
+		if progression_signal_line.is_empty():
+			progression_signal_line = text
+	if not archive_depth_line.is_empty():
+		lines.append(archive_depth_line)
+	if progression_signal_line.is_empty():
+		if progress_flags.has("field_resonance"):
+			progression_signal_line = "Separate echoes are beginning to answer each other directly."
+		elif progress_flags.has("pattern_revision") or progress_flags.has("attention_model") or progress_flags.has("curriculum_drift"):
+			progression_signal_line = "A familiar reading is starting to bend away from itself."
+		elif progress_flags.has("school_split"):
+			progression_signal_line = "Competing readings are starting to matter as much as the events themselves."
+	if progression_signal_line.is_empty():
+		if Array(myth_field.get("active_lines", [])).size() >= 1 and archive_legends.size() >= 1:
+			progression_signal_line = "Separate echoes are beginning to answer each other directly."
+		elif not str(top_successor.get("hint", "")).strip_edges().is_empty():
+			progression_signal_line = "A familiar reading is starting to bend away from itself."
+		elif not str(Dictionary(last_run.get("frame", {})).get("school_tension", "")).strip_edges().is_empty():
+			progression_signal_line = "Competing readings are starting to matter as much as the events themselves."
+	if progression_signal_line.is_empty() and progress_layer != "public":
+		if progress_layer == "deepening" or progress_layer == "post_core":
+			progression_signal_line = "A familiar reading is starting to bend away from itself."
+		else:
+			progression_signal_line = "Competing readings are starting to matter as much as the events themselves."
+	if not progression_signal_line.is_empty():
+		lines.append(progression_signal_line)
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
 
 static func build_home_overview_lines(profile: Dictionary, session_overview: Dictionary = {}, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -375,10 +545,80 @@ static func build_home_overview_lines(profile: Dictionary, session_overview: Dic
 	var account: Dictionary = Dictionary(current.get("account", {}))
 	var lines: Array[String] = []
 	lines.append("Rank %d | %d runs logged" % [int(account.get("level", 1)), int(account.get("runs", 0))])
-	lines.append("Next rank: %s" % next_track_preview("account", int(account.get("xp", 0)), current_catalog))
-	lines.append("Momentum: %s" % _build_home_momentum_line(current, current_catalog))
-	lines.append("Continuity: %s" % _build_party_continuity_line(current, session_overview))
-	return lines
+	var crawl_lines := CRAWL_SERVICE_SCRIPT.build_active_crawl_lines(current)
+	var relationship_lines := PROFILE_SHELL_BUILDERS_SCRIPT.build_relationship_preview_lines(current)
+	var next_rank := next_track_preview("account", int(account.get("xp", 0)), current_catalog)
+	lines.append("Next rank: %s" % next_rank)
+	lines.append("Momentum: %s" % PROFILE_SHELL_BUILDERS_SCRIPT.build_home_momentum_line(current, next_rank, crawl_lines, relationship_lines))
+	lines.append("Continuity: %s" % PROFILE_SHELL_BUILDERS_SCRIPT.build_party_continuity_line(current, session_overview))
+	var live_brief := _session_delve_brief_line(session_overview)
+	if not live_brief.is_empty():
+		lines.append("Live briefing: %s" % live_brief)
+	if crawl_lines.size() > 1:
+		lines.append(crawl_lines[1])
+	var world_lines := WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(Dictionary(current.get("world_memory", {})))
+	if not world_lines.is_empty():
+		lines.append(world_lines[0])
+		if world_lines.size() >= 2:
+			lines.append(world_lines[1])
+	if not relationship_lines.is_empty():
+		lines.append(relationship_lines[0])
+	var archive_lines := ARCHIVE_SERVICE_SCRIPT.build_archive_lines(current)
+	var archive_compare := ""
+	for archive_line in archive_lines:
+		var text := str(archive_line).strip_edges()
+		if text.begins_with("Compare:"):
+			archive_compare = text
+			break
+	if not archive_compare.is_empty():
+		lines.append(archive_compare)
+	var last_frame := Dictionary(Dictionary(current.get("last_run", {})).get("frame", {}))
+	var challenge_attention := str(last_frame.get("challenge_attention", "")).strip_edges()
+	if not challenge_attention.is_empty():
+		lines.append("Challenge: %s" % challenge_attention)
+	var doctrine_line := str(last_frame.get("doctrine_line", "")).strip_edges()
+	if not doctrine_line.is_empty():
+		lines.append("Doctrine: %s" % doctrine_line)
+	var build_line := str(last_frame.get("build_line", "")).strip_edges()
+	var presence_line := str(last_frame.get("inhabitant_line", "")).strip_edges()
+	var build_presence_line := _home_overview_build_presence_line(build_line, presence_line)
+	if not build_presence_line.is_empty():
+		lines.append(build_presence_line)
+	var governance_line := str(last_frame.get("governance_line", "")).strip_edges()
+	if not governance_line.is_empty():
+		lines.append("World pressure: %s" % governance_line)
+	var carryover := str(last_frame.get("ritual_pressure", "")).strip_edges()
+	if carryover.is_empty():
+		carryover = str(Dictionary(current.get("active_crawl", {})).get("promise_pressure", "")).strip_edges()
+	if carryover.is_empty():
+		carryover = str(Dictionary(current.get("active_crawl", {})).get("public_challenge", "")).strip_edges()
+	if carryover.is_empty():
+		carryover = str(last_frame.get("belief_line", "")).strip_edges()
+	if not carryover.is_empty():
+		lines.append("Carryover: %s" % carryover)
+	var active_crawl: Dictionary = Dictionary(current.get("active_crawl", {}))
+	var memorial := _first_string(_to_string_array(active_crawl.get("memorial_residue", [])), "")
+	if not memorial.is_empty():
+		lines.append("Memorial: %s" % memorial)
+	var progress_lines := PROFILE_PROGRESSION_SCRIPT.build_narrative_progress_lines(
+		Dictionary(current.get("narrative_progress", {})),
+		Dictionary(current.get("archive_state", {})),
+		Dictionary(current.get("world_memory", {}))
+	)
+	if not progress_lines.is_empty():
+		lines.append(progress_lines[0])
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
+
+static func _home_overview_build_presence_line(build_line: String, presence_line: String) -> String:
+	var build_text := str(build_line).strip_edges()
+	var presence_text := str(presence_line).strip_edges()
+	if not build_text.is_empty() and not presence_text.is_empty():
+		return "Build / Presence: %s; %s" % [build_text, presence_text]
+	if not build_text.is_empty():
+		return "Build: %s" % build_text
+	if not presence_text.is_empty():
+		return "Presence: %s" % presence_text
+	return ""
 
 static func build_mastery_lines(profile: Dictionary, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -598,6 +838,11 @@ static func build_history_browser_state(profile: Dictionary, filter_mode: String
 		detail_lines = _to_string_array(models[resolved_index].get("full_review_lines", []))
 		compare_bundle = _build_run_review_compare_bundle(models, resolved_index, compare_index, filter_mode, sort_mode)
 		compare_lines = _to_string_array(compare_bundle.get("lines", []))
+	summary_lines = FRAMING_SERVICE_SCRIPT.guard_lines(summary_lines)
+	focus_lines = FRAMING_SERVICE_SCRIPT.guard_lines(focus_lines)
+	compare_lines = FRAMING_SERVICE_SCRIPT.guard_lines(compare_lines)
+	detail_lines = FRAMING_SERVICE_SCRIPT.guard_lines(detail_lines)
+	entries = FRAMING_SERVICE_SCRIPT.guard_entries(entries)
 	return {
 		"entries": entries,
 		"selected_index": resolved_index,
@@ -627,12 +872,18 @@ static func build_collection_lines(profile: Dictionary, catalog: Dictionary = {}
 	var item_service: RefCounted = ITEM_SERVICE_SCRIPT.new()
 	var discoveries: Dictionary = current.get("discoveries", {})
 	var discovered_items: Array = discoveries.get("item_defs", [])
+	var item_library_ids: Array[String] = item_service.item_library_ids()
 	var lines: Array[String] = []
-	lines.append("Items discovered: %d / %d" % [discovered_items.size(), item_service.ITEM_IDS.size()])
-	for item_id in item_service.ITEM_IDS:
+	lines.append("Items discovered: %d / %d" % [discovered_items.size(), item_library_ids.size()])
+	var world_memory: Dictionary = Dictionary(current.get("world_memory", {}))
+	var top_item_entries := WORLD_MEMORY_SERVICE_SCRIPT.top_bucket_entries(world_memory, "item", 1)
+	if not top_item_entries.is_empty():
+		var top_item: Dictionary = Dictionary(top_item_entries[0])
+		lines.append("Current item field: %s | %s" % [str(top_item.get("label", "")), str(top_item.get("pull", "watching")).replace("_", " ")])
+	for item_id in item_library_ids:
 		var status := "[Seen]" if discovered_items.has(item_id) else "[Locked]"
 		lines.append("%s %s" % [status, item_service.get_display_name(item_id)])
-	return lines
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
 
 static func collection_sections() -> Array[String]:
 	return ["Items", "Rooms", "Artifacts", "Clues", "Roles"]
@@ -645,18 +896,55 @@ static func build_collection_entries(profile: Dictionary, section: String, catal
 	match section:
 		"Items":
 			var item_service = ITEM_SERVICE_SCRIPT.new()
-			for item_id in item_service.ITEM_IDS:
+			var item_library_ids: Array[String] = item_service.item_library_ids()
+			var world_items: Dictionary = Dictionary(Dictionary(Dictionary(current.get("world_memory", {})).get("myths", {})).get("item", {}))
+			for item_id in item_library_ids:
 				var item_def: Dictionary = item_service.get_definition(item_id)
+				var authoring: Dictionary = item_service.build_authoring_profile(item_id)
+				var narrative: Dictionary = Dictionary(authoring.get("narrative", {}))
+				var gameplay: Dictionary = Dictionary(authoring.get("gameplay", {}))
+				var world_entry: Dictionary = Dictionary(world_items.get("item:%s" % str(item_id), {}))
 				var discovered := Array(discoveries.get("item_defs", [])).has(item_id)
+				var successor_hint := str(world_entry.get("successor_hint", "")).strip_edges()
+				var resonance_tags := _to_string_array(world_entry.get("resonance_tags", []))
+				var shadow_tags := _to_string_array(world_entry.get("shadow_tags", []))
+				var damping_tags := _to_string_array(world_entry.get("damping_tags", []))
+				var latent_dimensions: Dictionary = Dictionary(gameplay.get("latent_dimensions", {}))
+				var detail_lines := [
+					item_service.get_display_name(item_id),
+					"Type: %s" % str(item_def.get("category", "tool")).capitalize(),
+					"Archetypes: %s" % ", ".join(item_service.get_archetypes(item_id)),
+					"Public trace: %s" % str(item_def.get("public_evidence", "none")).replace("_", " "),
+					"Drama roles: %s" % ", ".join(Array(narrative.get("roles", []))),
+					"Sociality: %s" % ", ".join(Array(narrative.get("sociality", []))),
+					"Reputation: %s" % ", ".join(Array(narrative.get("reputation", []))),
+					"Plurality: %s" % ", ".join(Array(narrative.get("plurality", []))),
+					"Handling: %s" % ", ".join(Array(narrative.get("handling", []))),
+					"Branch pull: %s" % ", ".join(Array(narrative.get("branch_affinity", []))),
+					"Protocol affinity: %s" % ", ".join(Array(gameplay.get("protocol_affinity", []))),
+					"Model hooks: %s" % ", ".join(Array(narrative.get("model_hooks", []))),
+					"Latent pull: %s" % ("%s / %s / %s" % [
+						str(latent_dimensions.get("rescue", 0)),
+						str(latent_dimensions.get("burden", 0)),
+						str(latent_dimensions.get("anti_protocol_potential", 0))
+					]),
+					"Behavior signals: %s" % ", ".join(Array(gameplay.get("behavior_signals", []))),
+					"Ritual hooks: %s" % ", ".join(Array(gameplay.get("ritual_hooks", []))),
+					"Anomaly hooks: %s" % ", ".join(Array(gameplay.get("anomaly_hooks", []))),
+					"Resource hooks: %s" % ", ".join(Array(gameplay.get("resource_hooks", []))),
+					"Control pull: %s" % str(gameplay.get("control_pull", 0)),
+					"Field: %s" % _title_case(str(world_entry.get("phase", "emergence")).replace("_", " ")),
+					"Current pull: %s" % str(world_entry.get("pull", "watching")).replace("_", " "),
+					"Resonance: %s" % _first_string(resonance_tags, "-"),
+					"Shadow: %s" % _first_string(shadow_tags, "-"),
+					"Cooling: %s" % _first_string(damping_tags, "-"),
+					"Revision: %s" % (successor_hint if not successor_hint.is_empty() else "-"),
+					"History pressure: %s" % _first_string(_to_string_array(world_entry.get("layers", [])), "-")
+				]
 				entries.append({
 					"id": item_id,
 					"label": "%s %s" % ["[Seen]" if discovered else "[Locked]", item_service.get_display_name(item_id)],
-					"detail": "%s\nType: %s\nArchetypes: %s\nPublic evidence: %s" % [
-						item_service.get_display_name(item_id),
-						str(item_def.get("category", "tool")).capitalize(),
-						", ".join(item_service.get_archetypes(item_id)),
-						str(item_def.get("public_evidence", "none")).replace("_", " ")
-					],
+					"detail": "\n".join(detail_lines),
 					"discovered": discovered
 				})
 		"Rooms":
@@ -667,14 +955,20 @@ static func build_collection_entries(profile: Dictionary, section: String, catal
 			entries = _build_catalog_section_entries(current_catalog, "clue_families", Array(discoveries.get("clue_families", [])))
 		"Roles":
 			entries = _build_catalog_section_entries(current_catalog, "roles", Array(discoveries.get("roles", [])))
-	return entries
+	return FRAMING_SERVICE_SCRIPT.guard_entries(entries)
 
 static func build_codex_lines(profile: Dictionary, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
 	var current := normalize_profile(profile, current_catalog)
 	var discoveries: Dictionary = current.get("discoveries", {})
 	var lines: Array[String] = []
-	for section in ["room_families", "artifact_states", "clue_families"]:
+	for section in build_codex_sections(current, current_catalog):
+		if ARCHIVE_SERVICE_SCRIPT.dynamic_sections().has(section):
+			lines.append(_title_case(section))
+			for entry in ARCHIVE_SERVICE_SCRIPT.build_dynamic_entries(current, section).slice(0, 3):
+				lines.append("[Known] %s" % str(Dictionary(entry).get("label", "")))
+			lines.append("")
+			continue
 		lines.append(section.replace("_", " ").capitalize())
 		for entry in PRODUCT_CATALOG_SCRIPT.codex_entries(section, current_catalog):
 			var entry_id := str(entry.get("id", ""))
@@ -683,13 +977,23 @@ static func build_codex_lines(profile: Dictionary, catalog: Dictionary = {}) -> 
 		lines.append("")
 	if not lines.is_empty() and str(lines[lines.size() - 1]).is_empty():
 		lines.remove_at(lines.size() - 1)
-	return lines
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
+
+static func build_codex_sections(profile: Dictionary = {}, catalog: Dictionary = {}) -> Array[String]:
+	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
+	var sections := PRODUCT_CATALOG_SCRIPT.codex_sections(current_catalog)
+	for section in ARCHIVE_SERVICE_SCRIPT.dynamic_sections():
+		if not sections.has(section):
+			sections.append(section)
+	return sections
 
 static func build_codex_entries(profile: Dictionary, section: String, catalog: Dictionary = {}) -> Array[Dictionary]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
 	var current := normalize_profile(profile, current_catalog)
+	if ARCHIVE_SERVICE_SCRIPT.dynamic_sections().has(section):
+		return FRAMING_SERVICE_SCRIPT.guard_entries(ARCHIVE_SERVICE_SCRIPT.build_dynamic_entries(current, section))
 	var discovery_key := section_to_discovery_key(section)
-	return _build_catalog_section_entries(current_catalog, section, Array(Dictionary(current.get("discoveries", {})).get(discovery_key, [])))
+	return FRAMING_SERVICE_SCRIPT.guard_entries(_build_catalog_section_entries(current_catalog, section, Array(Dictionary(current.get("discoveries", {})).get(discovery_key, []))))
 
 static func build_last_run_lines(profile: Dictionary) -> Array[String]:
 	var current := normalize_profile(profile)
@@ -697,7 +1001,9 @@ static func build_last_run_lines(profile: Dictionary) -> Array[String]:
 	if last_run.is_empty():
 		return ["No runs recorded yet."]
 	var model := _build_run_review_model(last_run)
-	return Array(model.get("focus_packet_lines", []))
+	var lines: Array[String] = Array(model.get("focus_packet_lines", []))
+	lines.append_array(FRAMING_SERVICE_SCRIPT.build_focus_lines(Dictionary(last_run.get("frame", {}))).slice(0, 2))
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines.slice(0, 8))
 
 static func build_last_run_reward_lines(profile: Dictionary, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -729,32 +1035,46 @@ static func build_last_run_diagnostic_lines(profile: Dictionary) -> Array[String
 		lines.append("Recovery: %s" % str(model.get("interruption_context", "Review only")))
 	else:
 		lines.append("Reopen cue: %s" % str(model.get("standout_reason", "Run review ready")))
-	return lines.slice(0, 2)
+	var frame: Dictionary = Dictionary(last_run.get("frame", {}))
+	if not frame.is_empty():
+		lines.append("Broadcast: %s" % str(frame.get("broadcast_headline", "Run story ready")))
+		lines.append("Heat: %s" % FRAMING_SERVICE_SCRIPT.build_home_heat_line(frame))
+	return lines.slice(0, 4)
 
 static func build_continue_guidance_lines(profile: Dictionary, session_overview: Dictionary = {}) -> Array[String]:
 	var current := normalize_profile(profile)
 	var last_run: Dictionary = Dictionary(current.get("last_run", {}))
+	var live_brief := _session_delve_brief_line(session_overview)
 	var reconnect_target := ""
 	if str(session_overview.get("join_address", "")).strip_edges() != "" and int(session_overview.get("join_port", 0)) > 0:
 		reconnect_target = "%s:%d" % [str(session_overview.get("join_address", "")), int(session_overview.get("join_port", 0))]
 	if bool(session_overview.get("reconnect_wait_for_lobby", false)):
-		return [
+		var lines: Array[String] = [
 			"Next: wait for the host lobby, then reconnect.",
 			"Why: this interrupted run can only regroup safely from lobby state.",
 			"Also: reopen the interrupted run in Profile."
 		]
+		if not live_brief.is_empty():
+			lines[1] = "Why: %s, and this interrupted run can only regroup safely from lobby state." % live_brief
+		return lines
 	if bool(session_overview.get("reconnect_available", false)):
-		return [
+		var lines: Array[String] = [
 			"Next: reconnect to the current lobby%s." % [" (%s)" % reconnect_target if not reconnect_target.is_empty() else ""],
 			"Why: the session is back in a reconnect-safe state.",
 			"Also: reopen the last run first for a quick recap."
 		]
+		if not live_brief.is_empty():
+			lines[1] = "Why: the session is back in a reconnect-safe state and currently reads as %s." % live_brief
+		return lines
 	if bool(session_overview.get("connected", false)):
-		return [
+		var lines: Array[String] = [
 			"Next: ready up and start another run.",
 			"Why: the current lobby can start another run right now.",
 			"Also: reopen the strongest recent run in Profile."
 		]
+		if not live_brief.is_empty():
+			lines[1] = "Why: the current lobby can start another run right now, and the live brief is %s." % live_brief
+		return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
 	if bool(last_run.get("interrupted", false)):
 		return [
 			"Next: regroup, then host again or rejoin later.",
@@ -764,11 +1084,11 @@ static func build_continue_guidance_lines(profile: Dictionary, session_overview:
 	if not last_run.is_empty():
 		var next_rank := next_track_preview("account", int(Dictionary(current.get("account", {})).get("xp", 0)))
 		if int(last_run.get("xp_gain", 0)) > 0 or not Array(last_run.get("unlocked_cosmetics", [])).is_empty() or not Array(last_run.get("unlocked_achievements", [])).is_empty():
-			return [
+			return FRAMING_SERVICE_SCRIPT.guard_lines([
 				"Next: queue another run while this one is easy to compare.",
 				"Why: the last run paid progression and moved the next reward closer.",
 				"Also: %s" % next_rank
-			]
+			])
 		return [
 			"Next: queue another run or browse Profile for the last story beat.",
 			"Why: recent runs are ready to compare by interruption, tone, and callouts.",
@@ -785,6 +1105,126 @@ static func build_continue_guidance_lines(profile: Dictionary, session_overview:
 		"Why: the next run will add to history, mastery, and discoveries.",
 		"Also: browse Profile to compare your strongest recent runs."
 	]
+
+static func _session_delve_brief_line(session_overview: Dictionary) -> String:
+	var delve_protocol: Dictionary = Dictionary(session_overview.get("delve_protocol", {}))
+	if delve_protocol.is_empty():
+		return ""
+	var parts: Array[String] = []
+	var protocol_state := str(delve_protocol.get("protocol_state", "")).strip_edges()
+	var doctrine_label := str(delve_protocol.get("doctrine_label", delve_protocol.get("doctrine_family", ""))).strip_edges()
+	var pressure_line := str(delve_protocol.get("pressure_line", "")).strip_edges()
+	var world_goal := str(delve_protocol.get("world_goal", "")).strip_edges()
+	if not protocol_state.is_empty():
+		parts.append(protocol_state)
+	if not doctrine_label.is_empty():
+		parts.append(doctrine_label)
+	if not pressure_line.is_empty():
+		parts.append(pressure_line)
+	elif not world_goal.is_empty():
+		parts.append(world_goal)
+	return " | ".join(parts)
+
+static func build_lobby_roster_lines(profile: Dictionary, ready_state: Dictionary, public_cards: Dictionary, local_peer_id: int = -1) -> Array[String]:
+	var current := normalize_profile(profile)
+	var fabric: Dictionary = Dictionary(current.get("relationship_fabric", {}))
+	var players_memory: Dictionary = Dictionary(fabric.get("players", {}))
+	var pair_memory: Dictionary = Dictionary(fabric.get("pairs", {}))
+	var crew_memory: Dictionary = Dictionary(fabric.get("crews", {}))
+	var active_crawl: Dictionary = Dictionary(current.get("active_crawl", {}))
+	var world_memory: Dictionary = Dictionary(current.get("world_memory", {}))
+	var ready_keys: Array[int] = []
+	for key in ready_state.keys():
+		ready_keys.append(int(key))
+	ready_keys.sort()
+	var lines: Array[String] = []
+	var local_card: Dictionary = Dictionary(public_cards.get(str(local_peer_id), public_cards.get(local_peer_id, {})))
+	var local_public_id := str(local_card.get("public_id", "")).strip_edges()
+	var world_focus := str(Dictionary(world_memory.get("fascination", {})).get("current_focus", "")).strip_edges()
+	var world_pressure := str(Dictionary(world_memory.get("fascination", {})).get("pressure", "")).strip_edges()
+	var shared_crew_detail := ""
+	for crew_key in _to_string_array(fabric.get("recent_crews", [])):
+		var crew_entry: Dictionary = Dictionary(crew_memory.get(crew_key, {}))
+		if _to_string_array(crew_entry.get("members", [])).has(local_public_id):
+			shared_crew_detail = _first_string(
+				Array(crew_entry.get("obligations", [])),
+				str(crew_entry.get("public_reputation", crew_entry.get("status_burden", "")))
+			)
+			break
+	var crawl_memory_line := _first_string(_to_string_array(active_crawl.get("memorial_residue", [])), str(active_crawl.get("expectation_pressure", "")))
+	for peer_id in ready_keys:
+		var raw_card: Dictionary = Dictionary(public_cards.get(str(peer_id), public_cards.get(peer_id, {})))
+		var name := str(raw_card.get("display_name", "Delver"))
+		var public_id := str(raw_card.get("public_id", "peer_%d" % peer_id))
+		var state := "Ready" if bool(ready_state.get(peer_id, false)) else "Not Ready"
+		var title := str(raw_card.get("legend_hint", raw_card.get("title", ""))).strip_edges()
+		var challenge := str(raw_card.get("challenge_hint", "")).strip_edges()
+		var crew_tag := str(raw_card.get("crew_tag", "")).strip_edges()
+		var build_hint := str(raw_card.get("build_hint", "")).strip_edges()
+		var presence_hint := str(raw_card.get("presence_hint", "")).strip_edges()
+		var heat_band := str(raw_card.get("heat_band", "")).strip_edges()
+		var remembered: Dictionary = Dictionary(players_memory.get(public_id, {}))
+		if title.is_empty() and not build_hint.is_empty():
+			title = build_hint
+		if title.is_empty():
+			title = str(remembered.get("title", "Remembered delver"))
+		if challenge.is_empty():
+			challenge = _first_string(
+				Array(remembered.get("obligations", [])),
+				str(remembered.get("public_reputation", _first_string(Array(remembered.get("signals", [])), "")))
+			)
+		if challenge.is_empty() and not local_public_id.is_empty() and local_public_id != public_id:
+			for pair_key in _to_string_array(fabric.get("recent_pairs", [])):
+				var pair_entry: Dictionary = Dictionary(pair_memory.get(pair_key, {}))
+				var members := _to_string_array(pair_entry.get("members", []))
+				if members.has(local_public_id) and members.has(public_id):
+					challenge = _first_string(
+						Array(pair_entry.get("obligations", [])),
+						str(pair_entry.get("public_reputation", pair_entry.get("status_burden", _first_string(Array(pair_entry.get("signals", [])), ""))))
+					)
+					if title.is_empty():
+						title = str(pair_entry.get("title", "Recurring pair"))
+					break
+		if challenge.is_empty() and not shared_crew_detail.is_empty():
+			challenge = shared_crew_detail
+		if challenge.is_empty():
+			for crew_key in _to_string_array(fabric.get("recent_crews", [])):
+				var crew_entry: Dictionary = Dictionary(crew_memory.get(crew_key, {}))
+				if _to_string_array(crew_entry.get("members", [])).has(public_id):
+					challenge = _first_string(Array(crew_entry.get("signals", [])), "")
+					if crew_tag.is_empty():
+						crew_tag = str(crew_entry.get("title", "")).strip_edges()
+					break
+		if challenge.is_empty() and not crawl_memory_line.is_empty():
+			challenge = crawl_memory_line
+		if challenge.is_empty() and not str(active_crawl.get("public_challenge", "")).strip_edges().is_empty():
+			challenge = str(active_crawl.get("public_challenge", ""))
+		if challenge.is_empty():
+			challenge = _first_string(_to_string_array(active_crawl.get("belief_pressure", [])), "")
+		if challenge.is_empty() and not presence_hint.is_empty():
+			challenge = presence_hint
+		if challenge.is_empty() and not world_focus.is_empty():
+			challenge = "Watching %s" % world_focus
+		if challenge.is_empty() and not world_pressure.is_empty():
+			challenge = world_pressure
+		var prefix := "You (%s)" % name if peer_id == local_peer_id and local_peer_id > 0 else name
+		var line := "%s - %s" % [prefix, state]
+		if not title.is_empty():
+			line += " | %s" % title
+		if not crew_tag.is_empty():
+			line += " | %s" % crew_tag
+		if not challenge.is_empty():
+			var challenge_text := challenge
+			var challenge_lower := challenge_text.to_lower()
+			if not challenge_lower.begins_with("challenge:") and not challenge_lower.begins_with("watching ") and not challenge_lower.begins_with("owes "):
+				challenge_text = "Challenge: %s" % challenge_text
+			line += " | %s" % challenge_text
+		if not heat_band.is_empty() and heat_band != "-":
+			line += " | Heat %s" % heat_band
+		lines.append(line)
+	if lines.is_empty():
+		lines.append("No delvers connected.")
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
 
 static func build_cosmetic_lines(profile: Dictionary, category: String, catalog: Dictionary = {}) -> Array[String]:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -849,6 +1289,8 @@ static func build_settings_help_lines(profile: Dictionary) -> Array[String]:
 static func build_voice_surface_lines(profile: Dictionary, session_overview: Dictionary = {}) -> Array[String]:
 	var current := normalize_profile(profile)
 	var settings: Dictionary = current.get("settings", {})
+	var multimodal_contract: Dictionary = Dictionary(current.get("multimodal_contract", {}))
+	var voice_contract_ready := MULTIMODAL_CONTRACT_SERVICE_SCRIPT.can_emit_summary(multimodal_contract, "voice_policy", "archive_summary")
 	var mode := str(settings.get("voice_mode", "off"))
 	var lines: Array[String] = []
 	match mode:
@@ -872,6 +1314,10 @@ static func build_voice_surface_lines(profile: Dictionary, session_overview: Dic
 		lines.append("Lifecycle: reconnect state keeps voice policy ready for the next lobby rejoin.")
 	else:
 		lines.append("Lifecycle: voice policy is saved locally for the next hosted or joined lobby.")
+	if voice_contract_ready:
+		lines.append("Consent: voice policy is explicitly opted in for shell/archive-safe summaries only.")
+	else:
+		lines.append("Consent: multimodal summaries stay disabled until explicit opt-in is granted.")
 	lines.append("Fallback: room callouts remain the fairness-safe option during platforming.")
 	return lines
 
@@ -936,6 +1382,15 @@ static func toggle_voice_mode(profile: Dictionary, catalog: Dictionary = {}) -> 
 	elif current_mode == "open_mic":
 		next_mode = "off"
 	return set_setting(current, "voice_mode", next_mode, catalog)
+
+static func set_multimodal_modality_consent(profile: Dictionary, modality_id: String, enabled: bool, catalog: Dictionary = {}) -> Dictionary:
+	var current := normalize_profile(profile, PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog)
+	current["multimodal_contract"] = MULTIMODAL_CONTRACT_SERVICE_SCRIPT.set_modality_consent(
+		Dictionary(current.get("multimodal_contract", {})),
+		modality_id,
+		enabled
+	)
+	return current
 
 static func reset_settings(profile: Dictionary, catalog: Dictionary = {}) -> Dictionary:
 	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
@@ -1050,6 +1505,7 @@ static func _build_run_review_model(entry: Dictionary) -> Dictionary:
 	var key_clues := Array(entry.get("key_clues", []))
 	var actions := Array(entry.get("action_summary", []))
 	var standout_reason := _build_run_review_standout_reason(entry, diagnostics)
+	var frame: Dictionary = Dictionary(entry.get("frame", {}))
 	var key := _history_entry_key(entry)
 	var model := {
 		"key": key,
@@ -1079,6 +1535,9 @@ static func _build_run_review_model(entry: Dictionary) -> Dictionary:
 		"highlight_tags": tags,
 		"compact_tags": compact_tags,
 		"diagnostics": diagnostics,
+		"frame": frame,
+		"crawl_id": str(entry.get("crawl_id", "")),
+		"crawl_title": str(entry.get("crawl_title", "")),
 		"key_clues": key_clues,
 		"actions": actions
 	}
@@ -1397,6 +1856,8 @@ static func _build_run_review_standout_reason(entry: Dictionary, diagnostics: Di
 	return RUN_STORY_DIAGNOSTICS_SCRIPT.build_memorable_reason(diagnostics)
 
 static func _build_run_review_reopen_reason(model: Dictionary) -> String:
+	if bool(model.get("interrupted", false)):
+		return "interruption review plus lobby regroup context" if str(model.get("interruption_context", "")) == "Wait for lobby" else "interruption review with reconnect-safe context"
 	var revisit_reason := str(model.get("revisit_reason", "")).strip_edges()
 	if revisit_reason.is_empty() or revisit_reason == "light recap value":
 		return str(model.get("memorable_reason", "Run review ready"))
@@ -1536,6 +1997,8 @@ static func _curated_history_score(entry: Dictionary, model: Dictionary, mode: S
 		"latest":
 			return 100000 - canonical_index
 		"dramatic":
+			if bool(entry.get("interrupted", false)):
+				return -2147483648
 			return int(Dictionary(model.get("diagnostics", {})).get("story_density", 0)) * 4 + int(model.get("dramatic_rank", 0)) * 25 - canonical_index
 		"rewarding":
 			return _reward_significance_rank(entry) * 100 + int(entry.get("xp_gain", 0)) + int(entry.get("mastery_gain", 0)) - canonical_index
@@ -1744,9 +2207,12 @@ static func _build_contextual_reopen_reason(selected: Dictionary, peer: Dictiona
 				return "its review signal is clearer in this view"
 	return "it is the clearer run to reopen in this view"
 
+static func _title_case(text: String) -> String:
+	return text.strip_edges().replace("_", " ").capitalize()
+
 static func _unlock_achievements(profile: Dictionary, run_record: Dictionary, catalog: Dictionary) -> Array[String]:
 	var achievements_state: Dictionary = Dictionary(profile.get("achievements", {}))
-	var unlocked: Array[String] = Array(achievements_state.get("unlocked", []))
+	var unlocked: Array[String] = _to_string_array(achievements_state.get("unlocked", []))
 	var newly_unlocked: Array[String] = []
 	var account: Dictionary = Dictionary(profile.get("account", {}))
 	var mastery: Dictionary = Dictionary(profile.get("mastery", {}))
@@ -1864,7 +2330,7 @@ static func _new_string_entries(previous: Array, current: Array) -> Array[String
 
 static func _unlock_progression_cosmetics(profile: Dictionary, catalog: Dictionary) -> void:
 	var cosmetics: Dictionary = Dictionary(profile.get("cosmetics", {}))
-	var owned: Array[String] = cosmetics.get("owned", [])
+	var owned: Array[String] = _to_string_array(cosmetics.get("owned", []))
 	var account_level := int(Dictionary(profile.get("account", {})).get("level", 1))
 	var mastery: Dictionary = profile.get("mastery", {})
 	for cosmetic in PRODUCT_CATALOG_SCRIPT.get_cosmetics("", catalog):
@@ -1890,3 +2356,266 @@ static func _display_name_for_cosmetic(cosmetic_id: String, catalog: Dictionary 
 		return "-"
 	var cosmetic := PRODUCT_CATALOG_SCRIPT.get_cosmetic(cosmetic_id, PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog)
 	return str(cosmetic.get("display_name", cosmetic_id))
+
+static func _public_legend_hint(profile: Dictionary) -> String:
+	var persona: Dictionary = Dictionary(profile.get("persona_state", {}))
+	var scores: Dictionary = Dictionary(persona.get("archetype_scores", {}))
+	var best_key := ""
+	var best_score := -1
+	for key in scores.keys():
+		var score := int(scores.get(key, 0))
+		if score > best_score:
+			best_score = score
+			best_key = str(key)
+	if best_key.is_empty():
+		return "Delver"
+	return _title_case(best_key.replace("_", " "))
+
+static func _public_challenge_hint(profile: Dictionary) -> String:
+	var active_crawl: Dictionary = Dictionary(profile.get("active_crawl", {}))
+	var pressure := str(active_crawl.get("expectation_pressure", "")).strip_edges()
+	if not pressure.is_empty():
+		return pressure
+	var persona: Dictionary = Dictionary(profile.get("persona_state", {}))
+	return _first_string(Array(persona.get("public_expectations", [])), "")
+
+static func _public_crew_tag(profile: Dictionary) -> String:
+	var fabric: Dictionary = Dictionary(profile.get("relationship_fabric", {}))
+	var crews: Dictionary = Dictionary(fabric.get("crews", {}))
+	var recent_crews := _to_string_array(fabric.get("recent_crews", []))
+	if recent_crews.is_empty():
+		return ""
+	var entry: Dictionary = Dictionary(crews.get(recent_crews[0], {}))
+	return str(entry.get("title", "")).strip_edges()
+
+static func _build_relationship_preview_lines(profile: Dictionary) -> Array[String]:
+	var fabric: Dictionary = Dictionary(profile.get("relationship_fabric", {}))
+	var players: Dictionary = Dictionary(fabric.get("players", {}))
+	var pairs: Dictionary = Dictionary(fabric.get("pairs", {}))
+	var crews: Dictionary = Dictionary(fabric.get("crews", {}))
+	var recent_players := _to_string_array(players.keys())
+	recent_players.sort()
+	var recent_pairs := _to_string_array(fabric.get("recent_pairs", []))
+	var recent_crews := _to_string_array(fabric.get("recent_crews", []))
+	var lines: Array[String] = []
+	if not recent_players.is_empty():
+		var player_entry: Dictionary = Dictionary(players.get(recent_players[0], {}))
+		var player_line := "Delver echo: %s" % str(player_entry.get("title", "Remembered delver"))
+		var player_expectation := _first_string(Array(player_entry.get("obligations", [])), "")
+		if not player_expectation.is_empty():
+			player_line += " | %s" % player_expectation
+		lines.append(player_line)
+	if not recent_pairs.is_empty():
+		var pair: Dictionary = Dictionary(pairs.get(recent_pairs[0], {}))
+		var pair_line := "Pair echo: %s" % str(pair.get("title", "Recurring pair"))
+		var obligation := _first_string(Array(pair.get("obligations", [])), "")
+		if not obligation.is_empty():
+			pair_line += " | %s" % obligation
+		var status_burden := str(pair.get("status_burden", "")).strip_edges()
+		if not status_burden.is_empty():
+			pair_line += " | %s" % status_burden
+		lines.append(pair_line)
+	if not recent_crews.is_empty():
+		var crew: Dictionary = Dictionary(crews.get(recent_crews[0], {}))
+		var crew_line := "Crew echo: %s" % str(crew.get("title", "Recurring crew"))
+		var burden := str(crew.get("status_burden", "")).strip_edges()
+		if not burden.is_empty():
+			crew_line += " | %s" % burden
+		var obligation := _first_string(Array(crew.get("obligations", [])), "")
+		if not obligation.is_empty():
+			crew_line += " | %s" % obligation
+		lines.append(crew_line)
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
+
+static func _build_narrative_progress_lines(profile: Dictionary) -> Array[String]:
+	var progress: Dictionary = Dictionary(profile.get("narrative_progress", {}))
+	var archive_state: Dictionary = Dictionary(profile.get("archive_state", {}))
+	var world_memory: Dictionary = Dictionary(profile.get("world_memory", {}))
+	var layer := str(progress.get("layer", "public"))
+	var flags := _to_string_array(progress.get("post_core_flags", []))
+	var lines: Array[String] = []
+	match layer:
+		"patterned":
+			lines.append("Archive depth: pressure patterns are beginning to line up.")
+		"deepening":
+			lines.append("Archive depth: later echoes are getting stranger.")
+		"post_core":
+			lines.append("Archive depth: old patterns are starting to answer each other.")
+		_:
+			lines.append("Archive depth: public records only.")
+	if flags.has("echo_strain"):
+		lines.append("Recent runs are carrying stronger echo strain.")
+	elif flags.has("ritual_return"):
+		lines.append("Some pressures are starting to feel ritualized.")
+	if flags.has("attention_lock"):
+		lines.append("The same challenge keeps drawing the world back.")
+	if flags.has("counterweight"):
+		lines.append("Older readings are starting to compete with the obvious story.")
+	if flags.has("deep_archive"):
+		lines.append("Archive echoes are starting to talk to each other.")
+	if flags.has("gravity_lock"):
+		lines.append("One pressure has started pulling the whole field toward it.")
+	if flags.has("recast_pressure"):
+		lines.append("Recent reversals are forcing older legends to answer for themselves.")
+	if Array(archive_state.get("legends", [])).size() >= 4:
+		lines.append("Legend pressure: enough dense cases now point to the same returning shapes.")
+	var fascination: Dictionary = Dictionary(world_memory.get("fascination", {}))
+	if str(fascination.get("phase", "")).strip_edges() == "turning":
+		lines.append("World attention: the current pressure is displacing an older obsession.")
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
+
+static func _advance_narrative_progress(progress: Dictionary, run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary, crawl_packet: Dictionary, world_memory: Dictionary, archive_state: Dictionary) -> Dictionary:
+	var next := {
+		"layer": "public",
+		"core_reached": false,
+		"post_core_flags": []
+	}
+	for key in progress.keys():
+		next[key] = progress[key]
+	var layer := str(next.get("layer", "public"))
+	var flags := _to_string_array(next.get("post_core_flags", []))
+	var legends := Array(archive_state.get("legends", []))
+	var fascination: Dictionary = Dictionary(world_memory.get("fascination", {}))
+	var heat := int(fascination.get("current_heat", 0))
+	if layer == "public" and (Array(crawl_packet.get("turning_points", [])).size() >= 2 or legends.size() >= 2 or heat >= 6):
+		layer = "patterned"
+	if layer == "patterned" and (Array(crawl_packet.get("breaking_points", [])).size() >= 2 or legends.size() >= 3 or heat >= 7):
+		layer = "deepening"
+	if layer == "deepening" and (bool(next.get("core_reached", false)) or legends.size() >= 4 or Array(crawl_packet.get("breaking_points", [])).size() >= 3):
+		layer = "post_core"
+		next["core_reached"] = true
+	if str(frame.get("delve_trace", "")).strip_edges() != "" and not flags.has("echo_strain"):
+		flags.append("echo_strain")
+	if Array(diagnostics.get("within_run_echoes", [])).size() >= 2 and not flags.has("ritual_return"):
+		flags.append("ritual_return")
+	if int(diagnostics.get("expectation_break_score", 0)) >= 2 and not flags.has("pattern_slip"):
+		flags.append("pattern_slip")
+	if int(fascination.get("streak", 0)) >= 3 and not flags.has("attention_lock"):
+		flags.append("attention_lock")
+	if Array(frame.get("counter_readings", [])).size() >= 2 and not flags.has("counterweight"):
+		flags.append("counterweight")
+	if Dictionary(archive_state.get("shorthand", {})).size() >= 2 and not flags.has("deep_archive"):
+		flags.append("deep_archive")
+	if int(fascination.get("streak", 0)) >= 4 and not flags.has("gravity_lock"):
+		flags.append("gravity_lock")
+	if str(fascination.get("phase", "")).strip_edges() == "turning" and not flags.has("recast_pressure"):
+		flags.append("recast_pressure")
+	next["layer"] = layer
+	next["post_core_flags"] = flags.slice(0, 8)
+	return next
+
+static func _first_string(values: Array, fallback: String) -> String:
+	for value in values:
+		var text := str(value).strip_edges()
+		if not text.is_empty():
+			return text
+	return fallback
+
+static func _normalize_cookbook_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"fragment_count": 0,
+		"holder_depth": 0,
+		"network_pressure": 0,
+		"redirection_pressure": 0,
+		"holder_state": "none",
+		"fragment_lines": [],
+		"marginalia_lines": [],
+		"network_lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	for key in ["fragment_count", "holder_depth", "network_pressure", "redirection_pressure"]:
+		current[key] = int(current.get(key, 0))
+	current["holder_state"] = str(current.get("holder_state", "none")).strip_edges()
+	if current["holder_state"].is_empty():
+		current["holder_state"] = "none"
+	for key in ["fragment_lines", "marginalia_lines", "network_lines"]:
+		current[key] = _to_string_array(current.get(key, []))
+	return current
+
+static func _advance_cookbook_state(current_state: Dictionary, profile: Dictionary, run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary) -> Dictionary:
+	var next := _normalize_cookbook_state(current_state)
+	var progress: Dictionary = Dictionary(profile.get("narrative_progress", {}))
+	var archive_state: Dictionary = Dictionary(profile.get("archive_state", {}))
+	var stats: Dictionary = Dictionary(run_record.get("stats", {}))
+	var anomaly: Dictionary = Dictionary(diagnostics.get("anomaly_sensitivity", {}))
+	var anomaly_signals := _to_string_array(anomaly.get("signals", []))
+	var feature_scores: Dictionary = Dictionary(diagnostics.get("gameplay_feature_scores", {}))
+	var counter_readings := _to_string_array(frame.get("counter_readings", []))
+	var school_tension := str(frame.get("school_tension", "")).strip_edges()
+	var counterfactual_line := str(frame.get("counterfactual_line", "")).strip_edges()
+	var anomaly_pull := str(frame.get("anomaly_pull", "")).strip_edges()
+	var delve_trace := str(frame.get("delve_trace", "")).strip_edges()
+	var build_identity := str(diagnostics.get("build_identity", "")).strip_edges()
+	var anomaly_score := int(anomaly.get("score", 0))
+	var anomaly_curiosity := int(feature_scores.get("anomaly_curiosity", 0))
+	var notes_count := int(stats.get("notes_count", 0))
+	var pinned_count := int(stats.get("pinned_count", 0))
+	var fragment_gain := 0
+	var post_public := str(progress.get("layer", "public")) != "public" or bool(progress.get("core_reached", false))
+	if anomaly_score >= 3 or anomaly_curiosity >= 4 or build_identity == "Anomaly build":
+		fragment_gain += 1
+	if (not anomaly_pull.is_empty() or not counterfactual_line.is_empty() or not delve_trace.is_empty()) and (post_public or Array(archive_state.get("legends", [])).size() >= 2):
+		fragment_gain += 1
+	if (notes_count + pinned_count) >= 2 and (counter_readings.size() >= 2 or not school_tension.is_empty()):
+		fragment_gain += 1
+	if fragment_gain >= 1:
+		next["fragment_count"] = mini(int(next.get("fragment_count", 0)) + mini(fragment_gain, 2), 12)
+		var fragment_line := _first_string(anomaly_signals, anomaly_pull)
+		if fragment_line.is_empty():
+			fragment_line = _first_string(counter_readings, counterfactual_line)
+		if fragment_line.is_empty():
+			fragment_line = "forbidden marginalia keep collecting around anomalous runs"
+		next["fragment_lines"] = _merge_limited_strings(Array(next.get("fragment_lines", [])), [fragment_line], 6)
+		var marginal_line := ""
+		if not counter_readings.is_empty():
+			marginal_line = "private notes keep returning to %s" % counter_readings[0].to_lower()
+		elif not counterfactual_line.is_empty():
+			marginal_line = "private revisions keep orbiting %s" % counterfactual_line.to_lower()
+		elif not school_tension.is_empty():
+			marginal_line = "private revisions keep circling what official readings cannot settle"
+		elif not anomaly_pull.is_empty():
+			marginal_line = "marginal notes keep following %s" % anomaly_pull.to_lower()
+		if not marginal_line.is_empty():
+			next["marginalia_lines"] = _merge_limited_strings(Array(next.get("marginalia_lines", [])), [marginal_line], 6)
+	if int(next.get("fragment_count", 0)) >= 2 and ((notes_count >= 1 and counter_readings.size() >= 2) or (anomaly_score >= 4 and post_public)):
+		next["holder_depth"] = mini(int(next.get("holder_depth", 0)) + 1, 8)
+		next["network_lines"] = _merge_limited_strings(
+			Array(next.get("network_lines", [])),
+			["scattered readers are starting to recognize the same impossible margin marks"],
+			6
+		)
+	if int(next.get("fragment_count", 0)) >= 1 and (not counterfactual_line.is_empty() or anomaly_curiosity >= 4 or build_identity == "Anomaly build"):
+		next["redirection_pressure"] = mini(int(next.get("redirection_pressure", 0)) + 1, 12)
+		var redirection_line := _first_string(counter_readings, counterfactual_line)
+		if redirection_line.is_empty():
+			redirection_line = "some marginal readings now feel like ways around expected protocol pressure"
+		next["marginalia_lines"] = _merge_limited_strings(Array(next.get("marginalia_lines", [])), [redirection_line], 6)
+	if int(next.get("holder_depth", 0)) >= 1 and (counter_readings.size() >= 2 or not school_tension.is_empty() or int(next.get("redirection_pressure", 0)) >= 1):
+		next["network_pressure"] = mini(int(next.get("network_pressure", 0)) + 1, 12)
+		var recognition_line := _first_string(Array(next.get("network_lines", [])), "")
+		if recognition_line.is_empty():
+			recognition_line = "anti-Protocol recognition is starting to travel by indirection rather than open declaration"
+		next["network_lines"] = _merge_limited_strings(Array(next.get("network_lines", [])), [recognition_line], 6)
+	if int(next.get("holder_depth", 0)) >= 2 or (int(next.get("fragment_count", 0)) >= 4 and int(next.get("network_pressure", 0)) >= 2):
+		next["holder_state"] = "holder"
+	elif int(next.get("holder_depth", 0)) >= 1 or int(next.get("fragment_count", 0)) >= 2:
+		next["holder_state"] = "margin_reader"
+	elif int(next.get("fragment_count", 0)) >= 1:
+		next["holder_state"] = "glimpsed"
+	else:
+		next["holder_state"] = "none"
+	return next
+
+static func _merge_limited_strings(existing: Array, additions: Array, limit: int) -> Array[String]:
+	var result: Array[String] = _to_string_array(existing)
+	for addition in additions:
+		var text := str(addition).strip_edges()
+		if not text.is_empty() and not result.has(text):
+			result.append(text)
+	if result.size() > limit:
+		return result.slice(0, limit)
+	return result
+
+static func _default_public_id(display_name: String) -> String:
+	return PROFILE_IDENTITY_STATE_SCRIPT.default_public_id(display_name)

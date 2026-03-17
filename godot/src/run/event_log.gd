@@ -20,6 +20,24 @@ func add_event(event: Dictionary) -> void:
 	])
 	emit_signal("timeline_event_added", event)
 
+func add_mutation_event(mutation_event: Dictionary) -> void:
+	var visibility := str(mutation_event.get("visibility", "private"))
+	var timeline_event := {
+		"tick": int(mutation_event.get("tick", -1)),
+		"event_id": int(mutation_event.get("timeline_event_id", mutation_event.get("ordering_index", -1))),
+		"event_type": "constitution_mutation",
+		"room_slot": int(Dictionary(mutation_event.get("public_meta", {})).get("room_slot", -1)),
+		"actor_peer_id": int(mutation_event.get("actor_peer_id", -1)),
+		"visibility": visibility,
+		"meta": {
+			"mutation_id": str(mutation_event.get("mutation_id", "")),
+			"trigger_type": str(mutation_event.get("trigger_type", "")),
+			"domain": str(mutation_event.get("domain", "")),
+			"public_meta": Dictionary(mutation_event.get("public_meta", {})).duplicate(true)
+		}
+	}
+	add_event(timeline_event)
+
 func get_recent(limit: int = 8) -> Array:
 	if events.size() <= limit:
 		return events.duplicate(true)

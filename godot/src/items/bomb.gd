@@ -7,6 +7,9 @@ var flash_timer := 0.0
 
 @rpc("authority", "call_local", "reliable")
 func rpc_explode(pos: Vector2) -> void:
+	explode_local(pos)
+
+func explode_local(pos: Vector2) -> void:
 	var rb = get_node_or_null("/root/Game/Rooms")
 	if rb and rb.has_method("carve_hole"):
 		rb.carve_hole(pos, 65.0) # ~2 tile radius — destructive but not overwhelming
@@ -93,4 +96,8 @@ func _process(delta: float) -> void:
 		visual.color = Color(0.1, 0.1, 0.1)
 
 	if timer <= 0.0 and is_multiplayer_authority():
-		rpc_explode.rpc(global_position)
+		var network_manager = get_node_or_null("/root/NetworkManager")
+		if network_manager and network_manager.has_method("host_detonate_bomb"):
+			network_manager.host_detonate_bomb.rpc(name, global_position)
+		else:
+			explode_local(global_position)

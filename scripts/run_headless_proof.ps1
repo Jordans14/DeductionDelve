@@ -1,7 +1,7 @@
 param(
     [string]$GodotExe = "",
     [int]$Seed = 1337,
-    [int]$TimeoutSec = 75
+    [int]$TimeoutSec = 95
 )
 
 $ErrorActionPreference = "Stop"
@@ -130,6 +130,31 @@ function Resolve-ReportFile {
         }
     }
     throw "Failed to resolve report file for $UserPath"
+}
+
+function Get-ProofAttemptState {
+    param(
+        [string]$HostOut,
+        [string]$ClientOut
+    )
+    $hostText = Read-Text $HostOut
+    $clientText = Read-Text $ClientOut
+    return @{
+        HostReady = ($hostText -match "GAME_READY")
+        ClientReady = ($clientText -match "GAME_READY")
+        HostRunEnded = ($hostText -match "type=run_ended")
+        HostRunVerify = ($hostText -match "RUN_VERIFY ok=true")
+        NoiseTraceCount = ([regex]::Matches($hostText, "type=noise_trace")).Count + ([regex]::Matches($clientText, "type=noise_trace")).Count
+    }
+}
+
+function Test-TransientProofStall {
+    param(
+        [string]$HostOut,
+        [string]$ClientOut
+    )
+    $state = Get-ProofAttemptState -HostOut $HostOut -ClientOut $ClientOut
+    return ($state.HostReady -and $state.ClientReady -and -not $state.HostRunVerify -and $state.NoiseTraceCount -ge 4)
 }
 
 function Invoke-ProofAttempt {
@@ -292,14 +317,33 @@ Write-Host "GODOT_USER_HOME: $userHome"
 $seedCandidates = @($Seed) | Select-Object -Unique
 $proofResult = $null
 $attemptFailures = New-Object System.Collections.Generic.List[string]
+$maxAttemptsPerSeed = 3
 
 foreach ($candidateSeed in $seedCandidates) {
-    Write-Host "Trying proof seed: $candidateSeed"
-    try {
-        $proofResult = Invoke-ProofAttempt -Exe $exe -GodotPath $godotPath -LogDir $logDir -ReportDir $reportDir -ProjectName $projectName -SeedValue $candidateSeed -TimeoutSecValue $TimeoutSec
+    for ($attempt = 1; $attempt -le $maxAttemptsPerSeed; $attempt++) {
+        Write-Host "Trying proof seed: $candidateSeed (attempt $attempt/$maxAttemptsPerSeed)"
+        try {
+            $proofResult = Invoke-ProofAttempt -Exe $exe -GodotPath $godotPath -LogDir $logDir -ReportDir $reportDir -ProjectName $projectName -SeedValue $candidateSeed -TimeoutSecValue $TimeoutSec
+            break
+        } catch {
+            $hostOut = Join-Path $logDir "host.out.log"
+            $clientOut = Join-Path $logDir "client.out.log"
+            $failureLabel = "seed=$candidateSeed attempt=$attempt :: $($_.Exception.Message)"
+            $attemptFailures.Add($failureLabel)
+            if ($attempt -lt $maxAttemptsPerSeed -and (Test-TransientProofStall -HostOut $hostOut -ClientOut $clientOut)) {
+                Write-Host "Transient proof stall detected after repeated noise traces; retrying attempt..."
+                Start-Sleep -Seconds 2
+                continue
+            }
+            if ($attempt -lt $maxAttemptsPerSeed) {
+                Write-Host "Proof attempt failed before verification; retrying with a fresh headless session..."
+                Start-Sleep -Seconds 2
+                continue
+            }
+        }
+    }
+    if ($null -ne $proofResult) {
         break
-    } catch {
-        $attemptFailures.Add("seed=$candidateSeed :: $($_.Exception.Message)")
     }
 }
 

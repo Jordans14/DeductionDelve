@@ -5,6 +5,7 @@ signal connection_changed(status: String)
 signal run_started(seed_value: int, room_chain: Array)
 signal state_snapshot(snapshot: Dictionary, tick: int)
 signal role_revealed(role_name: String)
+signal artifact_state_changed(artifacts_by_id: Dictionary)
 signal evidence_state_changed(evidence_by_id: Dictionary)
 signal item_state_changed(items_by_id: Dictionary)
 signal ghost_state_changed(state: Dictionary)
@@ -17,11 +18,16 @@ signal reconnect_offer_changed(offer: Dictionary)
 
 const DEFAULT_PORT := 2456
 const SABOTAGE_COOLDOWN_TICKS := 400
-const RUN_TICK_LIMIT := 18000  # 5 minutes at 60 ticks/sec
+const TICKS_PER_SECOND := 60
+const MIN_AUTHORITATIVE_ROOM_COUNT := 10
+const MAX_AUTHORITATIVE_ROOM_COUNT := 12
+const STANDARD_RUN_ROOM_COUNT := 10
+const RUN_TICK_LIMIT := 50400  # 14 minutes at 60 ticks/sec
 const CAMERA_JAM_MAX_WARDEN_SCORE := 84
 const EXTRACTION_WINDOW_TICKS := 600
 const START_BOMB_COUNT := 4
 const START_ROPE_COUNT := 4
+const MAX_CARRIED_TOOL_ITEMS := 2
 const GHOST_WAKE_TICK := 10800
 const GHOST_SPEED_PER_TICK := 5.5
 const GHOST_OFFSCREEN_POS := Vector2(-2000, 300)
@@ -29,8 +35,13 @@ const GHOST_HIT_RADIUS := 52.0
 const NETWORK_CONFIG_SCRIPT = preload("res://src/net/network_config.gd")
 const RUN_GENERATOR_SCRIPT = preload("res://src/gen/run_generator.gd")
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
-const EVIDENCE_SERVICE_SCRIPT = preload("res://src/run/evidence_service.gd")
+const ARTIFACT_SERVICE_SCRIPT = preload("res://src/run/artifact_service.gd")
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
+const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
+const DELVE_KERNEL_SCRIPT = preload("res://src/delve/delve_kernel.gd")
+const DELVE_DIRECTIVE_INSPECTOR_SCRIPT = preload("res://src/delve/delve_directive_inspector.gd")
+const EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT = preload("res://src/delve/constitution/expedition_constitution_schema.gd")
+const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const ROOM_WIDTH := 1024.0
 const ROOM_HEIGHT := 768.0
 const ROOM_COLUMNS := 5
@@ -66,13 +77,22 @@ var player_pos_by_peer: Dictionary = {}
 var player_room_by_peer: Dictionary = {}
 var sabotage_cooldown_until_by_peer: Dictionary = {}
 var current_server_tick: int = 0
-var evidence_service: Object = EVIDENCE_SERVICE_SCRIPT.new()
+var artifact_service = ARTIFACT_SERVICE_SCRIPT.new()
 var item_service: RefCounted = ITEM_SERVICE_SCRIPT.new()
 var forge_counter_by_room: Dictionary = {}
 var next_event_id: int = 1
 var check_counter_by_peer: Dictionary = {}
+var role_pressure_by_peer: Dictionary = {}
+var custody_debt_by_peer: Dictionary = {}
+var suspicion_heat_by_peer: Dictionary = {}
+var counterfeit_heat_by_peer: Dictionary = {}
 var local_sabotage_cooldown_until_tick: int = 0
 var run_active: bool = false
+var current_expedition_constitution: Dictionary = {}
+var current_delve_directive: Dictionary = {}
+var current_generation_contract: Dictionary = {}
+var current_constitution_hash: String = ""
+var last_authoritative_room_chain: Array = []
 var extraction_room_slot: int = -1
 var extraction_window_started_tick: int = -1
 var extraction_window_artifact_id: int = 0
@@ -92,10 +112,33 @@ var disturbance_until_by_room: Dictionary = {}
 var camera_jam_until_by_room: Dictionary = {}
 var next_noise_trace_tick_by_peer: Dictionary = {}
 var tool_inventory_by_peer: Dictionary = {}
+var profile_cards_by_peer: Dictionary = {}
 var ghost_state := {
 	"active": false,
 	"position": GHOST_OFFSCREEN_POS,
 	"target_peer_id": -1
+}
+var predator_state := {
+	"active": false,
+	"room_slot": -1,
+	"target_peer_id": -1,
+	"last_tick": -1,
+	"strike_strength": 0,
+	"mode": ""
+}
+var protocol_watch_state := {
+	"active": false,
+	"room_slot": -1,
+	"target_peer_id": -1,
+	"last_tick": -1,
+	"mode": "",
+	"signal_room_slot": -1
+}
+var echo_lure_state := {
+	"active": false,
+	"owner_peer_id": -1,
+	"room_slot": -1,
+	"expires_tick": -1
 }
 var signals_wired: bool = false
 var peer_reconcile_accum: float = 0.0
@@ -109,6 +152,8 @@ var local_extraction_window_duration_ticks: int = 0
 var _capture_events_for_test: bool = false
 var _captured_public_events_for_test: Array = []
 var _captured_private_events_for_test: Array = []
+var _run_state_override_for_test: Node = null
+var _event_log_override_for_test: Node = null
 var reconnect_offer: Dictionary = {}
 var last_connection_status: String = "Not connected"
 
@@ -134,7 +179,10 @@ func _set_connection_status(status: String) -> void:
 	emit_signal("connection_changed", status)
 
 func _set_reconnect_offer(next_offer: Dictionary) -> void:
-	reconnect_offer = next_offer.duplicate(true)
+	var normalized_offer := next_offer.duplicate(true)
+	if reconnect_offer == normalized_offer:
+		return
+	reconnect_offer = normalized_offer
 	emit_signal("reconnect_offer_changed", reconnect_offer.duplicate(true))
 
 func clear_reconnect_offer() -> void:
@@ -196,7 +244,38 @@ func get_session_overview() -> Dictionary:
 		"reconnect_wait_for_lobby": reconnect_wait_for_lobby,
 		"reconnect_reason": reconnect_reason,
 		"run_interrupted": bool(reconnect_offer.get("run_interrupted", false)),
-		"reconnect_offer": reconnect_offer.duplicate(true)
+		"reconnect_offer": reconnect_offer.duplicate(true),
+		"delve_protocol": get_current_expedition_constitution_summary()
+	}
+
+func _directive_public_summary(directive: Dictionary) -> Dictionary:
+	if directive.is_empty():
+		return {}
+	if directive.has("constitution_summary") or directive.has("constitution_hash"):
+		return EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.public_summary(directive)
+	var public_summary: Dictionary = Dictionary(directive.get("public_summary", {}))
+	var surface_summary: Dictionary = Dictionary(directive.get("surface_summary", {}))
+	return {
+		"protocol_state": str(public_summary.get("protocol_state", directive.get("protocol_state", ""))),
+		"doctrine_family": str(directive.get("doctrine_family", "")),
+		"doctrine_label": str(public_summary.get("doctrine", directive.get("doctrine_label", ""))),
+		"pressure_line": str(public_summary.get("pressure_line", "")),
+		"world_goal": str(public_summary.get("world_goal", "")),
+		"dominant_forces": Array(public_summary.get("dominant_forces", [])).duplicate(true),
+		"dominant_domains": Array(public_summary.get("dominant_domains", [])).duplicate(true),
+		"dominant_minds": Array(public_summary.get("dominant_minds", [])).duplicate(true),
+		"pacing_profile": str(public_summary.get("pacing_profile", "")),
+		"pacing_label": str(public_summary.get("pacing_label", "")),
+		"pressure_grammar": Array(public_summary.get("pressure_grammar", [])).duplicate(true),
+		"symbolic_motifs": Array(public_summary.get("symbolic_motifs", [])).duplicate(true),
+		"item_ecology_bias": str(public_summary.get("item_ecology_bias", "")),
+		"group_tension_bias": str(public_summary.get("group_tension_bias", "")),
+		"archive_tone": str(public_summary.get("archive_tone", "")),
+		"convergence_axis": str(public_summary.get("convergence_axis", "")),
+		"surface_summary": {
+			"lines": Array(surface_summary.get("lines", [])).duplicate(true)
+		},
+		"constitution_hash": str(directive.get("constitution_hash", ""))
 	}
 
 func build_session_policy_lines(overview: Dictionary = {}) -> Array[String]:
@@ -224,6 +303,208 @@ func build_session_policy_lines(overview: Dictionary = {}) -> Array[String]:
 
 func build_session_policy_lines_for_test(overview: Dictionary = {}) -> Array[String]:
 	return build_session_policy_lines(overview)
+
+func _effective_constitution() -> Dictionary:
+	var run_state := _run_state()
+	if run_state != null and run_state.has_method("get_expedition_constitution"):
+		var runtime_constitution: Dictionary = Dictionary(run_state.get_expedition_constitution())
+		if not runtime_constitution.is_empty():
+			return runtime_constitution
+	if not current_expedition_constitution.is_empty():
+		return current_expedition_constitution
+	if not current_delve_directive.is_empty():
+		return EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.normalize(current_delve_directive)
+	return {}
+
+func _constitution_generation_surface(constitution: Dictionary) -> Dictionary:
+	if constitution.is_empty():
+		return {}
+	return EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.generation_surface(constitution)
+
+func _effective_generation_surface() -> Dictionary:
+	var run_state := _run_state()
+	if run_state != null:
+		var runtime_generation_surface: Dictionary = Dictionary(run_state.get("generation_surface"))
+		if not runtime_generation_surface.is_empty():
+			return runtime_generation_surface.duplicate(true)
+	if not current_generation_contract.is_empty():
+		return current_generation_contract.duplicate(true)
+	return _constitution_generation_surface(_effective_constitution())
+
+func get_current_expedition_constitution() -> Dictionary:
+	return _effective_constitution().duplicate(true)
+
+func get_current_constitution_hash() -> String:
+	if not current_constitution_hash.strip_edges().is_empty():
+		return current_constitution_hash
+	return str(_effective_constitution().get("constitution_hash", "")).strip_edges()
+
+func get_current_expedition_constitution_summary() -> Dictionary:
+	return _directive_public_summary(_effective_constitution())
+
+func get_current_delve_directive() -> Dictionary:
+	return get_current_expedition_constitution()
+
+func get_current_generation_surface() -> Dictionary:
+	return _effective_generation_surface()
+
+func get_current_generation_contract() -> Dictionary:
+	return get_current_generation_surface()
+
+func resolve_authoritative_room_count_for_start(requested_room_count: int = 0) -> int:
+	if requested_room_count >= MIN_AUTHORITATIVE_ROOM_COUNT and requested_room_count <= MAX_AUTHORITATIVE_ROOM_COUNT:
+		return requested_room_count
+	return STANDARD_RUN_ROOM_COUNT
+
+func get_authoritative_room_chain_snapshot() -> Array:
+	return last_authoritative_room_chain.duplicate(true)
+
+func get_current_delve_public_summary() -> Dictionary:
+	return get_current_expedition_constitution_summary()
+
+func get_current_delve_surface_value(group_name: String, surface_name: String) -> int:
+	var control_surfaces: Dictionary = Dictionary(_effective_constitution().get("control_surfaces", {}))
+	return int(Dictionary(control_surfaces.get(group_name, {})).get(surface_name, 0))
+
+func get_current_inhabitant_pressure_bias() -> int:
+	return get_current_delve_surface_value("ecology", "inhabitant_pressure")
+
+func get_current_stalking_bias() -> int:
+	return get_current_delve_surface_value("ecology", "stalking_bias")
+
+func get_current_anomaly_contamination_bias() -> int:
+	return get_current_delve_surface_value("ecology", "anomaly_contamination")
+
+func _current_extraction_window_ticks() -> int:
+	var duration := EXTRACTION_WINDOW_TICKS
+	duration += get_current_delve_surface_value("economy", "resource_austerity") * 45
+	duration -= get_current_delve_surface_value("economy", "recovery_cushion") * 45
+	duration += get_current_inhabitant_pressure_bias() * 30
+	duration -= get_current_delve_surface_value("generation", "rescue_geometry") * 20
+	var generation_surface := _effective_generation_surface()
+	var relationship_routing: Dictionary = Dictionary(generation_surface.get("relationship_routing", {}))
+	var relay_routing: Dictionary = Dictionary(generation_surface.get("relay_routing", {}))
+	var cookbook_routing: Dictionary = Dictionary(generation_surface.get("cookbook_routing", {}))
+	var civilization_routing: Dictionary = Dictionary(generation_surface.get("civilization_routing", {}))
+	duration -= int(relationship_routing.get("escort_expectation", 0)) * 25
+	duration -= int(relationship_routing.get("rescue_convergence", 0)) * 20
+	duration -= int(relationship_routing.get("obligation_risk", 0)) * 10
+	duration += int(relationship_routing.get("trust_fragility", 0)) * 12
+	duration += int(relationship_routing.get("witness_suspicion", 0)) * 15
+	duration += int(relationship_routing.get("regroup_strain", 0)) * 18
+	duration += int(relay_routing.get("relay_overload", 0)) * 12
+	duration += int(relay_routing.get("regroup_friction", 0)) * 18
+	duration += int(relay_routing.get("return_pressure", 0)) * 14
+	duration += int(cookbook_routing.get("counter_reading", 0)) * 10
+	duration += int(cookbook_routing.get("anti_protocol_pull", 0)) * 12
+	duration += int(civilization_routing.get("legitimacy_custody", 0)) * 8
+	duration += int(civilization_routing.get("taboo_silence", 0)) * 16
+	duration += int(civilization_routing.get("canon_conflict", 0)) * 12
+	duration += int(civilization_routing.get("mourning_climate", 0)) * 10
+	duration += int(civilization_routing.get("ontology_heat", 0)) * 14
+	var role_custody_pressure := _role_custody_group_pressure()
+	duration += int(role_custody_pressure.get("custody_debt", 0)) * 18
+	duration += int(role_custody_pressure.get("suspicion_heat", 0)) * 12
+	duration += int(role_custody_pressure.get("counterfeit_heat", 0)) * 20
+	duration -= int(role_custody_pressure.get("warden_duty", 0)) * 8
+	var extraction_details := _find_extraction_completion_details()
+	if not extraction_details.is_empty():
+		var carrier_peer_id := int(extraction_details.get("owner_peer_id", 0))
+		if carrier_peer_id > 0:
+			var carrier_affordances := _loadout_runtime_affordances(carrier_peer_id)
+			var resource_signals := Array(carrier_affordances.get("resource_signals", []))
+			var behavior_signals := Array(carrier_affordances.get("behavior_signals", []))
+			if resource_signals.has("escort rig"):
+				duration -= 18
+			if behavior_signals.has("custody answer") or behavior_signals.has("escort line"):
+				duration -= 12
+			if behavior_signals.has("watch bait") or behavior_signals.has("witness flare"):
+				duration += 10
+	duration += _current_extraction_role_modifier()
+	return clampi(duration, EXTRACTION_WINDOW_TICKS - 180, EXTRACTION_WINDOW_TICKS + 210)
+
+func _current_extraction_role_modifier() -> int:
+	var details := _find_extraction_completion_details()
+	if details.is_empty():
+		return 0
+	var artifact_id := int(details.get("artifact_id", 0))
+	var owner_peer_id := int(details.get("owner_peer_id", 0))
+	if artifact_id == 0 or owner_peer_id <= 0 or not artifacts_by_id.has(artifact_id):
+		return 0
+	var authenticity_state := str(artifact_service.authenticity_state(Dictionary(artifacts_by_id.get(artifact_id, {}))))
+	match _role_name_for_peer(owner_peer_id):
+		ROLE_SERVICE_SCRIPT.ROLE_STEWARD:
+			return -18 if authenticity_state == "authentic" else 12
+		ROLE_SERVICE_SCRIPT.ROLE_BEARER:
+			return -36 if authenticity_state == "authentic" else 24
+		ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+			return 8 if authenticity_state == "authentic" else 18
+		ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+			return 14 if authenticity_state == "authentic" else 28
+		_:
+			return 0
+
+func _current_ghost_wake_tick() -> int:
+	var wake_tick := GHOST_WAKE_TICK
+	wake_tick -= get_current_inhabitant_pressure_bias() * 900
+	wake_tick -= get_current_stalking_bias() * 1200
+	wake_tick -= get_current_anomaly_contamination_bias() * 450
+	return clampi(wake_tick, GHOST_WAKE_TICK - 3600, GHOST_WAKE_TICK + 3000)
+
+func _current_ghost_speed_per_tick() -> float:
+	var speed := GHOST_SPEED_PER_TICK
+	speed += float(get_current_inhabitant_pressure_bias()) * 0.4
+	speed += float(get_current_stalking_bias()) * 0.6
+	speed += float(get_current_anomaly_contamination_bias()) * 0.25
+	return clampf(speed, GHOST_SPEED_PER_TICK - 1.5, GHOST_SPEED_PER_TICK + 2.5)
+
+func _current_ghost_hit_radius() -> float:
+	var radius := GHOST_HIT_RADIUS
+	radius += float(get_current_stalking_bias()) * 6.0
+	radius += float(get_current_inhabitant_pressure_bias()) * 4.0
+	radius += float(get_current_anomaly_contamination_bias()) * 3.0
+	return clampf(radius, GHOST_HIT_RADIUS - 12.0, GHOST_HIT_RADIUS + 24.0)
+
+func _current_noise_trace_interval(peer_id: int) -> int:
+	var affordances := _loadout_runtime_affordances(peer_id)
+	var interval := int(affordances.get("noise_trace_interval", 90))
+	interval -= get_current_stalking_bias() * 6
+	interval -= get_current_anomaly_contamination_bias() * 4
+	interval -= get_current_inhabitant_pressure_bias() * 3
+	var generation_surface := _effective_generation_surface()
+	var relay_routing: Dictionary = Dictionary(generation_surface.get("relay_routing", {}))
+	var cookbook_routing: Dictionary = Dictionary(generation_surface.get("cookbook_routing", {}))
+	var civilization_routing: Dictionary = Dictionary(generation_surface.get("civilization_routing", {}))
+	interval -= int(relay_routing.get("distributed_witness", 0)) * 6
+	interval -= int(relay_routing.get("rumor_heat", 0)) * 8
+	interval -= int(cookbook_routing.get("counter_reading", 0)) * 4
+	interval -= int(civilization_routing.get("canon_conflict", 0)) * 5
+	interval -= int(civilization_routing.get("ontology_heat", 0)) * 4
+	interval -= int(custody_debt_by_peer.get(peer_id, 0)) * 5
+	interval -= int(suspicion_heat_by_peer.get(peer_id, 0)) * 4
+	interval -= int(counterfeit_heat_by_peer.get(peer_id, 0)) * 6
+	var behavior_signals := Array(affordances.get("behavior_signals", []))
+	var resource_signals := Array(affordances.get("resource_signals", []))
+	var anomaly_hooks := Array(affordances.get("anomaly_hooks", []))
+	if resource_signals.has("escort rig"):
+		interval += 6
+	if behavior_signals.has("witness flare") or behavior_signals.has("watch bait"):
+		interval -= 6
+	if anomaly_hooks.has("redirected echo"):
+		interval -= 4
+	if str(roles_by_peer.get(peer_id, "")) == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+		interval -= int(counterfeit_heat_by_peer.get(peer_id, 0)) * 2
+	match _role_name_for_peer(peer_id):
+		ROLE_SERVICE_SCRIPT.ROLE_STEWARD:
+			interval += 8
+		ROLE_SERVICE_SCRIPT.ROLE_BEARER:
+			interval -= 10 if _find_carried_artifact_by_peer(peer_id) != 0 else 0
+		ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+			interval -= 8
+	return clampi(interval, 24, 150)
+
+func get_current_delve_directive_debug_lines() -> Array[String]:
+	return DELVE_DIRECTIVE_INSPECTOR_SCRIPT.build_lines(_effective_constitution())
 
 func _process(delta: float) -> void:
 	if not is_host:
@@ -312,8 +593,10 @@ func start_host(port: int = -1, preferred_join_address: String = "", bind_overri
 	_server_reconcile_connected_peers(true)
 	players = connected_peers.duplicate()
 	ready_by_id.clear()
+	profile_cards_by_peer.clear()
 	if mp != null:
 		_set_ready(mp.get_unique_id(), true, "start_host_local_ready")
+	_sync_local_profile_card()
 	_reconcile_ready_map_for_connected_peers(false)
 	var started_message := "Host online at %s:%d (requested %d)" % [_recommended_join_address_for_display(host_bind_address), host_listen_port, host_requested_port]
 	_set_connection_status(started_message)
@@ -352,6 +635,7 @@ func join_host(address: String, port: int = -1) -> bool:
 	_log_mp_state("after_join_assign_peer")
 	is_host = false
 	_set_connected_peers([], "join_host_init")
+	profile_cards_by_peer.clear()
 	_set_connection_status("Joining %s:%d" % [join_address, join_port])
 	_log_connection_event("join_started", "target=%s:%d" % [join_address, join_port])
 	return true
@@ -374,8 +658,10 @@ func disconnect_peer(reason: String = "manual") -> void:
 	latest_snapshot.clear()
 	roles_by_peer.clear()
 	artifacts_by_id.clear()
+	last_authoritative_room_chain.clear()
 	items_by_id.clear()
 	tool_inventory_by_peer.clear()
+	profile_cards_by_peer.clear()
 	player_pos_by_peer.clear()
 	player_room_by_peer.clear()
 	sabotage_cooldown_until_by_peer.clear()
@@ -389,10 +675,18 @@ func disconnect_peer(reason: String = "manual") -> void:
 	next_event_id = 1
 	local_sabotage_cooldown_until_tick = 0
 	run_active = false
+	current_expedition_constitution.clear()
+	current_delve_directive.clear()
+	current_generation_contract.clear()
+	current_constitution_hash = ""
 	extraction_room_slot = -1
 	_reset_extraction_window_state()
 	_clear_local_extraction_window_state()
 	_clear_ghost_state()
+	_clear_role_custody_state()
+	_clear_predator_state()
+	_clear_protocol_watch_state()
+	_clear_echo_lure_state()
 	host_port = -1
 	host_bind_address = ""
 	join_target_address = ""
@@ -434,9 +728,11 @@ func set_local_ready(ready_flag: bool) -> void:
 		return
 	client_set_ready.rpc_id(1, uid, ready_flag)
 
-func start_run(seed_override: int = 0, room_count: int = 15) -> void:
+func start_run(seed_override: int = 0, room_count: int = 0) -> void:
 	var mp := _mp()
 	var connected := mp != null and mp.multiplayer_peer != null
+	var requested_room_count := room_count
+	room_count = resolve_authoritative_room_count_for_start(room_count)
 	_nm_log("START_RUN_REQUEST local=%d connected=%s is_host=%s peers=%s ready=%s run_active=%s seed=%d room_count=%d" % [
 		mp.get_unique_id() if mp != null else -1,
 		str(connected),
@@ -447,6 +743,8 @@ func start_run(seed_override: int = 0, room_count: int = 15) -> void:
 		seed_override,
 		room_count
 	])
+	if requested_room_count != room_count:
+		_nm_log("START_RUN_ROOM_COUNT_NORMALIZED requested=%d resolved=%d" % [requested_room_count, room_count])
 	var can_start := can_host_start_run(connected_peers, ready_by_id, connected, run_active)
 	if not bool(can_start.get("allowed", false)):
 		_nm_log("START_RUN_DENY reason=%s gate=%s" % [str(can_start.get("reason", "unknown")), str(can_start)])
@@ -457,10 +755,31 @@ func start_run(seed_override: int = 0, room_count: int = 15) -> void:
 	var run_seed := seed_override
 	if run_seed == 0:
 		run_seed = int(Time.get_unix_time_from_system())
-	var chain := generator.generate_layout(run_seed, room_count)
+	var profile := PROFILE_SERVICE_SCRIPT.load_profile()
+	var public_cards := get_public_player_cards()
+	var gameplay_snapshot := build_gameplay_signal_snapshot(public_cards, profile)
+	var session_context := {
+		"player_count": connected_peers.size(),
+		"peer_ids": connected_peers.duplicate(),
+		"protocol_state": str(gameplay_snapshot.get("protocol_state", "")),
+		"public_cards": public_cards.duplicate(true),
+		"ready_state": ready_by_id.duplicate(true),
+		"gameplay_snapshot": gameplay_snapshot.duplicate(true)
+	}
+	current_expedition_constitution = DELVE_KERNEL_SCRIPT.plan_constitution(profile, session_context, run_seed, room_count)
+	current_delve_directive = current_expedition_constitution.duplicate(true)
+	current_generation_contract = _constitution_generation_surface(current_expedition_constitution)
+	current_constitution_hash = str(current_expedition_constitution.get("constitution_hash", "")).strip_edges()
+	if DELVE_DIRECTIVE_INSPECTOR_SCRIPT.should_trace():
+		var trace_path := DELVE_DIRECTIVE_INSPECTOR_SCRIPT.write_trace(current_expedition_constitution)
+		if not trace_path.is_empty():
+			current_expedition_constitution["trace_path"] = trace_path
+			current_delve_directive["trace_path"] = trace_path
+		DELVE_DIRECTIVE_INSPECTOR_SCRIPT.emit_debug_trace(current_expedition_constitution)
+	var chain := generator.generate_layout(run_seed, room_count, current_generation_contract)
 	roles_by_peer = role_service.assign_roles(connected_peers, run_seed)
 	var artifacts: Array = generator.generate_evidence_spawns(run_seed, chain)
-	var items: Array = item_service.generate_item_spawns(run_seed, chain)
+	var items: Array = item_service.generate_item_spawns(run_seed, chain, current_generation_contract)
 	artifacts_by_id.clear()
 	items_by_id.clear()
 	for artifact in artifacts:
@@ -475,6 +794,7 @@ func start_run(seed_override: int = 0, room_count: int = 15) -> void:
 	next_noise_trace_tick_by_peer.clear()
 	forge_counter_by_room.clear()
 	check_counter_by_peer.clear()
+	_clear_role_custody_state()
 	reset_tool_inventory_for_test(connected_peers)
 	next_event_id = 1
 	local_sabotage_cooldown_until_tick = 0
@@ -483,12 +803,22 @@ func start_run(seed_override: int = 0, room_count: int = 15) -> void:
 	_reset_extraction_window_state()
 	_clear_local_extraction_window_state()
 	_clear_ghost_state()
+	_clear_predator_state()
+	_clear_protocol_watch_state()
+	_clear_echo_lure_state()
 
 	var event_log := _event_log()
 	if event_log != null:
 		event_log.clear()
-	var payload := build_run_start_payload(run_seed, chain, connected_peers)
-	host_start_run.rpc(payload["seed"], payload["room_chain"], payload["peer_ids"])
+	var payload := build_run_start_payload(
+		run_seed,
+		chain,
+		connected_peers,
+		get_current_delve_public_summary(),
+		current_constitution_hash,
+		get_current_expedition_constitution_summary()
+	)
+	host_start_run.rpc(payload["seed"], payload["room_chain"], payload["peer_ids"], payload["directive_summary"], payload["constitution_hash"], payload["constitution_summary"])
 	_reveal_roles_to_clients()
 	_broadcast_artifact_state()
 	_broadcast_item_state()
@@ -513,7 +843,7 @@ func broadcast_state(snapshot: Dictionary, tick: int) -> void:
 	if not is_host:
 		return
 	current_server_tick = tick
-	_advance_ghost_pressure()
+	_advance_runtime_ecology()
 	host_push_state.rpc(snapshot, tick)
 	if run_active:
 		var reason := compute_end_reason_for_tick(current_server_tick)
@@ -554,6 +884,7 @@ func _broadcast_lobby() -> void:
 	players = payload["players"]
 	host_sync_lobby.rpc(payload["players"], payload["ready_state"], payload["is_host"])
 	host_sync_peers.rpc(payload["connected_peers"])
+	host_sync_profile_cards.rpc(payload["profile_cards"])
 
 func _on_peer_connected(peer_id: int) -> void:
 	if not is_host:
@@ -584,6 +915,7 @@ func _on_connected_to_server() -> void:
 	if mp == null:
 		return
 	_update_connected_peer(mp.get_unique_id(), true)
+	_sync_local_profile_card()
 	_log_mp_state("connected_to_server")
 	clear_reconnect_offer()
 	_set_connection_status("Connected to host %s:%d" % [join_target_address, join_target_port])
@@ -645,18 +977,67 @@ func host_sync_peers(peer_ids: Array) -> void:
 	_reconcile_ready_map_for_connected_peers(false)
 
 @rpc("authority", "call_local", "reliable")
-func host_start_run(seed_value: int, room_chain: Array, peer_ids: Array) -> void:
+func host_sync_profile_cards(cards: Dictionary) -> void:
+	profile_cards_by_peer = cards.duplicate(true)
+
+@rpc("any_peer", "reliable")
+func client_submit_profile_card(card: Dictionary) -> void:
+	if not is_host:
+		return
+	var mp := _mp()
+	if mp == null:
+		return
+	var sender := mp.get_remote_sender_id()
+	var next_card := _sanitize_profile_card(card, sender)
+	if next_card.is_empty():
+		return
+	profile_cards_by_peer[sender] = next_card
+	_broadcast_lobby()
+
+@rpc("authority", "call_local", "reliable")
+func host_start_run(
+	seed_value: int,
+	room_chain: Array,
+	peer_ids: Array,
+	directive_summary: Dictionary = {},
+	constitution_hash: String = "",
+	constitution_summary: Dictionary = {}
+) -> void:
 	var local_players: Array[int] = []
 	for peer_id in peer_ids:
 		local_players.append(int(peer_id))
+	last_authoritative_room_chain = room_chain.duplicate(true)
+	var public_constitution_summary: Dictionary = constitution_summary.duplicate(true)
+	if public_constitution_summary.is_empty():
+		public_constitution_summary = directive_summary.duplicate(true)
+	if not is_host or _effective_constitution().is_empty():
+		current_expedition_constitution = EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.build_runtime_summary(public_constitution_summary, constitution_hash)
+		current_delve_directive = current_expedition_constitution.duplicate(true)
+		current_generation_contract.clear()
+	else:
+		current_expedition_constitution = EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.normalize(_effective_constitution())
+		current_delve_directive = current_expedition_constitution.duplicate(true)
+		current_generation_contract = _constitution_generation_surface(current_expedition_constitution)
+	current_constitution_hash = str(current_expedition_constitution.get("constitution_hash", constitution_hash)).strip_edges()
 	reset_tool_inventory_for_test(local_players)
 	var run_state := _run_state()
 	if run_state != null:
-		run_state.set_run(seed_value, room_chain, local_players)
+		run_state.set_run(seed_value, room_chain, local_players, {
+			"constitution": current_expedition_constitution,
+			"constitution_hash": current_constitution_hash,
+			"constitution_summary": get_current_expedition_constitution_summary(),
+			"generation_surface": get_current_generation_contract()
+		})
 	var event_log := _event_log()
 	if event_log != null:
 		event_log.clear()
 	run_active = true
+	_reset_extraction_window_state()
+	_clear_local_extraction_window_state()
+	_clear_ghost_state()
+	_clear_predator_state()
+	_clear_protocol_watch_state()
+	_clear_echo_lure_state()
 	emit_signal("run_started", seed_value, room_chain)
 
 @rpc("authority", "call_local", "reliable")
@@ -685,8 +1066,12 @@ func host_push_state(snapshot: Dictionary, tick: int) -> void:
 func update_authoritative_player_state(peer_id: int, world_pos: Vector2, room_slot: int) -> void:
 	if not is_host:
 		return
+	var previous_room_slot := int(player_room_by_peer.get(peer_id, -9999))
 	player_pos_by_peer[peer_id] = world_pos
 	player_room_by_peer[peer_id] = room_slot
+	if room_slot >= 0 and previous_room_slot != room_slot:
+		_maybe_trigger_chamber_entry_mutation(peer_id, room_slot)
+		_refresh_transformation_thresholds_for_peer(peer_id, room_slot)
 
 func request_pickup(artifact_id: int) -> void:
 	var mp := _mp()
@@ -828,7 +1213,7 @@ func can_local_use_sabotage(_room_slot: int) -> bool:
 	var run_state := _run_state()
 	if run_state == null:
 		return false
-	if str(run_state.local_role) != ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+	if not _role_service().can_sabotage(str(run_state.local_role)):
 		return false
 	var local_tick := latest_tick
 	if is_host:
@@ -872,7 +1257,7 @@ func _advance_extraction_window(tick: int) -> String:
 		if int(extraction_details.get("artifact_id", 0)) != extraction_window_artifact_id or int(extraction_details.get("owner_peer_id", 0)) != extraction_window_owner_peer_id:
 			_abort_extraction_window(tick)
 			return ""
-		if tick - extraction_window_started_tick >= EXTRACTION_WINDOW_TICKS:
+		if tick - extraction_window_started_tick >= _current_extraction_window_ticks():
 			return "extraction_objective"
 		return ""
 	if not extraction_details.is_empty() and extraction_window_last_abort_tick != tick:
@@ -891,6 +1276,9 @@ func _host_end_run_impl(reason: String) -> void:
 			})
 	_reset_extraction_window_state()
 	_clear_ghost_state()
+	_clear_predator_state()
+	_clear_protocol_watch_state()
+	_clear_echo_lure_state()
 	_broadcast_ghost_state()
 	record_public_event("run_ended", -1, -1, {})
 	var payload := build_run_end_payload(reason)
@@ -904,11 +1292,24 @@ func compute_end_reason_for_tick(tick: int) -> String:
 		return "tick_limit"
 	return ""
 
-func build_run_start_payload(seed_value: int, room_chain: Array, peer_ids: Array) -> Dictionary:
+func build_run_start_payload(
+	seed_value: int,
+	room_chain: Array,
+	peer_ids: Array,
+	directive_summary: Dictionary = {},
+	constitution_hash: String = "",
+	constitution_summary: Dictionary = {}
+) -> Dictionary:
+	var canonical_summary: Dictionary = constitution_summary.duplicate(true)
+	if canonical_summary.is_empty():
+		canonical_summary = directive_summary.duplicate(true)
 	return {
 		"seed": seed_value,
 		"room_chain": room_chain.duplicate(true),
-		"peer_ids": peer_ids.duplicate()
+		"peer_ids": peer_ids.duplicate(),
+		"directive_summary": canonical_summary.duplicate(true),
+		"constitution_hash": constitution_hash,
+		"constitution_summary": canonical_summary.duplicate(true)
 	}
 
 func compute_summary_from_events(events: Array, peer_ids: Array[int], artifacts_state: Dictionary) -> Dictionary:
@@ -947,7 +1348,7 @@ func compute_summary_from_events(events: Array, peer_ids: Array[int], artifacts_
 	return summary
 
 func build_outcome_summary(reason: String, artifacts_state: Dictionary, extraction_details: Dictionary = {}) -> Dictionary:
-	var authenticity: Dictionary = evidence_service.summarize_authenticity(artifacts_state)
+	var authenticity: Dictionary = artifact_service.summarize_authenticity(artifacts_state)
 	var extracted_artifact_id := int(extraction_details.get("artifact_id", 0))
 	var artifact_result := "none"
 	var artifact_result_text := "No artifact extracted"
@@ -955,7 +1356,7 @@ func build_outcome_summary(reason: String, artifacts_state: Dictionary, extracti
 	var sabotage_success := false
 	if reason == "extraction_objective" and extracted_artifact_id != 0 and artifacts_state.has(extracted_artifact_id):
 		var extracted_artifact: Dictionary = artifacts_state[extracted_artifact_id]
-		artifact_result = evidence_service.authenticity_state(extracted_artifact)
+		artifact_result = artifact_service.authenticity_state(extracted_artifact)
 		if artifact_result == "authentic":
 			expedition_success = true
 			artifact_result_text = "Authentic artifact extracted"
@@ -968,9 +1369,16 @@ func build_outcome_summary(reason: String, artifacts_state: Dictionary, extracti
 	else:
 		sabotage_success = true
 	var summary_text := "Expedition success" if expedition_success else "Sabotage success" if sabotage_success else "Run unresolved"
+	var continuity_summary := _build_artifact_continuity_summary(reason, artifacts_state, extraction_details, false)
 	return {
 		"artifact_result": artifact_result,
 		"artifact_result_text": artifact_result_text,
+		"artifact_continuity_state": str(continuity_summary.get("state", "")),
+		"artifact_continuity_text": str(continuity_summary.get("text", "")),
+		"artifact_unresolved_authentic_count": int(continuity_summary.get("unresolved_authentic_count", 0)),
+		"artifact_unresolved_counterfeit_count": int(continuity_summary.get("unresolved_counterfeit_count", 0)),
+		"artifact_carried_unresolved_count": int(continuity_summary.get("carried_unresolved_count", 0)),
+		"artifact_buried_unresolved_count": int(continuity_summary.get("buried_unresolved_count", 0)),
 		"expedition_success": expedition_success,
 		"sabotage_success": sabotage_success,
 		"summary_text": summary_text,
@@ -980,6 +1388,12 @@ func build_outcome_summary(reason: String, artifacts_state: Dictionary, extracti
 
 func build_outcome_summary_for_test(reason: String, artifacts_state: Dictionary, extraction_details: Dictionary = {}) -> Dictionary:
 	return build_outcome_summary(reason, artifacts_state, extraction_details)
+
+func build_interrupted_outcome_summary(reason: String) -> Dictionary:
+	return _build_interrupted_outcome_summary(reason, artifacts_by_id)
+
+func build_interrupted_outcome_summary_for_test(reason: String, artifacts_state: Dictionary) -> Dictionary:
+	return _build_interrupted_outcome_summary(reason, artifacts_state)
 
 func build_run_end_payload(reason: String, seed_override: int = -1) -> Dictionary:
 	var roles_reveal: Dictionary = {}
@@ -1000,6 +1414,78 @@ func build_run_end_payload(reason: String, seed_override: int = -1) -> Dictionar
 		"roles_reveal": roles_reveal,
 		"summary_by_peer": compute_summary_from_events(events, players, artifacts_by_id),
 		"outcome_summary": build_outcome_summary(reason, artifacts_by_id, extraction_details)
+	}
+
+func _build_interrupted_outcome_summary(reason: String, artifacts_state: Dictionary) -> Dictionary:
+	var continuity_summary := _build_artifact_continuity_summary(reason, artifacts_state, {}, true)
+	return {
+		"summary_text": "Session interrupted",
+		"artifact_result_text": "Run interrupted before extraction",
+		"artifact_result": "interrupted",
+		"artifact_continuity_state": str(continuity_summary.get("state", "")),
+		"artifact_continuity_text": str(continuity_summary.get("text", "")),
+		"artifact_unresolved_authentic_count": int(continuity_summary.get("unresolved_authentic_count", 0)),
+		"artifact_unresolved_counterfeit_count": int(continuity_summary.get("unresolved_counterfeit_count", 0)),
+		"artifact_carried_unresolved_count": int(continuity_summary.get("carried_unresolved_count", 0)),
+		"artifact_buried_unresolved_count": int(continuity_summary.get("buried_unresolved_count", 0)),
+		"expedition_success": false,
+		"sabotage_success": false,
+		"interrupt_reason": reason
+	}
+
+func _build_artifact_continuity_summary(reason: String, artifacts_state: Dictionary, extraction_details: Dictionary = {}, interrupted: bool = false) -> Dictionary:
+	var extracted_artifact_id := int(extraction_details.get("artifact_id", 0))
+	var unresolved_authentic := 0
+	var unresolved_counterfeit := 0
+	var carried_unresolved := 0
+	var buried_unresolved := 0
+	for artifact_id_variant in artifacts_state.keys():
+		var artifact_id := int(artifact_id_variant)
+		if artifact_id == extracted_artifact_id:
+			continue
+		var artifact: Dictionary = Dictionary(artifacts_state.get(artifact_id_variant, {}))
+		var authenticity_state: String = artifact_service.authenticity_state(artifact)
+		if authenticity_state == "authentic":
+			unresolved_authentic += 1
+		else:
+			unresolved_counterfeit += 1
+		if int(artifact.get("owner_peer_id", 0)) > 0:
+			carried_unresolved += 1
+		else:
+			buried_unresolved += 1
+	var state := ""
+	var text := ""
+	if reason == "extraction_objective" and extracted_artifact_id != 0 and artifacts_state.has(extracted_artifact_id):
+		var extracted_artifact: Dictionary = Dictionary(artifacts_state.get(extracted_artifact_id, {}))
+		var extracted_authenticity: String = artifact_service.authenticity_state(extracted_artifact)
+		if extracted_authenticity == "counterfeit":
+			state = "successor_emergence"
+			text = "A counterfeit successor displaced the authentic line in public memory."
+		elif unresolved_authentic > 0 or unresolved_counterfeit > 0:
+			state = "fragmented_legacy"
+			text = "Extraction succeeded, but other artifact lines were left unresolved."
+	elif artifacts_state.is_empty():
+		state = "extinction"
+		text = "The artifact line fell extinct in the interrupted record."
+	elif unresolved_authentic > 0 and unresolved_counterfeit > 0:
+		state = "fragmented_legacy"
+		text = "The run left split artifact claims behind."
+	elif unresolved_authentic > 0 and carried_unresolved > 0:
+		state = "recoverable_loss"
+		text = "The artifact line remained in recoverable custody when the run ended." if not interrupted else "The artifact line remained in recoverable custody when the run broke."
+	elif unresolved_authentic > 0 and buried_unresolved > 0:
+		state = "burial"
+		text = "The artifact line was left buried in the labyrinth."
+	elif unresolved_authentic == 0 and unresolved_counterfeit > 0:
+		state = "archive_only_residue"
+		text = "Only residue and counterfeit echoes remained for the Archive."
+	return {
+		"state": state,
+		"text": text,
+		"unresolved_authentic_count": unresolved_authentic,
+		"unresolved_counterfeit_count": unresolved_counterfeit,
+		"carried_unresolved_count": carried_unresolved,
+		"buried_unresolved_count": buried_unresolved
 	}
 
 func get_local_carried_artifact_id() -> int:
@@ -1037,6 +1523,15 @@ func get_local_item_names() -> Array[String]:
 		return []
 	return get_item_names_for_peer(mp.get_unique_id())
 
+func get_local_role_payload() -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	return Dictionary(run_state.local_role_payload).duplicate(true)
+
+func get_public_player_cards() -> Dictionary:
+	return profile_cards_by_peer.duplicate(true)
+
 func get_active_items_for_peer(peer_id: int) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
 	var ids: Array = items_by_id.keys()
@@ -1064,21 +1559,361 @@ func get_local_active_items() -> Array[Dictionary]:
 		return []
 	return get_active_items_for_peer(mp.get_unique_id())
 
+func get_protocol_state_label(active_peer_count: int = -1) -> String:
+	var count := active_peer_count
+	if count < 0:
+		count = _active_protocol_peer_ids().size()
+	if count >= 8:
+		return "Expedition Protocol"
+	if count >= 4:
+		return "Fracture Protocol"
+	if count >= 2:
+		return "Intimate Protocol"
+	return "Exposure Protocol"
+
+func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: Dictionary = {}) -> Dictionary:
+	var cards := peer_identities if not peer_identities.is_empty() else get_public_player_cards()
+	var peer_ids := _active_protocol_peer_ids()
+	var protocol_state := get_protocol_state_label(peer_ids.size())
+	var peer_models := {}
+	var build_identities: Array[String] = []
+	var resource_pressure: Array[String] = []
+	var inhabitant_pressure: Array[String] = []
+	var ghost_active := bool(ghost_state.get("active", false))
+	if ghost_active:
+		inhabitant_pressure.append("ghost pressure")
+	for peer_id in peer_ids:
+		var item_def_ids := _item_def_ids_for_peer(peer_id)
+		item_def_ids.sort()
+		var card: Dictionary = Dictionary(cards.get(str(peer_id), cards.get(peer_id, {})))
+		var public_id := str(card.get("public_id", "peer_%d" % peer_id)).strip_edges()
+		var context := _loadout_context_for_peer(peer_id)
+		context["protocol_state"] = protocol_state
+		context["ghost_active"] = ghost_active
+		var carrying_artifact := bool(context.get("carrying_artifact", false))
+		var loadout_state: Dictionary = item_service.resolve_loadout_state(item_def_ids, context)
+		var inhabitant_signals := _build_inhabitant_pressure_signals(peer_id, protocol_state, carrying_artifact)
+		var model := {
+			"peer_id": peer_id,
+			"public_id": public_id,
+			"display_name": str(card.get("display_name", "Delver")),
+			"item_defs": item_def_ids.duplicate(),
+			"active_item_defs": _active_item_defs_for_peer(peer_id),
+			"tool_counts": get_tool_counts_for_peer(peer_id).duplicate(true),
+			"carrying_artifact": carrying_artifact,
+			"protocol_state": protocol_state,
+			"build_identity": str(loadout_state.get("build_identity", "Mixed build")),
+			"build_scores": Dictionary(loadout_state.get("build_scores", {})).duplicate(true),
+			"behavior_signals": Array(loadout_state.get("behavior_signals", [])).duplicate(),
+			"synergy_labels": Array(loadout_state.get("synergy_labels", [])).duplicate(),
+			"ritual_hooks": Array(loadout_state.get("ritual_hooks", [])).duplicate(),
+			"anomaly_hooks": Array(loadout_state.get("anomaly_hooks", [])).duplicate(),
+			"protocol_hooks": Array(loadout_state.get("protocol_hooks", [])).duplicate(),
+			"resource_signals": Array(loadout_state.get("resource_signals", [])).duplicate(),
+			"feature_scores": Dictionary(loadout_state.get("feature_scores", {})).duplicate(true),
+			"feature_signals": Array(loadout_state.get("feature_signals", [])).duplicate(),
+			"build_stability": int(loadout_state.get("build_stability", 0)),
+			"risk_profile": str(loadout_state.get("risk_profile", "mixed")).strip_edges(),
+			"model_pressure": Array(loadout_state.get("model_pressure", [])).duplicate(),
+			"latent_totals": Dictionary(loadout_state.get("latent_totals", {})).duplicate(true),
+			"inhabitant_signals": inhabitant_signals
+		}
+		if not build_identities.has(str(model.get("build_identity", ""))):
+			build_identities.append(str(model.get("build_identity", "")))
+		for signal_value in Array(model.get("resource_signals", [])):
+			var text := str(signal_value).strip_edges()
+			if not text.is_empty() and not resource_pressure.has(text):
+				resource_pressure.append(text)
+		for signal_value in inhabitant_signals:
+			var pressure_text := str(signal_value).strip_edges()
+			if not pressure_text.is_empty() and not inhabitant_pressure.has(pressure_text):
+				inhabitant_pressure.append(pressure_text)
+		peer_models[public_id] = model
+	var source_profile := profile if not profile.is_empty() else PROFILE_SERVICE_SCRIPT.load_profile()
+	var relationship_model := _build_relationship_gameplay_model(source_profile, cards, peer_ids, protocol_state)
+	var group_model := _build_group_gameplay_model(peer_models, protocol_state, resource_pressure, inhabitant_pressure, relationship_model)
+	return {
+		"protocol_state": protocol_state,
+		"player_count": peer_ids.size(),
+		"peer_models": peer_models,
+		"build_identities": build_identities,
+		"resource_pressure": resource_pressure,
+		"inhabitant_pressure": inhabitant_pressure,
+		"relationship_model": relationship_model,
+		"group_model": group_model
+	}
+
+func _build_group_gameplay_model(peer_models: Dictionary, protocol_state: String, resource_pressure: Array[String], inhabitant_pressure: Array[String], relationship_model: Dictionary = {}) -> Dictionary:
+	var build_totals := {}
+	var signal_weights := {}
+	var fault_lines: Array[String] = []
+	var model_pressure: Array[String] = []
+	var profile_counts := {}
+	var dominant_build := ""
+	var dominant_score := -1
+	var widest_stability := 0
+	var volatile_count := 0
+	var committed_count := 0
+	var prepared_count := 0
+	var peer_count := peer_models.size()
+	for model_raw in peer_models.values():
+		var model: Dictionary = Dictionary(model_raw)
+		var build_identity := str(model.get("build_identity", "")).strip_edges()
+		if not build_identity.is_empty():
+			build_totals[build_identity] = int(build_totals.get(build_identity, 0)) + int(Dictionary(model.get("build_scores", {})).get(build_identity, 0)) + 1
+		for score_key in Dictionary(model.get("feature_scores", {})).keys():
+			var score_value := int(Dictionary(model.get("feature_scores", {})).get(score_key, 0))
+			if score_value <= 0:
+				continue
+			signal_weights[score_key] = int(signal_weights.get(score_key, 0)) + score_value
+		for signal_value in Array(model.get("feature_signals", [])) + Array(model.get("behavior_signals", [])) + Array(model.get("model_pressure", [])):
+			var signal_text := str(signal_value).strip_edges()
+			if signal_text.is_empty():
+				continue
+			signal_weights[signal_text] = int(signal_weights.get(signal_text, 0)) + 1
+		var risk_profile := str(model.get("risk_profile", "mixed")).strip_edges()
+		if not risk_profile.is_empty():
+			profile_counts[risk_profile] = int(profile_counts.get(risk_profile, 0)) + 1
+		if risk_profile == "volatile":
+			volatile_count += 1
+		elif risk_profile == "committed":
+			committed_count += 1
+		elif risk_profile == "prepared" or risk_profile == "disciplined":
+			prepared_count += 1
+		widest_stability = maxi(widest_stability, int(model.get("build_stability", 0)))
+	for build_label in build_totals.keys():
+		var score := int(build_totals.get(build_label, 0))
+		if score > dominant_score or (score == dominant_score and str(build_label) < dominant_build):
+			dominant_score = score
+			dominant_build = str(build_label)
+	if volatile_count >= 1 and committed_count >= 1:
+		fault_lines.append("the group is split between a volatile answer and a rescue answer")
+	if resource_pressure.size() >= 2 and inhabitant_pressure.size() >= 1:
+		fault_lines.append("resource caution and presence pressure are pulling in different directions")
+	if build_totals.size() >= 3:
+		fault_lines.append("too many answer shapes are competing for the same run")
+	if protocol_state == "Exposure Protocol" and committed_count >= 1 and volatile_count >= 1:
+		fault_lines.append("low-density pressure is exposing incompatible answers")
+	if signal_weights.has("public answer appetite") and signal_weights.has("resource caution"):
+		fault_lines.append("spectacle appetite is colliding with cost control")
+	if signal_weights.has("burden-rescue answer"):
+		model_pressure.append("the group keeps bending toward a burden-rescue answer")
+	if signal_weights.has("route-control answer"):
+		model_pressure.append("route-control is starting to look like the shared answer")
+	if signal_weights.has("public misdirection answer"):
+		model_pressure.append("the public line keeps accepting a misdirection-shaped answer")
+	if signal_weights.has("ritual anomaly answer"):
+		model_pressure.append("ritual instability is starting to matter to the group read")
+	if signal_weights.has("scarcity fallback answer"):
+		model_pressure.append("fallback logic keeps setting the acceptable answer")
+	if protocol_state == "Expedition Protocol" and signal_weights.has("public answer appetite"):
+		model_pressure.append("crowd density is heating the visible answer line")
+	elif protocol_state == "Exposure Protocol" and prepared_count >= 1:
+		model_pressure.append("low-density pressure is rewarding prepared answers")
+	if protocol_state == "Exposure Protocol" and peer_count <= 1:
+		fault_lines.append("low-density pressure is forcing each public move to stand alone")
+		model_pressure.append("single-body custody is turning route choice into the whole answer")
+	elif protocol_state == "Intimate Protocol" and peer_count <= 3:
+		fault_lines.append("pair-density pressure is testing whether the burden line can be handed off cleanly")
+		model_pressure.append("pair-density pressure keeps turning route choice into a custody answer")
+	elif protocol_state == "Fracture Protocol" and peer_count >= 4:
+		fault_lines.append("mid-density pressure keeps splitting the crew into competing local answers")
+		model_pressure.append("split pressure is punishing slow regroups")
+	elif protocol_state == "Expedition Protocol" and peer_count >= 8:
+		fault_lines.append("crowd density keeps every visible answer legible to too many witnesses")
+		model_pressure.append("crowd density is rewarding spectacle over subtlety")
+	var trust_fragility := int(relationship_model.get("trust_fragility", 0))
+	var alliance_stability := int(relationship_model.get("alliance_stability", 0))
+	var friendship_pressure := int(relationship_model.get("friendship_pressure", 0))
+	var loyalty_pressure := int(relationship_model.get("loyalty_pressure", 0))
+	var obligation_heat := int(relationship_model.get("obligation_heat", 0))
+	for signal_value in Array(relationship_model.get("group_signals", [])):
+		var signal_text := str(signal_value).strip_edges()
+		if signal_text.is_empty():
+			continue
+		signal_weights[signal_text] = int(signal_weights.get(signal_text, 0)) + 2
+	for fault_value in Array(relationship_model.get("fault_lines", [])):
+		var fault_text := str(fault_value).strip_edges()
+		if not fault_text.is_empty() and not fault_lines.has(fault_text):
+			fault_lines.append(fault_text)
+	for pressure_value in Array(relationship_model.get("model_pressure", [])):
+		var pressure_text := str(pressure_value).strip_edges()
+		if not pressure_text.is_empty() and not model_pressure.has(pressure_text):
+			model_pressure.append(pressure_text)
+	if alliance_stability >= 3 and not fault_lines.has("escort expectation is reshaping the burden line"):
+		fault_lines.append("escort expectation is reshaping the burden line")
+	if trust_fragility >= 2 and not fault_lines.has("suspicion debt is making clean regroups harder"):
+		fault_lines.append("suspicion debt is making clean regroups harder")
+	if obligation_heat >= 3 and not model_pressure.has("public obligation is turning route choice into a rescue debt"):
+		model_pressure.append("public obligation is turning route choice into a rescue debt")
+	var group_signals: Array[String] = []
+	for relationship_signal in Array(relationship_model.get("group_signals", [])):
+		var relationship_text := str(relationship_signal).strip_edges()
+		if not relationship_text.is_empty() and not group_signals.has(relationship_text):
+			group_signals.append(relationship_text)
+	var weighted_keys: Array[Dictionary] = []
+	for signal_key in signal_weights.keys():
+		weighted_keys.append({"label": str(signal_key), "weight": int(signal_weights.get(signal_key, 0))})
+	weighted_keys.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a.get("weight", 0)) == int(b.get("weight", 0)):
+			return str(a.get("label", "")) < str(b.get("label", ""))
+		return int(a.get("weight", 0)) > int(b.get("weight", 0))
+	)
+	for entry_raw in weighted_keys:
+		var entry: Dictionary = Dictionary(entry_raw)
+		var label := str(entry.get("label", "")).strip_edges()
+		if label.is_empty():
+			continue
+		if group_signals.has(label):
+			continue
+		group_signals.append(label)
+		if group_signals.size() >= 8:
+			break
+	var protocol_weighting := "balanced"
+	if protocol_state == "Exposure Protocol":
+		protocol_weighting = "isolation pressure"
+	elif protocol_state == "Intimate Protocol":
+		protocol_weighting = "pair pressure"
+	elif protocol_state == "Fracture Protocol":
+		protocol_weighting = "split pressure"
+	elif protocol_state == "Expedition Protocol":
+		protocol_weighting = "spectacle pressure"
+	var build_spread: Array[String] = []
+	for build_label in build_totals.keys():
+		build_spread.append(str(build_label))
+	build_spread.sort()
+	return {
+		"dominant_build": dominant_build,
+		"build_spread": build_spread,
+		"group_signals": group_signals,
+		"fault_lines": fault_lines,
+		"model_pressure": model_pressure,
+		"protocol_weighting": protocol_weighting,
+		"widest_stability": widest_stability,
+		"risk_profiles": profile_counts,
+		"feature_scores": Dictionary(relationship_model.get("feature_scores", {})).duplicate(true),
+		"relationship_model": relationship_model.duplicate(true),
+		"relationship_summary": str(relationship_model.get("summary", "")).strip_edges(),
+		"alliance_stability": alliance_stability,
+		"trust_fragility": trust_fragility,
+		"friendship_pressure": friendship_pressure,
+		"loyalty_pressure": loyalty_pressure,
+		"obligation_heat": obligation_heat
+	}
+
+func _build_relationship_gameplay_model(profile: Dictionary, cards: Dictionary, peer_ids: Array[int], protocol_state: String) -> Dictionary:
+	var fabric: Dictionary = Dictionary(profile.get("relationship_fabric", {}))
+	var persona: Dictionary = Dictionary(profile.get("persona_state", {}))
+	var pair_map: Dictionary = Dictionary(fabric.get("pairs", {}))
+	var crew_map: Dictionary = Dictionary(fabric.get("crews", {}))
+	var active_public_ids: Array[String] = []
+	for peer_id in peer_ids:
+		var card: Dictionary = Dictionary(cards.get(str(peer_id), cards.get(peer_id, {})))
+		var public_id := str(card.get("public_id", "peer_%d" % peer_id)).strip_edges()
+		if not public_id.is_empty() and not active_public_ids.has(public_id):
+			active_public_ids.append(public_id)
+	active_public_ids.sort()
+	var alliance_stability := 0
+	var trust_fragility := 0
+	var friendship_pressure := 0
+	var loyalty_pressure := 0
+	var obligation_heat := Array(persona.get("public_expectations", [])).size()
+	var group_signals: Array[String] = []
+	var model_pressure: Array[String] = []
+	var fault_lines: Array[String] = []
+	for pair_key in pair_map.keys():
+		var members := str(pair_key).split(":")
+		if members.size() < 2:
+			continue
+		if not active_public_ids.has(str(members[0])) or not active_public_ids.has(str(members[1])):
+			continue
+		var pair: Dictionary = Dictionary(pair_map.get(pair_key, {}))
+		alliance_stability += int(pair.get("rescues", 0)) + int(pair.get("shared_burdens", 0)) + int(pair.get("mutual_extractions", 0))
+		trust_fragility += int(pair.get("betrayals", 0)) + int(pair.get("refusals", 0)) + int(pair.get("near_misses", 0)) / 2
+		friendship_pressure += int(pair.get("rescues", 0)) + int(pair.get("mutual_extractions", 0))
+		loyalty_pressure += Array(pair.get("obligations", [])).size()
+	for crew_key in crew_map.keys():
+		var crew: Dictionary = Dictionary(crew_map.get(crew_key, {}))
+		var members := Array(crew.get("members", []))
+		var active_member_count := 0
+		for member in members:
+			if active_public_ids.has(str(member).strip_edges()):
+				active_member_count += 1
+		if active_member_count < 2:
+			continue
+		alliance_stability += int(crew.get("successful_pushes", 0)) + int(crew.get("recoveries", 0)) / 2
+		trust_fragility += int(crew.get("collapse_moments", 0)) + int(crew.get("escalations", 0)) / 2
+		friendship_pressure += int(crew.get("history_count", 0)) / 2
+		loyalty_pressure += Array(crew.get("obligations", [])).size()
+	obligation_heat += loyalty_pressure
+	if alliance_stability >= 3:
+		group_signals.append("escort expectation")
+		model_pressure.append("allied rescue history is bending the route toward visible handoffs")
+	if friendship_pressure >= 2:
+		group_signals.append("rescue debt")
+		model_pressure.append("friendship history is making rescue convergence harder to refuse")
+	if loyalty_pressure >= 2:
+		group_signals.append("custody debt")
+		model_pressure.append("loyalty pressure is narrowing the acceptable burden handoff")
+	if trust_fragility >= 2:
+		group_signals.append("suspicion debt")
+		model_pressure.append("trust fractures are turning regroups into witness-heavy risks")
+	if obligation_heat >= 3:
+		group_signals.append("public obligation")
+		model_pressure.append("public memory is making extraction feel like a debt settlement")
+	if trust_fragility >= 2 and alliance_stability >= 2:
+		fault_lines.append("old rescue trust is colliding with live suspicion debt")
+	if loyalty_pressure >= 2 and protocol_state in ["Intimate Protocol", "Fracture Protocol"]:
+		fault_lines.append("burden handoffs are being judged against remembered obligations")
+	var summary := "balanced relationship pressure"
+	if trust_fragility > alliance_stability:
+		summary = "fragile trust and suspicion debt"
+	elif alliance_stability >= trust_fragility and alliance_stability >= 3:
+		summary = "escort expectation and rescue obligation"
+	return {
+		"alliance_stability": alliance_stability,
+		"trust_fragility": trust_fragility,
+		"friendship_pressure": friendship_pressure,
+		"loyalty_pressure": loyalty_pressure,
+		"obligation_heat": obligation_heat,
+		"group_signals": group_signals,
+		"model_pressure": model_pressure,
+		"fault_lines": fault_lines,
+		"summary": summary,
+		"feature_scores": {
+			"alliance_stability": alliance_stability,
+			"trust_fragility": trust_fragility,
+			"friendship_pressure": friendship_pressure,
+			"loyalty_pressure": loyalty_pressure,
+			"obligation_heat": obligation_heat
+		}
+	}
+
 func get_carry_speed_multiplier_for_peer(peer_id: int) -> float:
-	return item_service.carry_speed_multiplier_for_items(_item_def_ids_for_peer(peer_id))
+	return float(_loadout_runtime_affordances(peer_id).get("carry_speed_mult", 1.0))
+
+func get_loadout_runtime_affordances_for_peer(peer_id: int) -> Dictionary:
+	if peer_id <= 0:
+		return {}
+	return _loadout_runtime_affordances(peer_id)
+
+func get_local_loadout_runtime_affordances() -> Dictionary:
+	var mp := _mp()
+	if mp == null:
+		return {}
+	return get_loadout_runtime_affordances_for_peer(mp.get_unique_id())
 
 func get_item_effects_for_peer(peer_id: int) -> Dictionary:
-	var item_def_ids := _item_def_ids_for_peer(peer_id)
-	return {
-		"light_scale": item_service.get_light_scale_for_items(item_def_ids),
-		"move_speed_mult": item_service.move_speed_multiplier_for_items(item_def_ids),
-		"jump_velocity_mult": item_service.jump_velocity_multiplier_for_items(item_def_ids),
-		"footprint_interval": item_service.footprint_interval_for_items(item_def_ids),
-		"footprint_scale": item_service.footprint_scale_for_items(item_def_ids)
-	}
+	return _loadout_runtime_affordances(peer_id)
 
 func get_ghost_state() -> Dictionary:
 	return ghost_state.duplicate(true)
+
+func get_predator_state() -> Dictionary:
+	return predator_state.duplicate(true)
+
+func get_protocol_watch_state() -> Dictionary:
+	return protocol_watch_state.duplicate(true)
 
 func get_tool_counts_for_peer(peer_id: int) -> Dictionary:
 	var counts: Dictionary = tool_inventory_by_peer.get(peer_id, {})
@@ -1110,7 +1945,7 @@ func track_noise_trace(peer_id: int, room_slot: int, carrying_artifact: bool) ->
 	var next_due := int(next_noise_trace_tick_by_peer.get(peer_id, 0))
 	if current_server_tick < next_due:
 		return
-	var interval: int = item_service.noise_trace_interval_for_items(_item_def_ids_for_peer(peer_id))
+	var interval := _current_noise_trace_interval(peer_id)
 	next_noise_trace_tick_by_peer[peer_id] = current_server_tick + interval
 	record_public_event("noise_trace", room_slot, -1, {})
 
@@ -1118,6 +1953,41 @@ func get_known_role_for_peer(peer_id: int) -> String:
 	if not is_host:
 		return ""
 	return str(roles_by_peer.get(peer_id, "Unknown"))
+
+func _role_name_for_peer(peer_id: int) -> String:
+	return str(roles_by_peer.get(peer_id, ""))
+
+func _role_service() -> RoleService:
+	return ROLE_SERVICE_SCRIPT.new()
+
+func _active_peers_in_room(room_slot: int) -> Array[int]:
+	var peer_ids: Array[int] = []
+	for peer_id_variant in players:
+		var peer_id := int(peer_id_variant)
+		if int(player_room_by_peer.get(peer_id, -1)) != room_slot:
+			continue
+		if not peer_ids.has(peer_id):
+			peer_ids.append(peer_id)
+	peer_ids.sort()
+	return peer_ids
+
+func _artifact_carrier_in_room(room_slot: int) -> int:
+	var artifact_ids: Array = artifacts_by_id.keys()
+	artifact_ids.sort()
+	for artifact_id_variant in artifact_ids:
+		var artifact: Dictionary = Dictionary(artifacts_by_id.get(artifact_id_variant, {}))
+		var owner_peer_id := int(artifact.get("owner_peer_id", 0))
+		if owner_peer_id <= 0:
+			continue
+		if int(player_room_by_peer.get(owner_peer_id, -1)) == room_slot:
+			return owner_peer_id
+	return 0
+
+func _carried_artifact_authenticity(peer_id: int) -> String:
+	var artifact_id := _find_carried_artifact_by_peer(peer_id)
+	if artifact_id == 0 or not artifacts_by_id.has(artifact_id):
+		return ""
+	return str(artifact_service.authenticity_state(Dictionary(artifacts_by_id.get(artifact_id, {}))))
 
 func broadcast_hazard_pulse(room_slot: int, source_peer_id: int, reason: String) -> void:
 	if not is_host:
@@ -1157,6 +2027,27 @@ func record_private_event(target_peer_id: int, event_type: String, room_slot: in
 		_consume_private_side_effect(event)
 	else:
 		host_push_private_event.rpc_id(target_peer_id, event)
+
+func _broadcast_mutation_event(event: Dictionary) -> void:
+	if not is_host or event.is_empty():
+		return
+	if _capture_events_for_test:
+		var timeline_event := _build_mutation_timeline_event(event)
+		if str(timeline_event.get("visibility", "private")) == "public":
+			_captured_public_events_for_test.append(timeline_event)
+		else:
+			_captured_private_events_for_test.append(timeline_event)
+	var mp := _mp()
+	if not _has_live_network_peer(mp):
+		return
+	var visibility := str(event.get("visibility", "private"))
+	if visibility == "public":
+		host_push_mutation_event.rpc(event)
+		return
+	var target_peer_id := int(event.get("actor_peer_id", -1))
+	var local_id := mp.get_unique_id()
+	if target_peer_id > 0 and target_peer_id != local_id:
+		host_push_mutation_event.rpc_id(target_peer_id, event)
 
 @rpc("any_peer", "reliable")
 func client_pickup_request(artifact_id: int) -> void:
@@ -1242,29 +2133,46 @@ func host_reveal_role(payload: Dictionary) -> void:
 	if run_state == null:
 		return
 	run_state.local_role = str(payload.get("role", "Unknown"))
+	run_state.local_role_payload = payload.duplicate(true)
 	emit_signal("role_revealed", str(run_state.local_role))
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_artifact_state(payload: Array) -> void:
-	artifacts_by_id.clear()
-	var run_state := _run_state()
-	if run_state == null:
-		return
-	run_state.evidence_by_id.clear()
+	var next_artifacts: Dictionary = {}
 	for artifact_raw in payload:
 		var artifact: Dictionary = artifact_raw
 		var artifact_id := int(artifact.get("artifact_id", 0))
-		artifacts_by_id[artifact_id] = artifact
-		run_state.evidence_by_id[artifact_id] = artifact.duplicate(true)
+		next_artifacts[artifact_id] = artifact.duplicate(true)
+	artifacts_by_id = next_artifacts.duplicate(true)
+	var run_state := _run_state()
+	if run_state == null:
+		emit_signal("artifact_state_changed", artifacts_by_id.duplicate(true))
+		emit_signal("evidence_state_changed", artifacts_by_id.duplicate(true))
+		return
+	if run_state.has_method("set_artifacts"):
+		run_state.set_artifacts(next_artifacts)
+	else:
+		run_state.evidence_by_id.clear()
+		run_state.artifacts_by_id.clear()
+		for artifact_id in next_artifacts.keys():
+			var artifact: Dictionary = Dictionary(next_artifacts.get(artifact_id, {})).duplicate(true)
+			run_state.evidence_by_id[artifact_id] = artifact.duplicate(true)
+			run_state.artifacts_by_id[artifact_id] = artifact.duplicate(true)
+	emit_signal("artifact_state_changed", run_state.artifacts_by_id.duplicate(true))
 	emit_signal("evidence_state_changed", run_state.evidence_by_id)
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_item_state(payload: Array) -> void:
 	items_by_id.clear()
+	var run_state := _run_state()
+	if run_state != null:
+		run_state.items_by_id.clear()
 	for item_raw in payload:
 		var item_dict: Dictionary = item_raw
 		var item_id := int(item_dict.get("item_id", 0))
 		items_by_id[item_id] = item_dict.duplicate(true)
+		if run_state != null:
+			run_state.items_by_id[item_id] = item_dict.duplicate(true)
 	emit_signal("item_state_changed", items_by_id.duplicate(true))
 
 @rpc("authority", "call_local", "reliable")
@@ -1292,6 +2200,12 @@ func host_push_private_event(event: Dictionary) -> void:
 		if target_peer_id != -1 and target_peer_id != local_id:
 			return
 	_consume_private_side_effect(event)
+
+@rpc("authority", "reliable")
+func host_push_mutation_event(event: Dictionary) -> void:
+	var event_log := _event_log()
+	if event_log != null and event_log.has_method("add_mutation_event"):
+		event_log.add_mutation_event(event)
 
 @rpc("authority", "call_local", "reliable")
 func host_hazard_pulse(room_slot: int, source_peer_id: int, reason: String) -> void:
@@ -1342,7 +2256,12 @@ func reset_to_lobby(_reason: String = "manual") -> void:
 		if event_log != null:
 			event_log.clear()
 		_clear_ghost_state()
+		_clear_predator_state()
+		_clear_protocol_watch_state()
+		_clear_echo_lure_state()
 		emit_signal("ghost_state_changed", ghost_state.duplicate(true))
+		emit_signal("artifact_state_changed", {})
+		emit_signal("evidence_state_changed", {})
 		emit_signal("item_state_changed", {})
 		clear_reconnect_offer()
 		_set_connection_status("Disconnected")
@@ -1354,7 +2273,12 @@ func reset_to_lobby(_reason: String = "manual") -> void:
 		input_by_peer.clear()
 		items_by_id.clear()
 		_clear_ghost_state()
+		_clear_predator_state()
+		_clear_protocol_watch_state()
+		_clear_echo_lure_state()
 		emit_signal("ghost_state_changed", ghost_state.duplicate(true))
+		emit_signal("artifact_state_changed", {})
+		emit_signal("evidence_state_changed", {})
 		emit_signal("item_state_changed", {})
 		emit_signal("lobby_updated", players, ready_by_id, is_host)
 
@@ -1372,12 +2296,22 @@ func _host_pickup(requester_id: int, artifact_id: int) -> void:
 		_deny_action(requester_id, "wrong_room", requester_slot)
 		return
 	var player_pos: Vector2 = player_pos_by_peer.get(requester_id, Vector2(999999, 999999))
-	if not evidence_service.can_pickup(artifact, player_pos):
+	if not artifact_service.can_pickup(artifact, player_pos):
 		_deny_action(requester_id, "out_of_range", requester_slot)
 		return
-	var next: Dictionary = evidence_service.apply_owner(artifact, requester_id, player_pos)
+	var next: Dictionary = artifact_service.apply_owner(artifact, requester_id, player_pos)
 	next["room_slot"] = requester_slot
 	artifacts_by_id[artifact_id] = next
+	_apply_role_custody_pickup_pressure(requester_id, next)
+	_apply_constitution_mutation("artifact_picked", {
+		"artifact_id": artifact_id,
+		"room_slot": requester_slot,
+		"actor_peer_id": requester_id,
+		"owner_peer_id": requester_id,
+		"visibility": "public"
+	})
+	_maybe_trigger_covenant_activation(requester_id, requester_slot)
+	_refresh_transformation_thresholds_for_peer(requester_id, requester_slot)
 	_broadcast_artifact_state()
 	record_public_event("artifact_picked", int(next.get("room_slot", -1)), requester_id, {"artifact_id": artifact_id})
 
@@ -1387,14 +2321,22 @@ func _host_drop(requester_id: int) -> void:
 		_deny_action(requester_id, "no_target")
 		return
 	var artifact: Dictionary = artifacts_by_id[carried_id]
-	if not evidence_service.can_drop(artifact, requester_id):
+	if not artifact_service.can_drop(artifact, requester_id):
 		_deny_action(requester_id, "not_owner")
 		return
 	var requester_slot := int(player_room_by_peer.get(requester_id, int(artifact.get("room_slot", -1))))
 	var pos: Vector2 = player_pos_by_peer.get(requester_id, Vector2.ZERO) + Vector2(0, 10)
-	var next: Dictionary = evidence_service.apply_owner(artifact, 0, pos)
+	var next: Dictionary = artifact_service.apply_owner(artifact, 0, pos)
 	next["room_slot"] = requester_slot
 	artifacts_by_id[carried_id] = next
+	_apply_role_custody_drop_pressure(requester_id, artifact, requester_slot)
+	_apply_constitution_mutation("artifact_dropped", {
+		"artifact_id": carried_id,
+		"room_slot": requester_slot,
+		"actor_peer_id": requester_id,
+		"visibility": "public"
+	})
+	_refresh_transformation_thresholds_for_peer(requester_id, requester_slot)
 	_broadcast_artifact_state()
 	record_public_event("artifact_dropped", int(next.get("room_slot", -1)), requester_id, {"artifact_id": carried_id})
 
@@ -1418,17 +2360,32 @@ func _host_steal(requester_id: int, artifact_id: int) -> void:
 		return
 	var stealer_pos: Vector2 = player_pos_by_peer.get(requester_id, Vector2(999999, 999999))
 	var victim_pos: Vector2 = player_pos_by_peer.get(victim_id, Vector2(999999, 999999))
-	if not evidence_service.can_steal(artifact, stealer_pos, victim_pos):
+	if not artifact_service.can_steal(artifact, stealer_pos, victim_pos):
 		_deny_action(requester_id, "out_of_range", requester_slot)
 		return
-	var next: Dictionary = evidence_service.apply_owner(artifact, requester_id, stealer_pos)
+	var next: Dictionary = artifact_service.apply_owner(artifact, requester_id, stealer_pos)
 	next["room_slot"] = requester_slot
 	artifacts_by_id[artifact_id] = next
+	_note_role_custody_pressure(requester_id, 1, 1, 0, 0)
+	_note_role_custody_pressure(victim_id, 0, 1, 0, 0)
+	_apply_role_custody_pickup_pressure(requester_id, next)
+	_apply_constitution_mutation("artifact_stolen", {
+		"artifact_id": artifact_id,
+		"room_slot": requester_slot,
+		"actor_peer_id": requester_id,
+		"from_peer": victim_id,
+		"owner_peer_id": requester_id,
+		"visibility": "public"
+	})
+	_maybe_trigger_covenant_activation(requester_id, requester_slot)
+	_refresh_transformation_thresholds_for_peer(requester_id, requester_slot)
+	_refresh_transformation_thresholds_for_peer(victim_id, victim_slot)
 	_broadcast_artifact_state()
 	record_public_event("artifact_stolen", int(next.get("room_slot", -1)), requester_id, {"artifact_id": artifact_id, "from_peer": victim_id})
 
 func _host_forge(requester_id: int, room_slot: int) -> void:
-	if str(roles_by_peer.get(requester_id, "")) != ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+	var role_name := _role_name_for_peer(requester_id)
+	if not _role_service().can_forge(role_name):
 		_deny_action(requester_id, "not_role", room_slot)
 		return
 	if _find_carried_artifact_by_peer(requester_id) != 0:
@@ -1439,7 +2396,7 @@ func _host_forge(requester_id: int, room_slot: int) -> void:
 		_deny_action(requester_id, "wrong_room", room_slot)
 		return
 	var forge_counter := int(forge_counter_by_room.get(room_slot, 0))
-	var forged: Dictionary = evidence_service.build_forged_artifact(
+	var forged: Dictionary = artifact_service.build_forged_artifact(
 		_run_seed(),
 		next_artifact_id,
 		room_slot,
@@ -1449,6 +2406,10 @@ func _host_forge(requester_id: int, room_slot: int) -> void:
 	forge_counter_by_room[room_slot] = forge_counter + 1
 	artifacts_by_id[next_artifact_id] = forged
 	next_artifact_id += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+		_note_role_custody_pressure(requester_id, 0, 2, 1, 1)
+	else:
+		_note_role_custody_pressure(requester_id, 0, 1, 2, 1)
 	_broadcast_artifact_state()
 	record_private_event(requester_id, "artifact_forged", room_slot, requester_id, {"artifact_id": int(forged["artifact_id"])})
 	record_public_event("artifact_spawned", room_slot, -1, {"artifact_id": int(forged["artifact_id"])})
@@ -1498,6 +2459,47 @@ func _host_callout(requester_id: int, kind: String, room_slot: int) -> void:
 	var player_slot := int(player_room_by_peer.get(requester_id, -1))
 	var target_slot := player_slot if player_slot >= 0 else room_slot
 	record_public_event("room_callout", target_slot, requester_id, {"kind": normalized})
+	_apply_role_callout_pressure(requester_id, normalized, target_slot)
+
+func _apply_role_callout_pressure(requester_id: int, kind: String, room_slot: int) -> void:
+	var role_name := _role_name_for_peer(requester_id)
+	var carrier_peer_id := _artifact_carrier_in_room(room_slot)
+	match role_name:
+		ROLE_SERVICE_SCRIPT.ROLE_STEWARD:
+			_note_role_custody_pressure(requester_id, 0, -1, 0, 1)
+			if kind in ["artifact", "regroup"]:
+				for peer_id in _active_peers_in_room(room_slot):
+					if peer_id == requester_id:
+						continue
+					_note_role_custody_pressure(peer_id, 0, -1, 0, 0)
+				if carrier_peer_id > 0:
+					_note_role_custody_pressure(carrier_peer_id, -1, -1, 0, 0)
+			elif kind == "danger" and carrier_peer_id > 0:
+				_note_role_custody_pressure(carrier_peer_id, 0, -1, 0, 0)
+			record_private_event(requester_id, "item_note", room_slot, requester_id, {
+				"label": "Steward callout steadied the public line"
+			})
+		ROLE_SERVICE_SCRIPT.ROLE_BEARER:
+			if carrier_peer_id == requester_id and kind in ["artifact", "regroup"]:
+				_note_role_custody_pressure(requester_id, -1, 0, 0, 1)
+				record_private_event(requester_id, "item_note", room_slot, requester_id, {
+					"label": "Bearer callout tightened the escort line"
+				})
+			elif carrier_peer_id == requester_id:
+				_note_role_custody_pressure(requester_id, 0, 0, 0, 1)
+		ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+			_note_role_custody_pressure(requester_id, 0, -1, 0, 1)
+			if carrier_peer_id > 0 and carrier_peer_id != requester_id:
+				_note_role_custody_pressure(carrier_peer_id, 0, 1, 1 if kind == "artifact" else 0, 0)
+			record_private_event(requester_id, "item_note", room_slot, requester_id, {
+				"label": "Murmur callout bent witness pressure around the burden"
+			})
+		ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+			if kind == "artifact":
+				_note_role_custody_pressure(requester_id, 0, 1, 0, 1)
+		ROLE_SERVICE_SCRIPT.ROLE_WARDEN:
+			if kind == "artifact":
+				_note_role_custody_pressure(requester_id, 0, 0, 0, 1)
 
 @rpc("authority", "call_local", "reliable")
 func host_spawn_bomb(pos: Vector2, vel: Vector2, node_name: String) -> void:
@@ -1515,6 +2517,17 @@ func host_spawn_bomb(pos: Vector2, vel: Vector2, node_name: String) -> void:
 	b.global_position = pos
 	b.linear_velocity = vel
 	parent.add_child(b)
+
+@rpc("authority", "call_local", "reliable")
+func host_detonate_bomb(node_name: String, pos: Vector2) -> void:
+	var game_node = get_tree().root.get_node_or_null("Game")
+	var parent = game_node if game_node else self
+	var bomb = parent.get_node_or_null(node_name)
+	if bomb and bomb.has_method("explode_local"):
+		bomb.explode_local(pos)
+		return
+	if bomb and bomb.has_method("rpc_explode"):
+		bomb.rpc_explode(pos)
 
 @rpc("authority", "call_local", "reliable")
 func host_spawn_rope(pos: Vector2, node_name: String) -> void:
@@ -1552,6 +2565,19 @@ func _host_pickup_item(requester_id: int, item_id: int) -> void:
 	if not item_service.can_pickup(item_data, requester_pos):
 		_deny_action(requester_id, "out_of_range", int(item_data.get("room_slot", -1)))
 		return
+	var item_def_id := str(item_data.get("item_def_id", ""))
+	var category_id: String = item_service.get_category(item_def_id)
+	var category_limit: int = item_service.category_carry_limit(category_id)
+	if category_limit <= 0 and category_id == "tool":
+		category_limit = MAX_CARRIED_TOOL_ITEMS
+	if category_limit > 0 and _owned_item_count_by_category(requester_id, category_id) >= category_limit:
+		var deny_reason := "tool_slots_full" if category_id == "tool" else "category_slots_full"
+		_deny_action(requester_id, deny_reason, int(item_data.get("room_slot", -1)))
+		return
+	var existing_item_ids := _item_def_ids_for_peer(requester_id)
+	if not item_service.forbidden_combo_failures_with_candidate(existing_item_ids, item_def_id).is_empty():
+		_deny_action(requester_id, "illegal_ecology_combo", int(item_data.get("room_slot", -1)))
+		return
 	items_by_id[item_id] = item_service.apply_owner(item_data, requester_id, requester_pos)
 	_broadcast_item_state()
 	record_public_event("item_picked", int(item_data.get("room_slot", -1)), -1, {"item_id": item_id})
@@ -1559,6 +2585,8 @@ func _host_pickup_item(requester_id: int, item_id: int) -> void:
 		"label": "Picked up %s" % str(item_data.get("display_name", item_data.get("item_def_id", "item"))),
 		"item_id": item_id
 	})
+	_maybe_trigger_covenant_activation(requester_id, int(item_data.get("room_slot", -1)))
+	_refresh_transformation_thresholds_for_peer(requester_id, int(item_data.get("room_slot", -1)))
 
 func _compute_zipline_segment(room_slot: int, requester_pos: Vector2) -> Dictionary:
 	var grid_x := posmod(room_slot, ROOM_COLUMNS)
@@ -1602,6 +2630,17 @@ func _host_use_item(requester_id: int, item_id: int, room_slot: int) -> void:
 				"item_id": item_id
 			})
 			_broadcast_item_state()
+		"flare_ampoule":
+			items_by_id[item_id] = item_service.consume(item_data)
+			record_public_event("item_used", actual_room_slot, -1, {"label": item_service.get_use_label(item_def_id)})
+			record_public_event("noise_trace", actual_room_slot, -1, {})
+			_host_callout(requester_id, "danger", actual_room_slot)
+			broadcast_hazard_pulse(actual_room_slot, requester_id, "flare_ampoule")
+			record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+				"label": "Flare ampoule flooded the room with a brief public bloom",
+				"item_id": item_id
+			})
+			_broadcast_item_state()
 		"decoy_emitter":
 			items_by_id[item_id] = item_service.consume(item_data)
 			record_public_event("item_used", actual_room_slot, -1, {"label": item_service.get_use_label(item_def_id)})
@@ -1611,7 +2650,7 @@ func _host_use_item(requester_id: int, item_id: int, room_slot: int) -> void:
 				record_public_event("noise_trace", route_room, -1, {})
 				var carried_artifact_id := _find_carried_artifact_by_peer(requester_id)
 				if carried_artifact_id != 0 and artifacts_by_id.has(carried_artifact_id):
-					var rerouted: Dictionary = evidence_service.apply_owner(
+					var rerouted: Dictionary = artifact_service.apply_owner(
 						artifacts_by_id[carried_artifact_id],
 						0,
 						_artifact_cache_position(route_room, carried_artifact_id)
@@ -1621,7 +2660,7 @@ func _host_use_item(requester_id: int, item_id: int, room_slot: int) -> void:
 					_broadcast_artifact_state()
 					record_public_event("artifact_dropped", route_room, -1, {"artifact_id": carried_artifact_id})
 					record_private_event(requester_id, "item_note", route_room, requester_id, {
-						"label": "Decoy emitter rerouted E%d to room %d" % [carried_artifact_id, route_room]
+						"label": "Decoy emitter rerouted Artifact %d to room %d" % [carried_artifact_id, route_room]
 					})
 				else:
 					record_private_event(requester_id, "item_note", route_room, requester_id, {
@@ -1650,11 +2689,91 @@ func _host_use_item(requester_id: int, item_id: int, room_slot: int) -> void:
 				"item_id": item_id
 			})
 			_broadcast_item_state()
+		"custody_seal":
+			items_by_id[item_id] = item_service.consume(item_data)
+			record_public_event("item_used", actual_room_slot, -1, {"label": item_service.get_use_label(item_def_id)})
+			record_public_event("room_callout", actual_room_slot, requester_id, {"kind": "artifact"})
+			var carried_artifact_id := _find_carried_artifact_by_peer(requester_id)
+			var authenticity_state := ""
+			if carried_artifact_id != 0 and artifacts_by_id.has(carried_artifact_id):
+				authenticity_state = str(artifact_service.authenticity_state(Dictionary(artifacts_by_id.get(carried_artifact_id, {}))))
+			if authenticity_state == "authentic":
+				_note_role_custody_pressure(requester_id, -1, -1, -1, 1)
+				if extraction_window_started_tick >= 0 and extraction_window_owner_peer_id == requester_id:
+					extraction_window_started_tick = maxi(extraction_window_started_tick - 45, 0)
+				record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+					"label": "Custody seal steadied the burden in public",
+					"item_id": item_id
+				})
+			elif authenticity_state == "counterfeit":
+				_note_role_custody_pressure(requester_id, 0, 1, 1, 1)
+				record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+					"label": "Custody seal rang false against the carried burden",
+					"item_id": item_id
+				})
+			else:
+				_note_role_custody_pressure(requester_id, 0, 1, 0, 0)
+				record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+					"label": "Custody seal drew witness pressure without a burden",
+					"item_id": item_id
+				})
+			_broadcast_item_state()
+		"witness_chime":
+			items_by_id[item_id] = item_service.consume(item_data)
+			record_public_event("item_used", actual_room_slot, -1, {"label": item_service.get_use_label(item_def_id)})
+			record_public_event("noise_trace", actual_room_slot, -1, {})
+			_host_callout(requester_id, "artifact", actual_room_slot)
+			var witnessed_artifact_id := _find_carried_artifact_by_peer(requester_id)
+			var witnessed_authenticity := ""
+			if witnessed_artifact_id != 0 and artifacts_by_id.has(witnessed_artifact_id):
+				witnessed_authenticity = str(artifact_service.authenticity_state(Dictionary(artifacts_by_id.get(witnessed_artifact_id, {}))))
+			if witnessed_authenticity == "authentic":
+				_note_role_custody_pressure(requester_id, 0, -1, -1, 1)
+				record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+					"label": "Witness chime turned the room toward your burden",
+					"item_id": item_id
+				})
+			elif witnessed_authenticity == "counterfeit":
+				_note_role_custody_pressure(requester_id, 0, 1, 1, 1)
+				record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+					"label": "Witness chime amplified doubt around the forged burden",
+					"item_id": item_id
+				})
+			else:
+				_note_role_custody_pressure(requester_id, 0, 1, 0, 1)
+				record_private_event(requester_id, "item_note", actual_room_slot, requester_id, {
+					"label": "Witness chime made the room ask who should answer",
+					"item_id": item_id
+				})
+			_broadcast_item_state()
+		"echo_lure":
+			var lure_room := _anomaly_echo_room_slot(requester_id)
+			if lure_room < 0 or lure_room == actual_room_slot:
+				var max_room := maxi(extraction_room_slot, actual_room_slot)
+				lure_room = clampi(actual_room_slot + (1 if actual_room_slot < max_room else -1), 0, max_room)
+			echo_lure_state = {
+				"active": true,
+				"owner_peer_id": requester_id,
+				"room_slot": lure_room,
+				"expires_tick": maxi(current_server_tick + 210, _current_ghost_wake_tick() + 240)
+			}
+			items_by_id[item_id] = item_service.consume(item_data)
+			record_public_event("item_used", actual_room_slot, -1, {"label": item_service.get_use_label(item_def_id)})
+			record_public_event("noise_trace", lure_room, -1, {})
+			record_private_event(requester_id, "item_note", lure_room, requester_id, {
+				"label": "Echo lure bent pursuit toward room %d" % lure_room,
+				"item_id": item_id
+			})
+			if _role_name_for_peer(requester_id) in [ROLE_SERVICE_SCRIPT.ROLE_VEIL, ROLE_SERVICE_SCRIPT.ROLE_MURMUR]:
+				_note_role_custody_pressure(requester_id, 0, 0, 1, 1)
+			broadcast_hazard_pulse(lure_room, -1, "echo_lure")
+			_broadcast_item_state()
+			_refresh_transformation_thresholds_for_peer(requester_id, lure_room)
 		_:
 			_deny_action(requester_id, "no_target", room_slot)
 
 func _host_sabotage(requester_id: int, room_slot: int) -> void:
-	if str(roles_by_peer.get(requester_id, "")) != ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+	if not _role_service().can_sabotage(_role_name_for_peer(requester_id)):
 		_deny_action(requester_id, "not_role", room_slot)
 		return
 	var player_slot := int(player_room_by_peer.get(requester_id, -99))
@@ -1676,9 +2795,10 @@ func _host_sabotage(requester_id: int, room_slot: int) -> void:
 	record_public_event("sabotage_accident", room_slot, -1, {"label": accident_label})
 	record_public_event("sabotage_camera_jam", room_slot, -1, {"label": camera_jam_label})
 	record_private_event(requester_id, "sabotage_private_confirm", room_slot, requester_id, {"label": "Camera jam"})
+	_note_role_custody_pressure(requester_id, 0, 1, 0, 1)
 
 func _host_check_artifact(requester_id: int, artifact_id: int) -> void:
-	if str(roles_by_peer.get(requester_id, "")) != ROLE_SERVICE_SCRIPT.ROLE_WARDEN:
+	if not _role_service().can_inspect(_role_name_for_peer(requester_id)):
 		_deny_action(requester_id, "not_role")
 		return
 	if not artifacts_by_id.has(artifact_id):
@@ -1699,6 +2819,15 @@ func _host_check_artifact(requester_id: int, artifact_id: int) -> void:
 	check_counter_by_peer[requester_id] = check_counter + 1
 	if camera_jammed:
 		record_private_event(requester_id, "warden_camera_jam_note", artifact_slot, requester_id, {"label": "Camera jam residue lowered confidence"})
+	_note_role_custody_pressure(requester_id, 0, 0, 0, 1)
+	if artifact_service.authenticity_state(artifact) == "counterfeit":
+		var owner_peer_id := int(artifact.get("owner_peer_id", 0))
+		if owner_peer_id > 0:
+			_note_role_custody_pressure(owner_peer_id, 1, 2, 2, 0)
+	else:
+		var authentic_owner_peer_id := int(artifact.get("owner_peer_id", 0))
+		if authentic_owner_peer_id > 0 and authentic_owner_peer_id != requester_id:
+			_note_role_custody_pressure(authentic_owner_peer_id, 1, 0, 0, 0)
 	record_private_event(requester_id, "warden_check_result", artifact_slot, requester_id, {
 		"artifact_id": artifact_id,
 		"score": score
@@ -1725,6 +2854,7 @@ func _reveal_roles_to_clients() -> void:
 			var run_state := _run_state()
 			if run_state != null:
 				run_state.local_role = role_name
+				run_state.local_role_payload = payload.duplicate(true)
 			emit_signal("role_revealed", role_name)
 		else:
 			host_reveal_role.rpc_id(peer_id, payload)
@@ -1785,6 +2915,22 @@ func _build_event(visibility: String, event_type: String, room_slot: int, actor_
 	}
 	next_event_id += 1
 	return event
+
+func _build_mutation_timeline_event(event: Dictionary) -> Dictionary:
+	return {
+		"tick": int(event.get("tick", current_server_tick)),
+		"event_id": int(event.get("timeline_event_id", event.get("ordering_index", -1))),
+		"room_slot": int(Dictionary(event.get("public_meta", {})).get("room_slot", -1)),
+		"actor_peer_id": int(event.get("actor_peer_id", -1)),
+		"event_type": "constitution_mutation",
+		"visibility": str(event.get("visibility", "private")),
+		"meta": {
+			"mutation_id": str(event.get("mutation_id", "")),
+			"trigger_type": str(event.get("trigger_type", "")),
+			"domain": str(event.get("domain", "")),
+			"public_meta": Dictionary(event.get("public_meta", {})).duplicate(true)
+		}
+	}
 
 func _public_meta_allowlist(event_type: String, meta: Dictionary) -> Dictionary:
 	match event_type:
@@ -1860,15 +3006,44 @@ func camera_jam_adjusted_warden_score_for_test(score: int) -> int:
 	return _camera_jam_adjusted_warden_score(score)
 
 func extraction_window_ticks_for_test() -> int:
-	return EXTRACTION_WINDOW_TICKS
+	return _current_extraction_window_ticks()
+
+func ghost_wake_tick_for_test() -> int:
+	return _current_ghost_wake_tick()
+
+func ghost_speed_per_tick_for_test() -> float:
+	return _current_ghost_speed_per_tick()
+
+func ghost_hit_radius_for_test() -> float:
+	return _current_ghost_hit_radius()
+
+func noise_trace_interval_for_test(peer_id: int) -> int:
+	return _current_noise_trace_interval(peer_id)
+
+func predator_rush_interval_for_test(peer_id: int, active_peer_count: int = -1) -> int:
+	return _current_predator_rush_interval(peer_id, active_peer_count)
+
+func protocol_watch_interval_for_test(peer_id: int) -> int:
+	return _current_protocol_watch_interval(peer_id)
 
 func host_use_item_for_test(requester_id: int, item_id: int, room_slot: int) -> void:
 	_host_use_item(requester_id, item_id, room_slot)
+
+func host_pickup_item_for_test(requester_id: int, item_id: int) -> void:
+	_host_pickup_item(requester_id, item_id)
 
 func begin_event_capture_for_test() -> void:
 	_capture_events_for_test = true
 	_captured_public_events_for_test.clear()
 	_captured_private_events_for_test.clear()
+
+func bind_runtime_context_for_test(run_state: Node, event_log: Node) -> void:
+	_run_state_override_for_test = run_state
+	_event_log_override_for_test = event_log
+
+func clear_runtime_context_for_test() -> void:
+	_run_state_override_for_test = null
+	_event_log_override_for_test = null
 
 func end_event_capture_for_test() -> Dictionary:
 	var payload := {
@@ -1879,6 +3054,38 @@ func end_event_capture_for_test() -> Dictionary:
 	_captured_public_events_for_test.clear()
 	_captured_private_events_for_test.clear()
 	return payload
+
+func host_pickup_for_test(requester_id: int, artifact_id: int) -> void:
+	_host_pickup(requester_id, artifact_id)
+
+func host_drop_for_test(requester_id: int) -> void:
+	_host_drop(requester_id)
+
+func host_steal_for_test(requester_id: int, artifact_id: int) -> void:
+	_host_steal(requester_id, artifact_id)
+
+func host_check_artifact_for_test(requester_id: int, artifact_id: int) -> void:
+	_host_check_artifact(requester_id, artifact_id)
+
+func host_forge_for_test(requester_id: int, room_slot: int) -> void:
+	_host_forge(requester_id, room_slot)
+
+func host_callout_for_test(requester_id: int, kind: String, room_slot: int) -> void:
+	_host_callout(requester_id, kind, room_slot)
+
+func choose_protocol_watch_peer_for_test() -> int:
+	return _choose_protocol_watch_peer()
+
+func choose_predator_target_peer_for_test() -> int:
+	return _choose_predator_target_peer()
+
+func get_role_custody_runtime_for_test(peer_id: int) -> Dictionary:
+	return {
+		"role_pressure": int(role_pressure_by_peer.get(peer_id, 0)),
+		"custody_debt": int(custody_debt_by_peer.get(peer_id, 0)),
+		"suspicion_heat": int(suspicion_heat_by_peer.get(peer_id, 0)),
+		"counterfeit_heat": int(counterfeit_heat_by_peer.get(peer_id, 0))
+	}
 
 func advance_ghost_pressure_for_test(tick: int, peer_rooms: Dictionary, peer_positions: Dictionary, peer_list: Array[int], extraction_slot_value: int, carried_by_peer: Dictionary = {}) -> Dictionary:
 	var prev_host := is_host
@@ -1918,6 +3125,75 @@ func advance_ghost_pressure_for_test(tick: int, peer_rooms: Dictionary, peer_pos
 	ghost_state = prev_ghost_state
 	return result
 
+func advance_runtime_ecology_for_test(tick: int, peer_rooms: Dictionary, peer_positions: Dictionary, peer_list: Array[int], extraction_slot_value: int, carried_by_peer: Dictionary = {}) -> Dictionary:
+	var prev_host := is_host
+	var prev_run_active := run_active
+	var prev_tick := current_server_tick
+	var prev_next_event_id := next_event_id
+	var prev_rooms := player_room_by_peer.duplicate(true)
+	var prev_positions := player_pos_by_peer.duplicate(true)
+	var prev_players := players.duplicate()
+	var prev_extraction_slot := extraction_room_slot
+	var prev_artifacts := artifacts_by_id.duplicate(true)
+	var prev_ghost_state := ghost_state.duplicate(true)
+	var prev_role_pressure := role_pressure_by_peer.duplicate(true)
+	var prev_custody_debt := custody_debt_by_peer.duplicate(true)
+	var prev_suspicion_heat := suspicion_heat_by_peer.duplicate(true)
+	var prev_counterfeit_heat := counterfeit_heat_by_peer.duplicate(true)
+	var prev_predator_state := predator_state.duplicate(true)
+	var prev_protocol_watch_state := protocol_watch_state.duplicate(true)
+	var prev_echo_lure_state := echo_lure_state.duplicate(true)
+	var prev_capture := _capture_events_for_test
+	var prev_public_events := _captured_public_events_for_test.duplicate(true)
+	var prev_private_events := _captured_private_events_for_test.duplicate(true)
+	is_host = true
+	run_active = true
+	current_server_tick = tick
+	player_room_by_peer = peer_rooms.duplicate(true)
+	player_pos_by_peer = peer_positions.duplicate(true)
+	players = peer_list.duplicate()
+	extraction_room_slot = extraction_slot_value
+	artifacts_by_id.clear()
+	for peer_id_variant in carried_by_peer.keys():
+		var peer_id := int(peer_id_variant)
+		artifacts_by_id[1000 + peer_id] = {
+			"artifact_id": 1000 + peer_id,
+			"owner_peer_id": peer_id,
+			"room_slot": int(player_room_by_peer.get(peer_id, 0))
+		}
+	_capture_events_for_test = true
+	_captured_public_events_for_test.clear()
+	_captured_private_events_for_test.clear()
+	_advance_runtime_ecology()
+	var result := {
+		"ghost_state": ghost_state.duplicate(true),
+		"predator_state": predator_state.duplicate(true),
+		"protocol_watch_state": protocol_watch_state.duplicate(true),
+		"public": _captured_public_events_for_test.duplicate(true),
+		"private": _captured_private_events_for_test.duplicate(true)
+	}
+	is_host = prev_host
+	run_active = prev_run_active
+	current_server_tick = prev_tick
+	next_event_id = prev_next_event_id
+	player_room_by_peer = prev_rooms
+	player_pos_by_peer = prev_positions
+	players = prev_players
+	extraction_room_slot = prev_extraction_slot
+	artifacts_by_id = prev_artifacts
+	ghost_state = prev_ghost_state
+	role_pressure_by_peer = prev_role_pressure
+	custody_debt_by_peer = prev_custody_debt
+	suspicion_heat_by_peer = prev_suspicion_heat
+	counterfeit_heat_by_peer = prev_counterfeit_heat
+	predator_state = prev_predator_state
+	protocol_watch_state = prev_protocol_watch_state
+	echo_lure_state = prev_echo_lure_state
+	_capture_events_for_test = prev_capture
+	_captured_public_events_for_test = prev_public_events
+	_captured_private_events_for_test = prev_private_events
+	return result
+
 func _deny_action(target_peer_id: int, reason: String, room_slot: int = -1) -> void:
 	record_private_event(target_peer_id, "action_denied_ui", room_slot, target_peer_id, {"reason": reason})
 
@@ -1955,7 +3231,14 @@ func _start_extraction_window(tick: int, extraction_details: Dictionary) -> void
 	extraction_window_started_tick = tick
 	extraction_window_artifact_id = int(extraction_details.get("artifact_id", 0))
 	extraction_window_owner_peer_id = int(extraction_details.get("owner_peer_id", 0))
-	record_public_event("extraction_window_started", int(extraction_details.get("room_slot", extraction_room_slot)), -1, {"duration_ticks": EXTRACTION_WINDOW_TICKS})
+	_apply_constitution_mutation("extraction_window_started", {
+		"artifact_id": extraction_window_artifact_id,
+		"room_slot": int(extraction_details.get("room_slot", extraction_room_slot)),
+		"actor_peer_id": extraction_window_owner_peer_id,
+		"owner_peer_id": extraction_window_owner_peer_id,
+		"visibility": "public"
+	})
+	record_public_event("extraction_window_started", int(extraction_details.get("room_slot", extraction_room_slot)), -1, {"duration_ticks": _current_extraction_window_ticks()})
 
 func _abort_extraction_window(tick: int) -> void:
 	if extraction_window_started_tick < 0:
@@ -1976,10 +3259,57 @@ func _clear_ghost_state() -> void:
 		"target_peer_id": -1
 	}
 
+func _clear_role_custody_state() -> void:
+	role_pressure_by_peer.clear()
+	custody_debt_by_peer.clear()
+	suspicion_heat_by_peer.clear()
+	counterfeit_heat_by_peer.clear()
+
+func _clear_predator_state() -> void:
+	predator_state = {
+		"active": false,
+		"room_slot": -1,
+		"target_peer_id": -1,
+		"last_tick": -1,
+		"strike_strength": 0,
+		"mode": ""
+	}
+
+func _clear_protocol_watch_state() -> void:
+	protocol_watch_state = {
+		"active": false,
+		"room_slot": -1,
+		"target_peer_id": -1,
+		"last_tick": -1,
+		"mode": "",
+		"signal_room_slot": -1
+	}
+
+func _clear_echo_lure_state() -> void:
+	echo_lure_state = {
+		"active": false,
+		"owner_peer_id": -1,
+		"room_slot": -1,
+		"expires_tick": -1
+	}
+
+func _advance_runtime_ecology() -> void:
+	_expire_echo_lure_state()
+	_advance_ghost_pressure()
+	_advance_anomaly_echo_pressure()
+	_advance_predator_pressure()
+	_advance_protocol_watch_pressure()
+
+func _expire_echo_lure_state() -> void:
+	if not bool(echo_lure_state.get("active", false)):
+		return
+	if current_server_tick > int(echo_lure_state.get("expires_tick", -1)):
+		_clear_echo_lure_state()
+
 func _advance_ghost_pressure() -> void:
 	if not is_host:
 		return
-	if not run_active or current_server_tick < GHOST_WAKE_TICK:
+	if not run_active or current_server_tick < _current_ghost_wake_tick():
 		if bool(ghost_state.get("active", false)):
 			_clear_ghost_state()
 			_broadcast_ghost_state()
@@ -1992,7 +3322,7 @@ func _advance_ghost_pressure() -> void:
 		return
 	var target_pos: Vector2 = player_pos_by_peer.get(target_peer_id, GHOST_OFFSCREEN_POS)
 	var current_pos: Vector2 = ghost_state.get("position", GHOST_OFFSCREEN_POS)
-	var next_pos := current_pos.move_toward(target_pos, GHOST_SPEED_PER_TICK)
+	var next_pos := current_pos.move_toward(target_pos, _current_ghost_speed_per_tick())
 	var next_state := {
 		"active": true,
 		"position": next_pos,
@@ -2002,24 +3332,353 @@ func _advance_ghost_pressure() -> void:
 		ghost_state = next_state
 		_broadcast_ghost_state()
 	var room_slot := int(player_room_by_peer.get(target_peer_id, -1))
-	if room_slot >= 0 and next_pos.distance_to(target_pos) <= GHOST_HIT_RADIUS:
+	if room_slot >= 0 and next_pos.distance_to(target_pos) <= _current_ghost_hit_radius():
 		broadcast_hazard_pulse(room_slot, -1, "ghost_pressure")
+
+func _advance_anomaly_echo_pressure() -> void:
+	if not is_host or not run_active:
+		return
+	if current_server_tick < _current_ghost_wake_tick():
+		return
+	if get_current_anomaly_contamination_bias() <= 0:
+		return
+	var anchor_peer_id := _choose_anomaly_echo_anchor_peer()
+	if anchor_peer_id <= 0:
+		return
+	var interval := maxi(_current_noise_trace_interval(anchor_peer_id), 1)
+	if posmod(current_server_tick + anchor_peer_id, interval) != 0:
+		return
+	var room_slot := _anomaly_echo_room_slot(anchor_peer_id)
+	if room_slot < 0:
+		return
+	record_public_event("noise_trace", room_slot, -1, {})
+	var pulse_reason := "echo_lure" if _echo_lure_active_for_peer(anchor_peer_id) else "anomaly_echo"
+	broadcast_hazard_pulse(room_slot, -1, pulse_reason)
+
+func _advance_predator_pressure() -> void:
+	if not is_host or not run_active:
+		_clear_predator_state()
+		return
+	if current_server_tick < _current_ghost_wake_tick():
+		_clear_predator_state()
+		return
+	if maxi(get_current_stalking_bias(), 0) <= 0 or get_current_inhabitant_pressure_bias() <= 0:
+		_clear_predator_state()
+		return
+	var target_peer_id := _choose_predator_target_peer()
+	if target_peer_id <= 0:
+		_clear_predator_state()
+		return
+	var room_slot := int(player_room_by_peer.get(target_peer_id, -1))
+	if room_slot < 0:
+		_clear_predator_state()
+		return
+	var interval := maxi(_current_predator_rush_interval(target_peer_id), 1)
+	if posmod(current_server_tick + target_peer_id + room_slot, interval) != 0:
+		_clear_predator_state()
+		return
+	var strike_strength := 1
+	var mode := "pursuit"
+	if _find_carried_artifact_by_peer(target_peer_id) != 0:
+		strike_strength += 1
+	if int(_room_population_counts().get(room_slot, 0)) <= 1:
+		strike_strength += 1
+		mode = "ambush"
+	elif int(counterfeit_heat_by_peer.get(target_peer_id, 0)) >= 2 or int(suspicion_heat_by_peer.get(target_peer_id, 0)) >= 3:
+		strike_strength += 1
+		mode = "pack"
+	predator_state = {
+		"active": true,
+		"room_slot": room_slot,
+		"target_peer_id": target_peer_id,
+		"last_tick": current_server_tick,
+		"strike_strength": strike_strength,
+		"mode": mode
+	}
+	_note_species_escalation_mutation("predator", room_slot, target_peer_id, mode)
+	record_public_event("hazard_state_changed", room_slot, -1, {})
+	broadcast_hazard_pulse(room_slot, -1, "predator_rush")
+
+func _advance_protocol_watch_pressure() -> void:
+	if not is_host or not run_active:
+		_clear_protocol_watch_state()
+		return
+	if current_server_tick < _current_ghost_wake_tick():
+		_clear_protocol_watch_state()
+		return
+	if get_current_inhabitant_pressure_bias() <= 0:
+		_clear_protocol_watch_state()
+		return
+	var target_peer_id := _choose_protocol_watch_peer()
+	if target_peer_id <= 0:
+		_clear_protocol_watch_state()
+		return
+	var room_slot := int(player_room_by_peer.get(target_peer_id, -1))
+	if room_slot < 0:
+		_clear_protocol_watch_state()
+		return
+	var interval := maxi(_current_protocol_watch_interval(target_peer_id), 1)
+	if posmod(current_server_tick + target_peer_id + extraction_room_slot, interval) != 0:
+		_clear_protocol_watch_state()
+		return
+	var containment_pressure := int(counterfeit_heat_by_peer.get(target_peer_id, 0)) + int(suspicion_heat_by_peer.get(target_peer_id, 0))
+	var mode := "inspection"
+	if _echo_lure_active_for_peer(target_peer_id):
+		mode = "interdiction"
+	elif containment_pressure >= 3 or _find_carried_artifact_by_peer(target_peer_id) != 0:
+		mode = "containment"
+	var signal_room_slot := room_slot
+	if mode == "inspection":
+		signal_room_slot = _anomaly_echo_room_slot(target_peer_id)
+		if signal_room_slot < 0:
+			signal_room_slot = room_slot
+	elif mode == "interdiction":
+		signal_room_slot = _echo_lure_room_slot_for_peer(target_peer_id)
+		if signal_room_slot < 0:
+			signal_room_slot = room_slot
+	protocol_watch_state = {
+		"active": true,
+		"room_slot": room_slot,
+		"target_peer_id": target_peer_id,
+		"last_tick": current_server_tick,
+		"mode": mode,
+		"signal_room_slot": signal_room_slot
+	}
+	_note_species_escalation_mutation("protocol_watch", room_slot, target_peer_id, mode)
+	record_public_event("noise_trace", signal_room_slot, -1, {})
+	if mode in ["containment", "interdiction"] and extraction_window_started_tick >= 0 and extraction_window_owner_peer_id == target_peer_id:
+		_abort_extraction_window(current_server_tick)
+	record_public_event("hazard_state_changed", room_slot, -1, {})
+	broadcast_hazard_pulse(room_slot, -1, "protocol_watch")
 
 func _choose_ghost_target_peer() -> int:
 	var best_peer_id := -1
-	var best_distance := -999999
+	var best_score := -999999
+	var stalking_bias := maxi(get_current_stalking_bias(), 0)
+	var anomaly_bias := maxi(get_current_anomaly_contamination_bias(), 0)
 	for peer_id_variant in players:
 		var peer_id := int(peer_id_variant)
 		if not player_room_by_peer.has(peer_id) or not player_pos_by_peer.has(peer_id):
 			continue
 		var artifact_id := _find_carried_artifact_by_peer(peer_id)
 		var distance_to_exit := extraction_room_slot - int(player_room_by_peer.get(peer_id, 0))
+		var score := distance_to_exit * 10
 		if artifact_id != 0:
-			distance_to_exit += 3
-		if distance_to_exit > best_distance:
-			best_distance = distance_to_exit
+			score += 30 + stalking_bias * 4
+		var anomaly_hooks := Array(_loadout_runtime_affordances(peer_id).get("anomaly_hooks", []))
+		score += anomaly_hooks.size() * anomaly_bias * 2
+		if score > best_score:
+			best_score = score
 			best_peer_id = peer_id
-		elif distance_to_exit == best_distance and peer_id > best_peer_id:
+		elif score == best_score and peer_id > best_peer_id:
+			best_peer_id = peer_id
+	return best_peer_id
+
+func _choose_anomaly_echo_anchor_peer() -> int:
+	var lure_owner_peer_id := _echo_lure_owner_peer_id()
+	if lure_owner_peer_id > 0 and player_room_by_peer.has(lure_owner_peer_id) and player_pos_by_peer.has(lure_owner_peer_id):
+		return lure_owner_peer_id
+	var ghost_target_peer_id := int(ghost_state.get("target_peer_id", -1))
+	if ghost_target_peer_id > 0 and player_room_by_peer.has(ghost_target_peer_id) and player_pos_by_peer.has(ghost_target_peer_id):
+		return ghost_target_peer_id
+	var best_peer_id := -1
+	var best_score := -999999
+	var anomaly_bias := maxi(get_current_anomaly_contamination_bias(), 0)
+	var stalking_bias := maxi(get_current_stalking_bias(), 0)
+	for peer_id_variant in players:
+		var peer_id := int(peer_id_variant)
+		if not player_room_by_peer.has(peer_id) or not player_pos_by_peer.has(peer_id):
+			continue
+		var score := 0
+		if _find_carried_artifact_by_peer(peer_id) != 0:
+			score += 18
+		var anomaly_hooks := Array(_loadout_runtime_affordances(peer_id).get("anomaly_hooks", []))
+		score += anomaly_hooks.size() * (4 + anomaly_bias)
+		score += stalking_bias
+		if score > best_score:
+			best_score = score
+			best_peer_id = peer_id
+		elif score == best_score and peer_id > best_peer_id:
+			best_peer_id = peer_id
+	return best_peer_id
+
+func _anomaly_echo_room_slot(anchor_peer_id: int) -> int:
+	if _echo_lure_active_for_peer(anchor_peer_id):
+		return _echo_lure_room_slot_for_peer(anchor_peer_id)
+	var anchor_room := int(player_room_by_peer.get(anchor_peer_id, -1))
+	if anchor_room < 0:
+		return -1
+	var max_room := maxi(extraction_room_slot, anchor_room)
+	var direction := -1 if posmod(current_server_tick + anchor_peer_id + maxi(get_current_stalking_bias(), 0), 2) == 0 else 1
+	var room_slot := clampi(anchor_room + direction, 0, max_room)
+	if room_slot == anchor_room and max_room > 0:
+		room_slot = clampi(anchor_room - direction, 0, max_room)
+	return room_slot
+
+func _echo_lure_owner_peer_id() -> int:
+	if not bool(echo_lure_state.get("active", false)):
+		return -1
+	if current_server_tick > int(echo_lure_state.get("expires_tick", -1)):
+		return -1
+	return int(echo_lure_state.get("owner_peer_id", -1))
+
+func _echo_lure_active_for_peer(peer_id: int) -> bool:
+	return peer_id > 0 and _echo_lure_owner_peer_id() == peer_id
+
+func _echo_lure_room_slot_for_peer(peer_id: int) -> int:
+	if not _echo_lure_active_for_peer(peer_id):
+		return -1
+	return int(echo_lure_state.get("room_slot", -1))
+
+func _current_predator_rush_interval(peer_id: int, active_peer_count: int = -1) -> int:
+	var interval := 210
+	interval -= get_current_inhabitant_pressure_bias() * 10
+	interval -= maxi(get_current_stalking_bias(), 0) * 14
+	match get_protocol_state_label(active_peer_count):
+		"Exposure Protocol":
+			interval -= 44
+		"Intimate Protocol":
+			interval -= 28
+		"Fracture Protocol":
+			interval -= 12
+	interval -= Array(_loadout_runtime_affordances(peer_id).get("protocol_hooks", [])).size() * 4
+	interval -= int(custody_debt_by_peer.get(peer_id, 0)) * 5
+	interval -= int(counterfeit_heat_by_peer.get(peer_id, 0)) * 8
+	return clampi(interval, 84, 240)
+
+func _choose_predator_target_peer() -> int:
+	var best_peer_id := -1
+	var best_score := -999999
+	var room_counts := _room_population_counts()
+	for peer_id_variant in players:
+		var peer_id := int(peer_id_variant)
+		if not player_room_by_peer.has(peer_id):
+			continue
+		var room_slot := int(player_room_by_peer.get(peer_id, 0))
+		var affordances := _loadout_runtime_affordances(peer_id)
+		var behavior_signals := Array(affordances.get("behavior_signals", []))
+		var resource_signals := Array(affordances.get("resource_signals", []))
+		var score := room_slot * 5
+		if _find_carried_artifact_by_peer(peer_id) != 0:
+			score += 24
+		if int(room_counts.get(room_slot, 0)) <= 1:
+			score += 18
+		if int(ghost_state.get("target_peer_id", -1)) == peer_id:
+			score += 8
+		if int(protocol_watch_state.get("target_peer_id", -1)) == peer_id:
+			score += 4
+		score += int(custody_debt_by_peer.get(peer_id, 0)) * 6
+		score += int(counterfeit_heat_by_peer.get(peer_id, 0)) * 10
+		score += int(suspicion_heat_by_peer.get(peer_id, 0)) * 4
+		score += int(role_pressure_by_peer.get(peer_id, 0)) * 6
+		if behavior_signals.has("watch bait"):
+			score += 8
+		if resource_signals.has("escort rig"):
+			score -= 4
+		if _echo_lure_active_for_peer(peer_id):
+			score += 6
+		match _role_name_for_peer(peer_id):
+			ROLE_SERVICE_SCRIPT.ROLE_BEARER:
+				score += 10 if _find_carried_artifact_by_peer(peer_id) != 0 else 2
+			ROLE_SERVICE_SCRIPT.ROLE_STEWARD:
+				score += 4 if int(role_pressure_by_peer.get(peer_id, 0)) > 0 else 0
+			ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+				score += 6 if int(counterfeit_heat_by_peer.get(peer_id, 0)) > 0 else 2
+		if score > best_score:
+			best_score = score
+			best_peer_id = peer_id
+		elif score == best_score and peer_id > best_peer_id:
+			best_peer_id = peer_id
+	return best_peer_id
+
+func _room_population_counts() -> Dictionary:
+	var counts := {}
+	for peer_id_variant in players:
+		var peer_id := int(peer_id_variant)
+		if not player_room_by_peer.has(peer_id):
+			continue
+		var room_slot := int(player_room_by_peer.get(peer_id, -1))
+		counts[room_slot] = int(counts.get(room_slot, 0)) + 1
+	return counts
+
+func _current_protocol_watch_interval(peer_id: int) -> int:
+	var interval := 180
+	interval -= get_current_inhabitant_pressure_bias() * 12
+	interval -= maxi(get_current_stalking_bias(), 0) * 8
+	interval -= maxi(get_current_anomaly_contamination_bias(), 0) * 4
+	interval -= Array(_loadout_runtime_affordances(peer_id).get("protocol_hooks", [])).size() * 10
+	var generation_surface := _effective_generation_surface()
+	var relay_routing: Dictionary = Dictionary(generation_surface.get("relay_routing", {}))
+	var cookbook_routing: Dictionary = Dictionary(generation_surface.get("cookbook_routing", {}))
+	var civilization_routing: Dictionary = Dictionary(generation_surface.get("civilization_routing", {}))
+	interval -= int(relay_routing.get("relay_overload", 0)) * 10
+	interval -= int(relay_routing.get("distributed_witness", 0)) * 8
+	interval -= int(relay_routing.get("regroup_friction", 0)) * 12
+	interval -= int(cookbook_routing.get("anti_protocol_pull", 0)) * 10
+	interval -= int(civilization_routing.get("taboo_silence", 0)) * 10
+	interval -= int(civilization_routing.get("canon_conflict", 0)) * 8
+	interval -= int(civilization_routing.get("sacred_order", 0)) * 6
+	interval -= int(custody_debt_by_peer.get(peer_id, 0)) * 8
+	interval -= int(suspicion_heat_by_peer.get(peer_id, 0)) * 10
+	interval -= int(counterfeit_heat_by_peer.get(peer_id, 0)) * 12
+	interval -= int(role_pressure_by_peer.get(peer_id, 0)) * 6
+	var affordances := _loadout_runtime_affordances(peer_id)
+	var behavior_signals := Array(affordances.get("behavior_signals", []))
+	var resource_signals := Array(affordances.get("resource_signals", []))
+	if behavior_signals.has("witness flare") or behavior_signals.has("watch bait"):
+		interval -= 8
+	if resource_signals.has("escort rig"):
+		interval += 4
+	if _echo_lure_active_for_peer(peer_id):
+		interval -= 14
+	match _role_name_for_peer(peer_id):
+		ROLE_SERVICE_SCRIPT.ROLE_STEWARD:
+			interval += 8
+		ROLE_SERVICE_SCRIPT.ROLE_BEARER:
+			interval -= 12 if _find_carried_artifact_by_peer(peer_id) != 0 else 4
+		ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+			interval -= 10
+	return clampi(interval, 72, 220)
+
+func _choose_protocol_watch_peer() -> int:
+	var best_peer_id := -1
+	var best_score := -999999
+	for peer_id_variant in players:
+		var peer_id := int(peer_id_variant)
+		if not player_room_by_peer.has(peer_id):
+			continue
+		var affordances := _loadout_runtime_affordances(peer_id)
+		var behavior_signals := Array(affordances.get("behavior_signals", []))
+		var resource_signals := Array(affordances.get("resource_signals", []))
+		var score := int(player_room_by_peer.get(peer_id, 0)) * 4
+		if _find_carried_artifact_by_peer(peer_id) != 0:
+			score += 18
+		score += Array(affordances.get("protocol_hooks", [])).size() * 6
+		score += int(custody_debt_by_peer.get(peer_id, 0)) * 8
+		score += int(suspicion_heat_by_peer.get(peer_id, 0)) * 10
+		score += int(counterfeit_heat_by_peer.get(peer_id, 0)) * 12
+		score += int(role_pressure_by_peer.get(peer_id, 0)) * 6
+		if behavior_signals.has("witness flare"):
+			score += 6
+		if behavior_signals.has("watch bait"):
+			score += 12
+		if resource_signals.has("escort rig"):
+			score -= 3
+		if _echo_lure_active_for_peer(peer_id):
+			score += 42
+		match _role_name_for_peer(peer_id):
+			ROLE_SERVICE_SCRIPT.ROLE_STEWARD:
+				score += 6 if int(role_pressure_by_peer.get(peer_id, 0)) > 0 else 0
+			ROLE_SERVICE_SCRIPT.ROLE_BEARER:
+				score += 12 if _find_carried_artifact_by_peer(peer_id) != 0 else 4
+			ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+				score += 8
+		if int(ghost_state.get("target_peer_id", -1)) == peer_id:
+			score += 6
+		if score > best_score:
+			best_score = score
+			best_peer_id = peer_id
+		elif score == best_score and peer_id > best_peer_id:
 			best_peer_id = peer_id
 	return best_peer_id
 
@@ -2060,6 +3719,268 @@ func _item_def_ids_for_peer(peer_id: int) -> Array[String]:
 		item_ids.append(str(item_dict.get("item_def_id", "")))
 	return item_ids
 
+func _room_definition_for_slot(room_slot: int) -> Dictionary:
+	for room_raw in last_authoritative_room_chain:
+		var room: Dictionary = room_raw
+		if int(room.get("slot", -1)) == room_slot:
+			return room.duplicate(true)
+	return {}
+
+func _current_echo_pressure_score(peer_id: int) -> int:
+	if peer_id <= 0:
+		return 0
+	var score := 0
+	if bool(ghost_state.get("active", false)):
+		score += 1
+		if int(ghost_state.get("target_peer_id", -1)) == peer_id:
+			score += 1
+	if bool(predator_state.get("active", false)) and int(predator_state.get("target_peer_id", -1)) == peer_id:
+		score += 1
+	if bool(protocol_watch_state.get("active", false)) and int(protocol_watch_state.get("target_peer_id", -1)) == peer_id:
+		score += 1
+	if _echo_lure_active_for_peer(peer_id):
+		score += 1
+	score += maxi(get_current_anomaly_contamination_bias(), 0)
+	return score
+
+func _loadout_context_for_peer(peer_id: int, room_slot_override: int = -1) -> Dictionary:
+	var room_slot := room_slot_override if room_slot_override >= 0 else int(player_room_by_peer.get(peer_id, -1))
+	var context := {
+		"tool_counts": get_tool_counts_for_peer(peer_id),
+		"protocol_state": get_protocol_state_label(),
+		"carrying_artifact": _find_carried_artifact_by_peer(peer_id) != 0,
+		"ghost_active": bool(ghost_state.get("active", false)),
+		"predator_pressure": bool(predator_state.get("active", false)) and int(predator_state.get("target_peer_id", -1)) == peer_id,
+		"protocol_watch_pressure": bool(protocol_watch_state.get("active", false)) and int(protocol_watch_state.get("target_peer_id", -1)) == peer_id,
+		"anomaly_bias": maxi(get_current_anomaly_contamination_bias(), 0),
+		"room_slot": room_slot,
+		"echo_pressure_score": _current_echo_pressure_score(peer_id)
+	}
+	var persisted_transformations: Array[String] = []
+	var run_state := _run_state()
+	if run_state != null:
+		for key_variant in Dictionary(run_state.active_mutation_flags).keys():
+			var key_text := str(key_variant)
+			var prefix := "transformation_threshold_crossed:%d:" % peer_id
+			if not key_text.begins_with(prefix):
+				continue
+			if not bool(run_state.active_mutation_flags.get(key_variant, false)):
+				continue
+			var transformation_id := key_text.substr(prefix.length()).strip_edges()
+			if not transformation_id.is_empty() and not persisted_transformations.has(transformation_id):
+				persisted_transformations.append(transformation_id)
+	var active_transformation_ids: Array[String] = persisted_transformations.duplicate()
+	for transformation_id in item_service.active_transformation_item_ids_for_items(_item_def_ids_for_peer(peer_id), context):
+		if not active_transformation_ids.has(transformation_id):
+			active_transformation_ids.append(transformation_id)
+	context["active_transformation_ids"] = active_transformation_ids
+	return context
+
+func _maybe_trigger_chamber_entry_mutation(peer_id: int, room_slot: int) -> void:
+	if room_slot < 0:
+		return
+	var room: Dictionary = _room_definition_for_slot(room_slot)
+	if room.is_empty():
+		return
+	var room_type := str(room.get("type", "traversal"))
+	if room_type not in ["hazard", "evidence"]:
+		return
+	var run_state := _run_state()
+	if run_state == null:
+		return
+	var visit_key := "chamber_entered:%d" % room_slot
+	if bool(Dictionary(run_state.active_mutation_flags).get(visit_key, false)):
+		return
+	var applied := _apply_constitution_mutation("chamber_entered", {
+		"actor_peer_id": peer_id,
+		"room_slot": room_slot,
+		"room_id": str(room.get("id", "")),
+		"room_type": room_type
+	})
+	if not applied.is_empty():
+		run_state.active_mutation_flags[visit_key] = true
+
+func _note_species_escalation_mutation(species_id: String, room_slot: int, target_peer_id: int, mode: String = "") -> void:
+	if room_slot < 0:
+		return
+	var run_state := _run_state()
+	if run_state == null:
+		return
+	var signature := "%s:%d:%d:%s" % [species_id, room_slot, target_peer_id, mode]
+	if str(Dictionary(run_state.mutation_caps_state).get("last_species_escalation_signature", "")) == signature:
+		return
+	var applied := _apply_constitution_mutation("species_escalation", {
+		"visibility": "public",
+		"species_id": species_id,
+		"room_slot": room_slot,
+		"actor_peer_id": target_peer_id,
+		"mode": mode
+	})
+	if not applied.is_empty():
+		run_state.mutation_caps_state["last_species_escalation_signature"] = signature
+		if target_peer_id > 0:
+			_refresh_transformation_thresholds_for_peer(target_peer_id, room_slot)
+
+func _maybe_trigger_covenant_activation(peer_id: int, room_slot: int) -> void:
+	if peer_id <= 0:
+		return
+	var item_def_ids := _item_def_ids_for_peer(peer_id)
+	if item_def_ids.is_empty():
+		return
+	var context := _loadout_context_for_peer(peer_id, room_slot)
+	var active_covenants: Array[String] = item_service.active_covenant_item_ids_for_items(item_def_ids, context)
+	if active_covenants.is_empty():
+		return
+	var run_state := _run_state()
+	if run_state == null:
+		return
+	for covenant_id in active_covenants:
+		var activation_key := "covenant_activated:%d:%s" % [peer_id, covenant_id]
+		if bool(Dictionary(run_state.active_mutation_flags).get(activation_key, false)):
+			continue
+		var applied := _apply_constitution_mutation("covenant_activated", {
+			"visibility": "public",
+			"actor_peer_id": peer_id,
+			"room_slot": room_slot,
+			"item_def_id": covenant_id,
+			"activation_condition": str(item_service.get_definition(covenant_id).get("activation_condition", ""))
+		})
+		if not applied.is_empty():
+			run_state.active_mutation_flags[activation_key] = true
+
+func _refresh_transformation_thresholds_for_peer(peer_id: int, room_slot: int) -> void:
+	if peer_id <= 0:
+		return
+	var item_def_ids := _item_def_ids_for_peer(peer_id)
+	if item_def_ids.is_empty():
+		return
+	var context := _loadout_context_for_peer(peer_id, room_slot)
+	var active_transformations: Array[String] = item_service.active_transformation_item_ids_for_items(item_def_ids, context)
+	if active_transformations.is_empty():
+		return
+	var run_state := _run_state()
+	if run_state == null:
+		return
+	for transformation_id in active_transformations:
+		var activation_key := "transformation_threshold_crossed:%d:%s" % [peer_id, transformation_id]
+		if bool(Dictionary(run_state.active_mutation_flags).get(activation_key, false)):
+			continue
+		var definition: Dictionary = item_service.get_definition(transformation_id)
+		var applied := _apply_constitution_mutation("transformation_threshold_crossed", {
+			"visibility": "public",
+			"actor_peer_id": peer_id,
+			"room_slot": room_slot,
+			"item_def_id": transformation_id,
+			"threshold_kind": str(definition.get("threshold_kind", "")),
+			"discernibility_flag": str(definition.get("discernibility_flag", "")),
+			"pressure_score": int(context.get("echo_pressure_score", 0))
+		})
+		if not applied.is_empty():
+			run_state.active_mutation_flags[activation_key] = true
+
+func _apply_role_custody_pickup_pressure(requester_id: int, artifact: Dictionary) -> void:
+	var authenticity_state: String = str(artifact_service.authenticity_state(artifact))
+	var role_name := _role_name_for_peer(requester_id)
+	var custody_delta := 1 if authenticity_state == "authentic" else 0
+	var suspicion_delta := 0
+	var counterfeit_delta := 0
+	var role_delta := 0
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_WARDEN and authenticity_state == "authentic":
+		role_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_STEWARD and authenticity_state == "authentic":
+		suspicion_delta -= 1
+		role_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_BEARER and authenticity_state == "authentic":
+		custody_delta -= 1
+		role_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+		suspicion_delta += 1
+		if authenticity_state == "counterfeit":
+			counterfeit_delta += 2
+		elif authenticity_state == "authentic":
+			custody_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+		suspicion_delta += 1
+		counterfeit_delta += 1 if authenticity_state == "counterfeit" else 0
+		role_delta += 1 if authenticity_state == "counterfeit" else 0
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER and authenticity_state == "authentic":
+		custody_delta += 1
+	_note_role_custody_pressure(requester_id, custody_delta, suspicion_delta, counterfeit_delta, role_delta)
+
+func _apply_role_custody_drop_pressure(requester_id: int, artifact: Dictionary, room_slot: int) -> void:
+	var authenticity_state: String = str(artifact_service.authenticity_state(artifact))
+	var role_name := _role_name_for_peer(requester_id)
+	var custody_delta := 0
+	var suspicion_delta := 0
+	var counterfeit_delta := 0
+	var role_delta := 0
+	if authenticity_state == "authentic" and room_slot != extraction_room_slot:
+		custody_delta += 1
+	if current_server_tick <= int(disturbance_until_by_room.get(room_slot, -1)):
+		suspicion_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_STEWARD and authenticity_state == "authentic" and room_slot != extraction_room_slot:
+		suspicion_delta += 1
+		role_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_BEARER and authenticity_state == "authentic":
+		role_delta += 1
+		if room_slot == extraction_room_slot:
+			custody_delta -= 1
+		else:
+			custody_delta += 1
+			suspicion_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+		suspicion_delta += 1
+	if role_name == ROLE_SERVICE_SCRIPT.ROLE_MURMUR:
+		suspicion_delta += 1
+		if authenticity_state == "counterfeit":
+			counterfeit_delta += 1
+		role_delta += 1
+	_note_role_custody_pressure(requester_id, custody_delta, suspicion_delta, counterfeit_delta, role_delta)
+
+func _note_role_custody_pressure(peer_id: int, custody_delta: int = 0, suspicion_delta: int = 0, counterfeit_delta: int = 0, role_delta: int = 0) -> void:
+	if peer_id <= 0:
+		return
+	if custody_delta != 0:
+		custody_debt_by_peer[peer_id] = clampi(int(custody_debt_by_peer.get(peer_id, 0)) + custody_delta, 0, 6)
+	if suspicion_delta != 0:
+		suspicion_heat_by_peer[peer_id] = clampi(int(suspicion_heat_by_peer.get(peer_id, 0)) + suspicion_delta, 0, 6)
+	if counterfeit_delta != 0:
+		counterfeit_heat_by_peer[peer_id] = clampi(int(counterfeit_heat_by_peer.get(peer_id, 0)) + counterfeit_delta, 0, 6)
+	if role_delta != 0:
+		role_pressure_by_peer[peer_id] = clampi(int(role_pressure_by_peer.get(peer_id, 0)) + role_delta, 0, 6)
+
+func _role_custody_group_pressure() -> Dictionary:
+	var custody_total := 0
+	var suspicion_total := 0
+	var counterfeit_total := 0
+	var warden_duty := 0
+	for peer_id_variant in _active_protocol_peer_ids():
+		var peer_id := int(peer_id_variant)
+		custody_total += int(custody_debt_by_peer.get(peer_id, 0))
+		suspicion_total += int(suspicion_heat_by_peer.get(peer_id, 0))
+		counterfeit_total += int(counterfeit_heat_by_peer.get(peer_id, 0))
+		if str(roles_by_peer.get(peer_id, "")) == ROLE_SERVICE_SCRIPT.ROLE_WARDEN:
+			warden_duty += int(role_pressure_by_peer.get(peer_id, 0))
+	return {
+		"custody_debt": custody_total,
+		"suspicion_heat": suspicion_total,
+		"counterfeit_heat": counterfeit_total,
+		"warden_duty": warden_duty
+	}
+
+func _owned_item_count_by_category(peer_id: int, category: String) -> int:
+	var total := 0
+	for item_data in items_by_id.values():
+		var item_dict: Dictionary = item_data
+		if int(item_dict.get("owner_peer_id", 0)) != peer_id:
+			continue
+		if bool(item_dict.get("consumed", false)):
+			continue
+		if item_service.get_category(str(item_dict.get("item_def_id", ""))) != category:
+			continue
+		total += 1
+	return total
+
 func _consume_tool_charge(peer_id: int, tool_type: String) -> bool:
 	var counts := get_tool_counts_for_peer(peer_id)
 	var current := int(counts.get(tool_type, 0))
@@ -2085,16 +4006,128 @@ func _consume_first_item_by_def(peer_id: int, item_def_id: String) -> bool:
 		return true
 	return false
 
+func _loadout_runtime_affordances(peer_id: int) -> Dictionary:
+	return item_service.build_runtime_affordances(_item_def_ids_for_peer(peer_id), _loadout_context_for_peer(peer_id))
+
+func _active_protocol_peer_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for peer_variant in players:
+		var peer_id := int(peer_variant)
+		if peer_id > 0 and not ids.has(peer_id):
+			ids.append(peer_id)
+	for peer_variant in player_room_by_peer.keys():
+		var room_peer_id := int(peer_variant)
+		if room_peer_id > 0 and not ids.has(room_peer_id):
+			ids.append(room_peer_id)
+	ids.sort()
+	return ids
+
+func _active_item_defs_for_peer(peer_id: int) -> Array[String]:
+	var active_defs: Array[String] = []
+	for item in get_active_items_for_peer(peer_id):
+		var item_def_id := str(Dictionary(item).get("item_def_id", "")).strip_edges()
+		if not item_def_id.is_empty() and not active_defs.has(item_def_id):
+			active_defs.append(item_def_id)
+	return active_defs
+
+func _apply_constitution_mutation(trigger_type: String, trigger_context: Dictionary = {}) -> Dictionary:
+	if not is_host or not run_active:
+		return {}
+	var run_state := _run_state()
+	var event_log := _event_log()
+	if run_state == null or event_log == null:
+		return {}
+	var constitution: Dictionary = {}
+	if run_state.has_method("get_expedition_constitution"):
+		constitution = Dictionary(run_state.get_expedition_constitution())
+	if constitution.is_empty():
+		constitution = _effective_constitution()
+	if constitution.is_empty():
+		return {}
+	var plan: Dictionary = EXPEDITION_MUTATION_ENGINE_SCRIPT.build_mutation_plan(constitution, run_state, trigger_type, trigger_context)
+	if plan.is_empty():
+		return {}
+	var event: Dictionary = Dictionary(plan.get("event", {})).duplicate(true)
+	if event.is_empty():
+		return {}
+	event["timeline_event_id"] = next_event_id
+	next_event_id += 1
+	plan["event"] = event
+	var applied := EXPEDITION_MUTATION_ENGINE_SCRIPT.apply_mutation_plan(run_state, event_log, plan, current_server_tick)
+	_broadcast_mutation_event(applied)
+	return applied
+
+func _build_inhabitant_pressure_signals(peer_id: int, protocol_state: String, carrying_artifact: bool) -> Array[String]:
+	var signals: Array[String] = []
+	var inhabitant_bias := get_current_inhabitant_pressure_bias()
+	var anomaly_bias := get_current_anomaly_contamination_bias()
+	if bool(ghost_state.get("active", false)):
+		signals.append("ghost pressure")
+		if int(ghost_state.get("target_peer_id", -1)) == peer_id:
+			signals.append("ghost focus")
+	if inhabitant_bias >= 1:
+		signals.append("heightened pursuit")
+	elif inhabitant_bias <= -1:
+		signals.append("softened pursuit")
+	if anomaly_bias >= 1:
+		signals.append("unstable presence")
+		signals.append("echo pressure")
+	if bool(predator_state.get("active", false)):
+		signals.append("predator rush")
+		if int(predator_state.get("target_peer_id", -1)) == peer_id:
+			signals.append("predator marked")
+			var predator_mode := str(predator_state.get("mode", ""))
+			if predator_mode == "ambush":
+				signals.append("predator ambush")
+			elif predator_mode == "pack":
+				signals.append("predator pack")
+	if bool(protocol_watch_state.get("active", false)):
+		signals.append("protocol sweep")
+		if int(protocol_watch_state.get("target_peer_id", -1)) == peer_id:
+			signals.append("protocol watched")
+			if str(protocol_watch_state.get("mode", "")) == "interdiction":
+				signals.append("protocol interdiction")
+	if _echo_lure_active_for_peer(peer_id):
+		signals.append("echo lure")
+	match protocol_state:
+		"Fracture Protocol":
+			signals.append("split pressure")
+		"Intimate Protocol":
+			signals.append("pair pressure")
+		"Exposure Protocol":
+			signals.append("direct exposure")
+	if carrying_artifact:
+		signals.append("burden target")
+		if bool(ghost_state.get("active", false)) or inhabitant_bias >= 1 or anomaly_bias >= 1:
+			signals.append("artifact watched")
+	return signals
+
 func _run_state() -> Node:
+	if is_instance_valid(_run_state_override_for_test):
+		return _run_state_override_for_test
+	if _run_state_override_for_test != null:
+		_run_state_override_for_test = null
 	var main_loop := Engine.get_main_loop()
 	if main_loop is SceneTree:
-		return main_loop.root.get_node_or_null("/root/RunState")
+		var root: Node = main_loop.root
+		var run_state: Node = root.get_node_or_null("/root/RunState")
+		if run_state == null:
+			run_state = root.get_node_or_null("RunState")
+		return run_state
 	return null
 
 func _event_log() -> Node:
+	if is_instance_valid(_event_log_override_for_test):
+		return _event_log_override_for_test
+	if _event_log_override_for_test != null:
+		_event_log_override_for_test = null
 	var main_loop := Engine.get_main_loop()
 	if main_loop is SceneTree:
-		return main_loop.root.get_node_or_null("/root/EventLog")
+		var root: Node = main_loop.root
+		var event_log: Node = root.get_node_or_null("/root/EventLog")
+		if event_log == null:
+			event_log = root.get_node_or_null("EventLog")
+		return event_log
 	return null
 
 func _run_seed() -> int:
@@ -2218,21 +4251,7 @@ func set_host_endpoint_for_test(requested_port: int, listen_port: int, bind_addr
 	emit_signal("host_endpoint_changed", host_bind_address, host_listen_port)
 
 func _host_end_run(reason: String) -> void:
-	if not is_host or not run_active:
-		return
-	run_active = false
-	if reason == "extraction_objective":
-		var extraction_details := _find_extraction_completion_details()
-		record_public_event(
-			"extraction_completed",
-			int(extraction_details.get("room_slot", extraction_room_slot)),
-			int(extraction_details.get("owner_peer_id", -1)),
-			{"artifact_id": int(extraction_details.get("artifact_id", 0))}
-		)
-	_reset_extraction_window_state()
-	record_public_event("run_ended", -1, -1, {})
-	var payload := build_run_end_payload(reason)
-	host_run_ended.rpc(payload)
+	_host_end_run_impl(reason)
 
 func _update_connected_peer(peer_id: int, is_connected: bool) -> void:
 	var next_peers := connected_peers.duplicate()
@@ -2338,6 +4357,9 @@ func _set_connected_peers(next: Array, reason: String) -> void:
 			normalized.append(peer_id)
 	normalized.sort()
 	connected_peers = normalized
+	for stale_key in profile_cards_by_peer.keys():
+		if not connected_peers.has(int(stale_key)):
+			profile_cards_by_peer.erase(stale_key)
 	_nm_log("CONNECTED_PEERS_SET reason=%s stack_hint=%s before=%s after=%s" % [
 		reason,
 		reason,
@@ -2362,7 +4384,49 @@ func _build_lobby_payload() -> Dictionary:
 		"players": connected_peers.duplicate(),
 		"connected_peers": connected_peers.duplicate(),
 		"ready_state": ready_by_id.duplicate(true),
-		"is_host": is_host
+		"is_host": is_host,
+		"profile_cards": profile_cards_by_peer.duplicate(true)
+	}
+
+func _sync_local_profile_card() -> void:
+	var mp := _mp()
+	if mp == null:
+		return
+	var local_id := mp.get_unique_id()
+	if local_id <= 0:
+		return
+	var local_card := _sanitize_profile_card(_build_local_profile_card(), local_id)
+	if local_card.is_empty():
+		return
+	profile_cards_by_peer[local_id] = local_card
+	if is_host:
+		_broadcast_lobby()
+	else:
+		client_submit_profile_card.rpc_id(1, local_card.duplicate(true))
+
+func _build_local_profile_card() -> Dictionary:
+	var profile := PROFILE_SERVICE_SCRIPT.load_profile()
+	return PROFILE_SERVICE_SCRIPT.build_public_identity_card(profile)
+
+func _sanitize_profile_card(card: Dictionary, peer_id: int) -> Dictionary:
+	var display_name := str(card.get("display_name", "Delver")).strip_edges()
+	if display_name.is_empty():
+		display_name = "Delver"
+	var public_id := str(card.get("public_id", "")).strip_edges()
+	if public_id.is_empty():
+		public_id = "peer_%d" % peer_id
+	return {
+		"peer_id": peer_id,
+		"public_id": public_id,
+		"display_name": display_name,
+		"title": str(card.get("title", "-")).strip_edges(),
+		"banner": str(card.get("banner", "-")).strip_edges(),
+		"legend_hint": str(card.get("legend_hint", "")).strip_edges(),
+		"challenge_hint": str(card.get("challenge_hint", "")).strip_edges(),
+		"crew_tag": str(card.get("crew_tag", "")).strip_edges(),
+		"build_hint": str(card.get("build_hint", "")).strip_edges(),
+		"presence_hint": str(card.get("presence_hint", "")).strip_edges(),
+		"heat_band": str(card.get("heat_band", "")).strip_edges()
 	}
 
 func _should_apply_host_sync_peers(host_flag: bool, is_server: bool) -> bool:

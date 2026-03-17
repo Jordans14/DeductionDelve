@@ -1804,3 +1804,3159 @@ Implementation scripts and runnable scenes are being added next in this iteratio
 - Grouped browsing remains deferred; flatter Profile browser remains the default.
 - Voice transport and speaking indicators remain deferred.
 - No rematch networking/session persistence changes were introduced.
+
+## 2026-03-11 - Iteration 54 (Master Narrative Architecture V3 Implementation Start)
+
+### Continuation-safety preflight
+- Reconfirmed the live extension seams and kept the owner map unchanged:
+  - authoritative run truth stays in:
+    - `res://src/run/game_controller.gd`
+    - `res://src/run/event_log.gd`
+    - `res://src/net/network_manager.gd`
+  - product continuity and shell packets stay in:
+    - `res://src/product/profile_service.gd`
+    - `res://src/product/run_story_diagnostics.gd`
+    - `res://src/ui/lobby_controller.gd`
+    - `res://scenes/Lobby.tscn`
+  - catalog/codex shell path stays in:
+    - `res://src/product/product_catalog.gd`
+  - proof and regression gates remain:
+    - `scripts/run_tests.ps1`
+    - `scripts/run_headless_proof.ps1`
+    - `res://src/tests/test_runner.gd`
+
+### Target changes
+- Extend the existing product owner tree with deterministic, read-only narrative helpers:
+  - crawl continuity and residue
+  - archive comparison / shorthand / legend gating
+  - framing / broadcast / Layer-1-safe compression
+  - world-memory heat / cooling / gravity overlays
+- Migrate `profile_service.gd` forward without creating parallel storage paths.
+- Expand `run_story_diagnostics.gd` into the primary derivation seam for micro-signals, room/transition identity, social temperature, momentum, atmosphere, symbolic gestures, saturation limits, and expectation-aware framing.
+- Evolve the current Codex path into the richer archive-facing interpretation layer without adding a second shell surface.
+
+### Scope guardrails
+- No new gameplay systems, no new UI surfaces, no parallel archive path, no second narrative owner tree.
+- Narrative layers remain mechanically inert and read-only relative to authoritative run truth.
+- Player-facing wording stays strictly Layer-1 safe and quest/challenge/cultural in tone.
+
+### Proof risks
+- The biggest regression risk is over-expanding diagnostics or profile state in a way that breaks deterministic shell tests or headless proof output.
+- The shell must stay compact; new signals should compress into curated packets rather than noisy prose.
+
+### Truth-layer risks
+- Internal myth/pressure logic must not leak hidden-truth terminology into Home, Profile, Codex, recap, or commentary strings.
+- Archive myth promotion must stay selective enough to avoid turning the codex/archive path into lore clutter or false certainty.
+
+## 2026-03-11 - Iteration 55 (Master Narrative Architecture V3 Remaining Completion Wave)
+
+### Owner map reaffirmed
+- Authoritative run and network truth remain in:
+  - `res://src/run/game_controller.gd`
+  - `res://src/run/event_log.gd`
+  - `res://src/net/network_manager.gd`
+- Generation context remains in:
+  - `res://src/gen/run_generator.gd`
+  - `res://src/gen/room_builder.gd`
+- Product continuity and interpretation remain in:
+  - `res://src/product/profile_service.gd`
+  - `res://src/product/run_story_diagnostics.gd`
+  - `res://src/product/crawl_service.gd`
+  - `res://src/product/framing_service.gd`
+  - `res://src/product/archive_service.gd`
+  - `res://src/product/world_memory_service.gd`
+- Existing shell path remains:
+  - `res://src/ui/lobby_controller.gd`
+  - `res://scenes/Lobby.tscn`
+
+### Remaining V3 completion targets
+- Add real authored branch-family context in generation and carry it into deterministic run summaries.
+- Capture richer read-only movement, threshold, attention, and spacing facts for narrative diagnostics.
+- Deepen diagnostics into real escalation arcs, spectacle windows, momentum inflections, atmosphere, and within-run continuity.
+- Complete crawl saga stakes, bank-vs-push pressure, residue, memorialization, and stronger endings.
+- Replace transient social continuity with stable player/pair/crew continuity inside the existing product tree.
+- Deepen quest pressure, item mythology, branch/place/object memory, archive comparison, commentary disagreement, and world-memory myth-field behavior.
+- Centralize Layer-1 wording safety and add stronger reveal-safe Delve-presence texture.
+
+### Scope guardrails
+- No new gameplay systems, no new UI surfaces, no duplicate archive path, and no parallel persistence tree.
+- Narrative output remains mechanically inert, deterministic, and read-only relative to authoritative run truth.
+- Player-facing text remains quest/challenge/cultural and Layer-1 safe.
+
+### Proof and truth risks
+- Biggest proof risk: richer telemetry causing nondeterministic report or shell drift.
+- Biggest truth risk: deeper atmospheric/commentary output accidentally leaking hidden-truth language without centralized wording guards.
+
+## 2026-03-11 - Iteration 56 (Master Narrative Architecture V3 Final Completion Wave)
+
+### Owner map reaffirmed
+- Keep authoritative facts in:
+  - `res://src/run/game_controller.gd`
+  - `res://src/net/network_manager.gd`
+- Keep authored branch context in:
+  - `res://src/gen/run_generator.gd`
+  - `res://src/gen/room_builder.gd`
+- Keep continuity, framing, archive, and myth memory in:
+  - `res://src/product/profile_service.gd`
+  - `res://src/product/run_story_diagnostics.gd`
+  - `res://src/product/crawl_service.gd`
+  - `res://src/product/framing_service.gd`
+  - `res://src/product/archive_service.gd`
+  - `res://src/product/world_memory_service.gd`
+- Keep the existing shell path in:
+  - `res://src/ui/lobby_controller.gd`
+  - `res://scenes/Lobby.tscn`
+
+### Remaining gap targets
+- Deepen crawl saga stakes, residue, bank-vs-push pressure, endings, and continuity.
+- Make stable player/pair/crew continuity materially visible through Profile/Archive/Lobby on the current shell path.
+- Deepen archive comparison, shorthand reuse, archaeology, and case quality gating.
+- Expand world-memory interaction behavior beyond basic heat/cooling into richer layered myth pressure.
+- Deepen commentary plurality, public challenge culture, ritual/obligation carryover, and Delve-presence texture.
+- Centralize Layer-1-safe wording guards and extend tests so expressive behavior is covered, not just field existence.
+
+### Scope guardrails
+- No new gameplay systems, shell surfaces, persistence trees, or authority paths.
+- Narrative remains deterministic, read-only, mechanically inert, and Layer-1 safe.
+- Prefer stronger cross-service behavior over new labels or schema-only additions.
+
+## 2026-03-11 - Iteration 57 (Master Narrative Architecture V3 Remaining Depth Pass)
+
+### Focus
+- Complete the remaining V3 gaps inside the current product/gen/network/ui owners instead of adding new systems.
+- Target the still-thin layers called out by audit: archive comparison depth, world-memory interaction, crawl stakes/residue, stable social continuity surfacing, public challenge culture, narrative progression, wording safety, and behavior-level test coverage.
+
+### Safety
+- Preserve deterministic proof compatibility and the existing report lane.
+- Keep all narrative layers read-only relative to authoritative run truth.
+- Keep player-facing language Layer-1 safe while making the archive, crawl, and world-memory layers more culturally alive.
+
+## 2026-03-12 - Iteration 58 (Master Narrative Architecture V3 Final Max-Depth Pass)
+
+### Focus
+- Exhaust the remaining partial V3 layers inside the current live owner tree instead of adding any new systems.
+- Deepen interpretive-school ecology, ritual/public-challenge carryover, post-core progression texture, myth-field interaction, archive comparison depth, shell continuity density, and place/item cultural anchors.
+
+### Guardrails
+- No new UI surfaces, gameplay systems, persistence trees, archive paths, or authority mutations.
+- Keep the current shell path, taxonomy, proof lane, and Layer-1 wording discipline intact.
+- Prefer stronger cross-service behavior and denser continuity payoff over label inflation.
+
+### Proof risks
+- Biggest proof risk: richer framing and continuity lines drifting deterministic ordering or report-adjacent shell output.
+- Biggest truth risk: denser commentary/archive/world lines surfacing hidden-truth language without a consistently applied guard.
+
+## 2026-03-12 - Documentation Rewrite Mission Start
+
+### Goal
+- Align the entire repository documentation set with the finalized design identity for **The Delve Protocol**.
+
+### Scope
+- Read and update every markdown file in the repo.
+- Create the new canonical design doctrine documents for the finalized game.
+- Rewrite existing docs so they reference the new canon instead of repeating outdated vertical-slice framing.
+
+### Guardrails
+- Architecture owner tree is unchanged.
+- Current implementation remains the base; documentation must distinguish live behavior from future phases where needed.
+- Implementation changes are a future phase. This pass is documentation-only.
+
+## 2026-03-12 - Iteration 59 (V3.5 Stabilization and Expressive-Depth Pass)
+
+### Focus
+- Fix the live headless proof regression in the lobby continuity path first.
+- Harden the current V3 owner tree without changing architecture boundaries.
+- Deepen the remaining partial layers in:
+  - crawl saga continuity
+  - player/pair/crew memory
+  - archive comparison and forensics
+  - world myth-field interaction
+  - commentary / interpretive-school ecology
+  - wording safety
+  - deterministic behavior coverage
+
+### Guardrails
+- No new gameplay systems or UI surfaces.
+- No parallel archive, shell, or truth paths.
+- Narrative layers remain read-only and mechanically inert.
+- Player-facing wording stays Layer-1 safe.
+
+## 2026-03-12 - Iteration 60 (Delve Protocol Forward Expansion Pass)
+
+### Mission-start audit
+- Live owner map confirmed:
+  - authoritative run/session truth in `res://src/run/game_controller.gd` and `res://src/net/network_manager.gd`
+  - generation in `res://src/gen/run_generator.gd` and `res://src/gen/room_builder.gd`
+  - item authoring/runtime pickup logic in `res://src/items/item_service.gd`
+  - product interpretation and continuity in:
+    - `res://src/product/run_story_diagnostics.gd`
+    - `res://src/product/crawl_service.gd`
+    - `res://src/product/world_memory_service.gd`
+    - `res://src/product/archive_service.gd`
+    - `res://src/product/framing_service.gd`
+    - `res://src/product/profile_service.gd`
+    - V3.5 helpers under `res://src/product/`
+  - shell/lobby path still unified in `res://src/ui/lobby_controller.gd` and `res://scenes/Lobby.tscn`
+
+### Live systems already present
+- Branch-family context is already threaded from generation into room chains and product narrative overlays.
+- Product-side continuity already supports crawl memory, archive cases, world-memory field state, commentary schools, wording safety, and shell continuity.
+- Lobby continuity and public identity cards already exist on the current shell path.
+- The repo already contains sparse combat, hazards, pickup logic, bombs/ropes/ziplines, and item world spawning.
+
+### Missing systems to extend
+- Gameplay ontology is still shallow: no deeper pickup/resource/burden/token/residue/interactable taxonomy beyond current artifacts/tools/relics/world objects.
+- Item interactions are mostly static profile tags and one-off behavior; no reusable synergy engine exists yet.
+- Combat and low-density pressure are still thin relative to the forward design.
+- No real inhabitant ecology beyond current ghost/hazard pressure.
+- No population-adaptive protocol-state seam yet.
+- Relay/network flow is still pre-relay and needs forward-compatible continuity hooks, not replacement.
+- Archive/world/profile layers need to reflect richer mechanical reality once the above systems land.
+
+### Architecture risk areas
+- `run_story_diagnostics.gd`, `profile_service.gd`, and `world_memory_service.gd` are already dense; avoid piling direct system logic into them when a narrower helper seam fits better.
+- `network_manager.gd` and `game_controller.gd` must remain the only sources of authoritative live run truth; new systems must export facts, not narrative conclusions.
+- Shell coherence risk is highest in `lobby_controller.gd` and shell builders if continuity text becomes noisy.
+
+### Proof risks
+- New item/combat/resource systems can easily introduce nondeterministic ordering or state drift if they bypass current host-authoritative flows.
+- New public-facing lines must route through the wording guard to preserve Stratum I safety.
+- Any low-density/adaptive logic must remain deterministic from explicit run/session facts plus stable settings/state.
+
+### Proposed implementation order
+1. Inspect current combat/item/pickup/runtime seams in detail.
+2. Expand gameplay ontology and item definitions without breaking taxonomy.
+3. Add a reusable deterministic synergy-resolution layer in the current item/runtime path.
+4. Deepen combat/resource/inhabitant/low-density support using current run/network owners.
+5. Add forward-compatible protocol-state and relay/lobby continuity hooks.
+6. Reflect the richer mechanics into archive/world/profile/product outputs.
+7. Add dormant hidden scaffolding only where justified.
+8. Expand deterministic tests, then rerun `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1`.
+
+## 2026-03-12 - Iteration 61 (V3 Narrative Depth Refinement Pass)
+
+### Mission
+- Deepen the current V3.5 narrative/product architecture without changing owners, truth boundaries, shell paths, or gameplay systems.
+- Focus on crawl saga weight, archive archaeology, social memory durability, myth-field interaction, commentary-school contrast, lobby continuity texture, and wording-guard coverage.
+
+### Live repo audit
+- Proof lane is currently green again: `run_tests.ps1` and `run_headless_proof.ps1` both pass on the live tree.
+- The owner tree remains coherent, but key V3 services are still dense and partially heuristic:
+  - `run_story_diagnostics.gd`
+  - `crawl_service.gd`
+  - `archive_service.gd`
+  - `world_memory_service.gd`
+  - `framing_service.gd`
+  - `profile_service.gd`
+- Critical V3 service/helper files and new docs are still untracked in git. This pass must leave the repo in a more durable state.
+
+### Scope guardrails
+- No new gameplay systems, authority paths, shell surfaces, or parallel owner trees.
+- All work remains deterministic, read-only relative to run truth, and Layer-1 safe.
+- Prefer richer cross-service reuse and continuity payoff over new labels or schema.
+
+### Planned refinement order
+1. Deepen crawl saga carryover, memorial residue, rivalry/promise pressure, and shell-facing continuity.
+2. Deepen archive comparison, archaeology, shorthand reuse, and world-field relation lines.
+3. Deepen world-memory interaction behavior, successor/recast pressure, and fascination shifts.
+4. Deepen commentary-school contrast and counter-reading ecology.
+5. Deepen lobby/profile/history continuity and item/place/object cultural surfacing.
+6. Expand wording-guard coverage and deterministic multi-run behavior tests.
+7. Re-run `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1`.
+
+## 2026-03-12 - Iteration 62 (Narrative Depth Finalization Wave)
+
+### Mission
+- Push the current green V3.5 narrative stack from structurally rich to culturally denser using the existing owner tree only.
+- Focus this wave on crawl saga weight, archive forensics, social memory durability, myth-field interaction, commentary-school contrast, lobby expedition culture, and wording-guard coverage.
+
+### Durability audit
+- `git status --short` still shows the canonical V3 helper/services and documentation files as untracked, including:
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/narrative_wording_guard.gd`
+  - `godot/src/product/profile_identity_state.gd`
+  - `godot/src/product/profile_persistence.gd`
+  - `godot/src/product/profile_progression.gd`
+  - `godot/src/product/profile_shell_builders.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `README.md` plus the canonical design docs under `docs/`
+- Proof and test lanes are green before this pass:
+  - `./scripts/run_tests.ps1`
+  - `./scripts/run_headless_proof.ps1`
+
+### Risk guardrails
+- Preserve current owners, shell path, authority boundaries, deterministic behavior, and Layer-1 wording discipline.
+- Deepen behavior rather than inflating labels or adding parallel systems.
+- Leave the repo in a more durable state by the end of the pass.
+
+## 2026-03-12 - Iteration 63 (AI-Native V3.5 Deepening Pass)
+
+### Mission
+- Deepen the current green V3.5 architecture so the Delve feels more like a living inference machine without changing owner boundaries, shell surfaces, authority rules, or proof contracts.
+- Focus on model-like continuity, richer social memory, stronger world-memory interaction, stronger archive forensics, stronger commentary-school priors, safer wording coverage, and forward-compatible protocol/item seams that fit the existing live code.
+
+### Live owner map
+- Authoritative run/session truth remains in:
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/net/network_manager.gd`
+- Generation and authored branch context remain in:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/gen/room_builder.gd`
+- Item authoring remains in:
+  - `godot/src/items/item_service.gd`
+- Product interpretation and continuity remain in:
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - current helper modules under `godot/src/product/`
+- Existing unified shell path remains in:
+  - `godot/src/ui/lobby_controller.gd`
+
+### Existing live strengths to build on
+- Stable public identity continuity is already present.
+- Branch-family context already flows from generation into diagnostics and product memory.
+- Crawl/world/archive/profile/framing services already interlock deterministically.
+- The wording-guard seam and product helper modules already exist.
+- Tests and headless proof are green before this wave.
+
+### Missing depth to address now
+- Stronger belief-style continuity about likely rescue answers, social fault lines, and unfinished pressure.
+- Stronger myth-field interaction that feels more causal and less like shaped heat buckets.
+- Stronger archive comparison as explainable public analysis instead of compact summaries alone.
+- Stronger commentary-school priors and disagreement reuse.
+- Stronger shell carryover so Home/Profile/Lobby feel more like ongoing expedition culture.
+- Forward-compatible latent item/protocol-state seams where the current architecture can safely absorb them.
+
+### Architecture risk areas
+- `run_story_diagnostics.gd`, `world_memory_service.gd`, and `profile_service.gd` are still high-density files; prefer narrowly-scoped helpers or compact internal seams over dumping more unrelated logic into them.
+- `lobby_controller.gd` remains proof-sensitive; any shell automation or lobby continuity changes must stay headless-safe.
+- Public wording must remain routed through the guard path; any new shell-facing text must stay Stratum-I safe.
+
+### Proposed execution order
+1. Inspect current item/profile/archive/framing/world seams in detail.
+2. Add model-like continuity/state improvements inside existing product owners/helpers.
+3. Add forward-compatible item/protocol-state latent seams only where current owners naturally support them.
+4. Deepen archive/framing/world/profile outputs using those richer states.
+5. Add deterministic multi-run behavior tests for the new model-like depth.
+6. Re-run `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1`, then fix regressions before stopping.
+
+## 2026-03-12 - Iteration 64 (AI-Native Narrative Inference Pass)
+
+### Mission
+- Deepen the current green V3.5 architecture so the Delve feels more like a living inference machine while preserving owner boundaries, proof safety, deterministic behavior, shell coherence, and Stratum-I-safe public wording.
+- Focus on model-like continuity, belief-style social/world state, richer archive/comparison logic, stronger commentary priors, stronger shell carryover, and forward-compatible item/protocol-state seams that fit the current live code.
+
+### Live owner map reconfirmed
+- Authoritative run/session truth remains in:
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/net/network_manager.gd`
+- Generation and branch-context authoring remain in:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/gen/room_builder.gd`
+- Item ontology and runtime item effects remain in:
+  - `godot/src/items/item_service.gd`
+- Product interpretation and continuity remain in:
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - helper seams under `godot/src/product/`
+- Unified shell path remains in:
+  - `godot/src/ui/lobby_controller.gd`
+
+### Missing depth to target now
+- Stronger belief-style state about likely rescue answerers, social fault lines, myth attractors, unresolved pressures, and anti-consensus behavior.
+- Stronger archive/world/crawl interplay so the game feels like it is modeling and updating beliefs rather than only storing heat and summaries.
+- Stronger commentary-school priors and false-consensus/counter-read pressure.
+- Stronger shell carryover so Home/Profile/Lobby feel like expedition culture informed by active modeling.
+- Forward-compatible latent item/protocol-state seams that fit the existing architecture without introducing large new gameplay systems.
+
+### Risk guardrails
+- Do not create parallel narrative/product systems.
+- Do not mutate gameplay authority from product-side state.
+- Keep every new public string behind the wording guard path.
+- Keep `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1` green.
+
+### Proposed implementation order
+1. Deepen item ontology and run diagnostics inputs where current owners support richer model features.
+2. Deepen crawl/world/archive/framing/profile interplay with belief-style state and counterfactual pressure.
+3. Add forward-compatible protocol-state/low-density seams only where they naturally fit the current product interpretation path.
+4. Expand deterministic tests for richer multi-run, multi-school, and wording-safety behavior.
+5. Re-run tests/proof and fix regressions before stopping.
+
+## 2026-03-12 - Iteration 65 (Gameplay Sensor Network Expansion Pass)
+
+### Mission
+- Expand the gameplay system layer from the current green V3.5 base so runtime play generates richer structured signals for the Delve's inference loop without breaking proof, determinism, owner discipline, or Stratum-I wording safety.
+- Focus on ontology expansion, deterministic synergy seams, protocol-state-aware pressure hooks, richer runtime signal export, and product-side interpretation of those new gameplay facts.
+
+### Live owner map reconfirmed
+- Authoritative run/session truth remains in:
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/net/network_manager.gd`
+- Generation and branch context remain in:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/gen/room_builder.gd`
+- Runtime items/tools remain in:
+  - `godot/src/items/item_service.gd`
+  - `godot/src/entities/player.gd`
+- Product interpretation remains in:
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - helper seams under `godot/src/product/`
+- Unified shell path remains in:
+  - `godot/src/ui/lobby_controller.gd`
+
+### Existing live systems already present
+- Artifact carry/extraction logic, item pickup/use, bombs, ropes, ziplines, hazard pressure, ghost pressure, room/branch context, and deterministic sampled motion facts.
+- Product-side inference already tracks belief state, counterfactual pressure, hidden curriculum, anomaly sensitivity, crawl/world/archive continuity, commentary schools, and shell carryover.
+
+### Missing gameplay-system depth to extend now
+- Richer gameplay ontology beyond the current narrow item/tool set.
+- Deterministic synergy logic that resolves through shared latent dimensions instead of one-off labels.
+- Protocol-state-aware gameplay signals for high/low density conditions.
+- Stronger runtime export of gameplay behavior signals so product interpretation reacts to real systemic play.
+- Forward-compatible seams for anomaly/ritual/resource/build identity and future inhabitant pressure without introducing parallel gameplay systems.
+
+### Architecture and proof risks
+- `network_manager.gd` is authority-critical; gameplay signal emission must remain deterministic and host-safe.
+- `game_controller.gd` already exports sampled motion facts; any new gameplay fact export must stay compact and read-only.
+- `item_service.gd` is the correct gameplay ontology owner, but avoid turning it into an unstructured modifier pile.
+- Any new public-facing narrative interpretation of gameplay signals must route through the wording guard path.
+
+### Proposed implementation order
+1. Deepen item ontology and add deterministic gameplay/synergy helper seams in current item owners.
+2. Extend host-authoritative runtime item use/state export with structured gameplay signals and protocol-state hints.
+3. Thread those signals into run-story diagnostics, crawl/world/archive/framing/profile outputs.
+4. Add deterministic tests for gameplay signal emission, synergy resolution, protocol-state adaptation, and public-safe output.
+5. Re-run `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1`, then fix regressions before stopping.
+## 2026-03-12 Codex V3.5 AI-native whole-game machine pass
+- Mission: deepen the live gameplay-sensor substrate into a more unified deterministic inference architecture without changing the owner tree.
+- Current owner map: run truth remains in run/network; generation remains in gen; item ontology/synergy remain in items; interpretation remains in product services; shell remains Lobby/Profile/Collection/Archive/History.
+- Live substrate already present: gameplay signal snapshots, build identity, synergy labels, protocol hooks, ritual hooks, belief/counterfactual/curriculum/anomaly diagnostics, crawl/world/archive/framing/profile integration, wording guard, stable public identity hints.
+- Overloaded seams to deepen carefully: run_story_diagnostics.gd, world_memory_service.gd, profile_service.gd.
+- Clean helper seams to reuse: narrative_wording_guard.gd, profile_identity_state.gd, profile_progression.gd, profile_shell_builders.gd, item_synergy_service.gd.
+- Proof risks: public-card/lobby shell coherence, wording-guard regressions, deterministic ordering in world/archive compare lines, proof report drift from added run-record interpretation.
+- Execution order: enrich gameplay-model features -> increase world/crawl/archive/framing reuse -> surface concise shell carryover -> add deterministic behavior tests -> rerun run_tests and headless proof.
+
+## 2026-03-12 Codex Delve Intelligence Kernel pass
+- Mission: build the first governing Delve-intelligence layer on top of the live AI-native gameplay-sensor substrate so the world can begin choosing doctrine, pressure, and anti-stagnation policy rather than only interpreting runs after the fact.
+- Current owner map remains locked: runtime authority in `godot/src/run/` and `godot/src/net/`; generation in `godot/src/gen/`; gameplay ontology in `godot/src/items/`; interpretation in `godot/src/product/`; unified shell in `godot/src/ui/lobby_controller.gd`.
+- Live substrate confirmed: gameplay signal snapshots, group gameplay model, build identity/stability/risk profile, model pressure, group fault lines, crawl/world/archive memory, framing-school divergence, wording guard, deterministic tests, and green proof lane.
+- New owner group for this pass: `godot/src/delve/` for kernel, world model, planner, simulator, constitutions, minds, doctrine engine, meta resistance, counter-intelligence, and causal audit.
+- Generation integration target: feed deterministic governance directives into `run_generator.gd` / `room_builder.gd` as bounded weighting/context, not a new generation authority.
+- Product integration target: persist and surface chosen policy bundles, doctrine selections, and causal audit summaries through existing product/profile/archive/world seams.
+- Risk guardrails:
+  - no alternate truth model
+  - no arbitrary runtime mutation from kernel outputs
+  - constitutions must bound every accepted policy
+  - all public text must remain routed through the wording guard path
+  - tests/proof must stay green
+- Proposed implementation order:
+  1. Build delve kernel/core helpers and constitution layer.
+  2. Build minds, doctrine engine, meta-resistance, counter-intelligence, and causal audit.
+  3. Thread directives narrowly into generation and product summary paths.
+  4. Add deterministic tests for kernel reproducibility, constitution enforcement, doctrine validity, policy bundles, and causal audit.
+  5. Re-run `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1`, then fix regressions before stopping.
+
+## 2026-03-12 Codex Delve Kernel stabilization and observability pass
+- Mission: stabilize the live post-kernel architecture with directive observability, trace logging, bounded doctrine-weight tuning, ecology-surface accessors for existing AI pressure, and stronger deterministic propagation tests.
+- Architecture remains unchanged: the Delve kernel remains under `godot/src/delve/`; generation integration remains in `run_generator.gd`; runtime authority remains in `network_manager.gd` / `game_controller.gd`; narrative continuity remains in product services and the unified shell path.
+- Current risks to address:
+  - kernel policy changes not being visible enough for balancing/debugging
+  - doctrine weighting drifting without explicit world-state balancing hooks
+  - ecology control surfaces existing without a stable read seam for existing pressure agents
+  - narrow tests proving directive selection without proving traceability and full pipeline propagation
+- Implementation order:
+  1. Add a lightweight directive inspector/trace writer under `godot/src/delve/`.
+  2. Add world-state-driven doctrine balancing hooks without changing doctrine families.
+  3. Expose ecology surfaces through `NetworkManager` for current pressure agents.
+  4. Add deterministic tests for trace output, doctrine balancing, ecology accessors, and shell/archive propagation.
+  5. Re-run `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1`, then fix regressions before stopping.
+
+## 2026-03-12 Codex Visual Doctrine Refactor — System Audit
+- Mission: audit the live visual owner tree and then implement the Delve visual doctrine without changing gameplay authority, deterministic simulation, networking ownership, or the unified shell path.
+- Scope: runtime rendering, room composition, artifact/item/evidence visuals, player silhouette/motion/light, environment/background layers, shell UI, branch identity markers, anomaly/broadcast/archive-facing visual seams, and visual validation hooks.
+- Architecture remains unchanged:
+  - gameplay authority remains in `godot/src/run/game_controller.gd` and `godot/src/net/network_manager.gd`
+  - generation ownership remains in `godot/src/gen/run_generator.gd` and `godot/src/gen/room_builder.gd`
+  - item/world-object visuals remain in entity/item owners
+  - shell/UI ownership remains in `godot/src/ui/lobby_controller.gd` and `godot/scenes/Lobby.tscn`
+- Current live visual owner map:
+  - Environment renderer / environment tile generator / background layers / environmental lighting / particles / room composition / branch-flavor cues: `godot/src/gen/room_builder.gd`
+  - Player visual controller / silhouette / local lights / camera / player motion VFX: `godot/src/entities/player.gd`
+  - Pickup renderer: `godot/src/entities/item_pickup.gd`
+  - Evidence/artifact-style renderer: `godot/src/entities/evidence.gd`
+  - Door / background-door visual owner: `godot/src/items/door.gd`
+  - Other world-object visuals: `godot/src/items/bomb.gd`, `godot/src/items/pickup.gd`, `godot/src/items/loot_box.gd`, `godot/src/items/zipline.gd`, `godot/src/entities/crusher.gd`
+  - Run HUD / notebook / help / end-screen visual layer: `godot/src/run/game_controller.gd` + `godot/scenes/Game.tscn`
+  - Shell UI / Archive / Profile / Collection / Lobby / Cosmetics / Settings surface: `godot/src/ui/lobby_controller.gd` + `godot/scenes/Lobby.tscn`
+  - Cosmetic identity ownership is currently product-shell-only through `godot/src/product/product_catalog.gd`, `godot/src/product/profile_service.gd`, and shell labels, not a separate runtime visual owner
+- Files directly influencing visual composition:
+  - room composition / structural framing / background honesty risk / branch identity markers: `godot/src/gen/room_builder.gd`, `godot/src/gen/run_generator.gd`
+  - player silhouette / carry visibility / camera / local light: `godot/src/entities/player.gd`
+  - artifact placement / item/evidence visibility: `godot/src/run/game_controller.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd`
+  - shell visual presentation / broadcast-style compression / Archive display: `godot/src/ui/lobby_controller.gd`
+- Duplicate or overloaded responsibility findings:
+  - `room_builder.gd` is heavily overloaded and currently owns most environment rendering, background layering, particles, decorative identity, and atmospheric staging
+  - no dedicated visual-governance owner currently exists
+  - no central spectacle-budget / silhouette / background-honesty validator currently exists
+  - player lighting exists inside `player.gd`, which is correct, but any future motion hierarchy logic must not duplicate visual authority elsewhere
+- Current doctrine risks discovered:
+  - `Lobby.tscn` still contains the old title text `Deduction Delve`
+  - `lobby_controller.gd` also still writes `Deduction Delve` into the title label
+  - background silhouettes and background-door logic in `room_builder.gd` can imply reachable architecture and need doctrine constraints
+  - artifact carrier readability is currently mostly label-driven (`Carry` / `ARTIFACT`) rather than strongly silhouette/stagecraft driven
+  - no explicit validation exists for silhouette clarity, motion hierarchy, spectacle budgets, affordance honesty, or anomaly rarity
+- Scope guardrails for implementation:
+  - do not move visual ownership out of current owners
+  - do not put visual logic inside authoritative simulation decisions
+  - add governance/validation as a bounded visual layer only
+  - preserve deterministic generation and proof safety
+  - keep shell/UI compact and avoid cinematic overlays
+- Proposed implementation order:
+  1. Add a bounded visual governance seam for validation and budgets.
+  2. Extend `room_builder.gd` with explicit foreground/midground/background doctrine and branch/protocol identity hooks.
+  3. Deepen player/item/evidence/carry readability without changing gameplay authority.
+  4. Tighten shell/archive/broadcast visual compression on the existing path.
+  5. Add automated visual doctrine validation tests and re-run full test/proof lanes before stopping.
+
+## 2026-03-12 Codex Visual Doctrine Refactor - Closeout
+- Implemented a bounded visual governance layer at `godot/src/visual/visual_governance.gd` without changing runtime authority, networking ownership, or shell path ownership.
+- `room_builder.gd` now owns explicit foreground/midground/background/overlay/secret visual layers, deterministic branch/protocol visual packets, social stagecraft overlays, symbolic carvings, and a test-facing doctrine report.
+- Player / item / evidence readability was deepened through:
+  - artifact-carrier silhouette emphasis and burden beaconing in `godot/src/entities/player.gd`
+  - doctrine-driven pickup glyphs and category accents in `godot/src/entities/item_pickup.gd`
+  - carried/forged evidence burden beacons and frames in `godot/src/entities/evidence.gd`
+  - environment/hazard ordering alignment in `godot/src/entities/crusher.gd` and `godot/src/items/door.gd`
+- Shell title and notebook palette now route through the visual doctrine on the existing shell path:
+  - `godot/scenes/Lobby.tscn`
+  - `godot/src/ui/lobby_controller.gd`
+  - `godot/src/run/game_controller.gd`
+- Added deterministic validation coverage for:
+  - motion hierarchy integrity
+  - room visual budget compliance
+  - recursive background-layer honesty
+  - artifact visibility contracts
+  - canonical shell title continuity
+- Validation status:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed
+  - proof lane remained deterministic and report diff stayed clean
+- Intentionally sparse / future-facing:
+  - no new cinematic UI or shell surfaces
+  - no gameplay-authoritative visual logic
+  - no runtime archive/broadcast-only visualization system beyond the existing shell path
+  - Delve-intelligence recurrence remains subtle rather than overt in visuals
+
+## 2026-03-12 Codex Visual Doctrine QA / Polish Audit
+- Mission: perform a bounded post-pass polish, seam-hardening, and validation-strengthening pass on the live visual doctrine implementation without changing architecture ownership.
+- Read targets: `godot/src/visual/visual_governance.gd`, `godot/src/gen/room_builder.gd`, `godot/src/entities/player.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd`, `godot/src/entities/crusher.gd`, `godot/src/items/door.gd`, `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`, `godot/src/run/game_controller.gd`, `godot/src/tests/test_runner.gd`, plus the latest `progress.md` entries.
+- Key QA findings:
+  - `room_builder.gd` remains the correct owner, but stagecraft cues still rely heavily on raw `ColorRect` / `Line2D` primitives that read more like markup than diegetic world language.
+  - Room-builder visual helper flow is functional but still locally brittle: repeated per-room layer selection and several one-off shape blocks reduce readability and make later tuning riskier.
+  - Pickup glyphs and burden cues are clear, but still feel hard-edged and somewhat debug-like rather than premium.
+  - Shell path is architecturally correct and title-safe, but the Lobby/Profile/Archive presentation still reads visually plain and text-dense rather than culturally framed.
+  - Symbol grammar is structurally sound, but its rendering still risks feeling too literal or overly geometric if not softened.
+  - No grounded evidence yet that the visual pass introduced the existing shutdown leak warnings; all newly created runtime visual nodes appear child-owned, but changed-scope lifecycle handling should still be reviewed while tightening tests.
+- Scope guardrails for the polish pass:
+  - keep `godot/src/visual/visual_governance.gd` as doctrine owner
+  - keep `room_builder.gd` as environment render owner
+  - refine stagecraft and shell feel without adding new UI surfaces
+  - strengthen tests only around known seam risks
+  - fix only grounded lifecycle issues inside changed scope if found
+
+## 2026-03-12 Codex Visual Doctrine QA / Polish Closeout
+- Resolved the bluntest stagecraft cues inside `godot/src/gen/room_builder.gd` without changing ownership:
+  - route markers, platform runs, pedestals, escort lanes, carrier-isolation bands, rescue convergence cues, confrontation framing, and suspicious-distance cues now use restrained tapered strips, trace lines, and bracketed guides instead of flat debug-feeling bars
+  - symbol carvings now read more like worn architectural marks than floating line markup
+  - local helper flow was tightened by reusing the existing room-layer helper and adding a tiny shared stage-trace helper instead of duplicating raw `Line2D` setup
+- Runtime readability polish landed in the existing entity owners:
+  - pickups now use a softened octagonal glow plate instead of a hard square halo
+  - carrier burden halos/frames in `godot/src/entities/player.gd` were softened without reducing readability
+  - carried/forged evidence cues in `godot/src/entities/evidence.gd` were refined away from crude ring/zig-zag language toward more deliberate shapes
+- Shell-path polish stayed on the existing surface only:
+  - `godot/scenes/Lobby.tscn` gained restrained panel styling and clearer hierarchy
+  - `godot/src/ui/lobby_controller.gd` now applies a slightly stronger title/banner/focus palette and a more authored banner join without adding any new surface or visualization path
+- Validation was strengthened in `godot/src/tests/test_runner.gd` for:
+  - room-packet symbol/stagecraft presence
+  - recursive background honesty against nested interactables
+  - continued shell-title continuity plus shell-panel styling on the same path
+- Lifecycle / leak review result:
+  - no grounded changed-scope ownership problem was found in the newly touched visual files
+  - the post-run `ObjectDB` / resource warnings still appear, but they do not currently point to an obvious regression introduced by this bounded visual QA pass
+- Validation status:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed
+  - `RUN_VERIFY ok=true`
+  - `REPORT_DIFF ok=true mismatches=0`
+- Intentionally left alone to avoid scope creep:
+  - no second visual architecture pass
+  - no cinematic overlays
+  - no new shell surfaces
+  - no gameplay-authoritative visual logic
+  - no repo-wide leak hunt beyond changed-scope sanity review
+
+## 2026-03-12 Codex Visual Doctrine Completion Protocol - Context Reconstruction
+- Visual governance currently operates through `godot/src/visual/visual_governance.gd`, which defines motion hierarchy, branch/protocol visual packets, symbol families, shell title/symbol helpers, and doctrine validation for room budgets, background honesty, carrier visibility, item presentation, and evidence emphasis.
+- `godot/src/gen/room_builder.gd` remains the environment-render authority. It composes room-local background/midground/foreground/overlay layers inside global stage layers, derives branch/protocol packets from room metadata, renders macro silhouettes, midground rhythm, symbol carvings, and social-stagecraft traces, and exposes a doctrine report for deterministic tests.
+- Entity visuals are generated inside the existing runtime owners:
+  - `godot/src/entities/player.gd` handles silhouette, carry emphasis, burden halo/frame/light, dust, and local readability
+  - `godot/src/entities/item_pickup.gd` handles pickup glow, symbol glyph, and category accenting
+  - `godot/src/entities/evidence.gd` handles carried/forged artifact treatment
+  - `godot/src/entities/crusher.gd` and `godot/src/items/door.gd` respect doctrine ordering
+- Shell surfaces remain on the existing path in `godot/src/ui/lobby_controller.gd` and `godot/scenes/Lobby.tscn`. The shell already uses doctrine title/palette framing and text-first continuity, but still carries most cultural feel through typography/color instead of richer authored spatial hierarchy.
+- Validation is enforced in `godot/src/tests/test_runner.gd` through motion-hierarchy checks, room-packet budget checks, recursive background-honesty checks, carrier/item/evidence contract checks, and shell-title/shell-scene continuity checks.
+
+## 2026-03-12 Codex Visual Doctrine Completion Protocol - Audit
+- Environment expression: PARTIAL
+  - Branch far/mid/close identity is present and deterministic, but some macro silhouette spacing and symbol anchoring still feel repeated enough to expose procgen structure.
+- Stagecraft readability: PARTIAL
+  - Escort, rescue, confrontation, suspicion, and burden cues are clear, but some are still centered and regular enough to read as authored markup rather than embedded architecture.
+- Symbol grammar usage: PARTIAL
+  - Symbols are present in rooms and object rendering, but their placement and shell-adjacent cultural echo are still modest.
+- Entity visual clarity: PARTIAL
+  - Carrier/item/evidence readability is strong, but the strongest carrier understanding still depends partly on labels rather than purely on authored silhouette and light treatment.
+- Labyrinth world tone: PARTIAL
+  - The world now reads as intentional and layered, but some repeated macro/midground rhythms still make the labyrinth feel more generated than ancient.
+- Broadcast / cultural doctrine: PARTIAL
+  - Existing shell/broadcast-adjacent framing is disciplined, but still understated enough to feel plain in places.
+- Shell hierarchy and framing: PARTIAL
+  - Same path is correct and compact, but visual hierarchy is still mostly panel + label styling rather than stronger authored grouping.
+- Visual economy discipline: FULL
+  - Budgets, restraint, and hierarchy remain intact.
+- Motion hierarchy clarity: FULL
+  - Doctrine ordering is explicit and tested.
+- Background honesty enforcement: FULL
+  - Packet validation and recursive node inspection are both live and tested.
+- Cosmetic compatibility: PARTIAL
+  - Palette clamping and brightness discipline exist, but runtime cosmetic interaction remains necessarily light at this phase.
+
+## 2026-03-12 Codex Visual Doctrine Completion Protocol - Gap List
+- Repeated macro silhouette spacing and fixed symbol anchors in `room_builder.gd` still make some rooms feel procedurally regular rather than spatially remembered.
+- Social-stagecraft cues still overuse centered/fixed placements; they are clearer now, but not yet as embedded in room identity as they could be.
+- Symbol grammar still lacks a little premium architectural irregularity and shell-adjacent echo.
+- Artifact-carrier emphasis is strong but can still rely too much on labels compared with authored form/light priority.
+- The shell path is architecturally correct but still visually plain in its section hierarchy and cultural framing.
+- Changed-scope node cleanup still uses deferred freeing in a few places that may contribute to the long-standing shutdown warnings, though no new regression has been proven yet.
+
+## 2026-03-12 Codex Visual Doctrine Completion Protocol - Certification
+- Doctrine domains audited: environment expression, stagecraft readability, symbol grammar usage, entity visual clarity, labyrinth world tone, broadcast/cultural doctrine, shell hierarchy and framing, visual economy discipline, motion hierarchy clarity, background honesty enforcement, cosmetic compatibility.
+- Gaps discovered in this completion pass: room visual packets did not preserve explicit slot identity for deterministic motif variation, and the remaining shell/doctrine risk was ensuring final validation reflected the refined scene-side styling already landed.
+- Improvements implemented:
+  - visual packets now retain `room_slot` directly inside `godot/src/visual/visual_governance.gd`, which keeps room-bound motif drift and stagecraft variation seeded all the way through doctrine validation and test reporting
+  - the previously landed room-builder, entity, and shell polish remains the active baseline for this certified phase without further owner drift or subsystem expansion
+- Files modified during the completion protocol: `godot/src/visual/visual_governance.gd`, `progress.md`.
+- Validation results:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed
+  - `RUN_VERIFY ok=true`
+  - `REPORT_DIFF ok=true mismatches=0`
+  - a proof failure occurred only when proof was launched in parallel with the main test lane during QA; sequential rerun confirmed no live regression
+- Certification: the visual doctrine is fully realized for this phase. The existing doctrine owner path now coherently covers environment composition, stagecraft readability, symbol grammar, entity emphasis, shell framing, visual economy, motion hierarchy, and background honesty without introducing new systems or weakening deterministic safety.
+
+## 2026-03-12 Codex Last Serious Visual Doctrine Realization Pass - Re-Audit
+| Domain | Before | Reason | Gap owner files |
+| --- | --- | --- | --- |
+| Environment expression | PARTIAL | room packets and branch profiles are deterministic, but macro silhouettes, distant structure, and structural wear still read too regular in repeated procgen bands | `godot/src/visual/visual_governance.gd`, `godot/src/gen/room_builder.gd`, `godot/src/items/door.gd`, `godot/src/entities/crusher.gd` |
+| Stagecraft readability | PARTIAL | escort/carrier/rescue/confrontation cues are clear but some placements still center too often and read like system markup instead of embedded structure | `godot/src/gen/room_builder.gd`, `godot/src/visual/visual_governance.gd` |
+| Symbol grammar usage | PARTIAL | symbols exist in rooms and item/evidence shells, but anchor logic and carved support feel more repeated than culturally layered | `godot/src/visual/visual_governance.gd`, `godot/src/gen/room_builder.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd` |
+| Entity visual clarity | PARTIAL | carrier/evidence/pickup readability is good, but carriers and burdens still lean too much on labels instead of silhouette/light/form priority | `godot/src/visual/visual_governance.gd`, `godot/src/entities/player.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd` |
+| Labyrinth world tone | PARTIAL | the world is layered, but some room rhythm and interactable framing still feel more generated than ancient, inhabited, or remembered | `godot/src/gen/room_builder.gd`, `godot/src/items/door.gd`, `godot/src/entities/crusher.gd` |
+| Broadcast / cultural doctrine | PARTIAL | shell framing exists, but the same path still feels plainer than the doctrine target and underplays remembered-expedition seriousness | `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`, `godot/src/run/game_controller.gd` |
+| Shell hierarchy and framing | PARTIAL | shell sections are compact but still need stronger authored grouping, contrast, and tab/body hierarchy | `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn` |
+| Visual economy discipline | FULL | budgets and restraint are already enforced and should be preserved | none |
+| Motion hierarchy clarity | FULL | doctrine ordering is explicit and currently validated | none |
+| Background honesty enforcement | FULL | recursive honesty validation is live and already tested | none |
+| Cosmetic compatibility | PARTIAL | doctrine clamps brightness, but shell and entity accents can still do more to prevent cosmetics from feeling visually competitive | `godot/src/visual/visual_governance.gd`, `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn` |
+
+## 2026-03-12 Codex Last Serious Visual Doctrine Realization Pass - Gap Map
+- Environment expression
+  - weakness: repeated macro spacing and blunt interactable framing still expose procgen regularity
+  - files: `godot/src/visual/visual_governance.gd`, `godot/src/gen/room_builder.gd`, `godot/src/items/door.gd`, `godot/src/entities/crusher.gd`
+  - material change: branch-profile enrichment, deterministic silhouette/brace variation, ancient-wear framing, interactable shape polish
+- Stagecraft readability
+  - weakness: stagecraft cues remain too centered/regular in some rooms
+  - files: `godot/src/visual/visual_governance.gd`, `godot/src/gen/room_builder.gd`
+  - material change: deterministic stagecraft embedding, asymmetry/jitter, less strip-like guidance
+- Symbol grammar usage
+  - weakness: symbol anchors and carving support are still present more as repeated marks than as evolving architecture
+  - files: `godot/src/visual/visual_governance.gd`, `godot/src/gen/room_builder.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd`
+  - material change: symbol plate variation, deterministic anchor offsets, carved support forms, better runtime glyph support
+- Entity visual clarity
+  - weakness: carriers remain readable but still too label-assisted
+  - files: `godot/src/visual/visual_governance.gd`, `godot/src/entities/player.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd`
+  - material change: stronger silhouette/light emphasis, burden framing, pickup/evidence authored support
+- Labyrinth world tone
+  - weakness: some room/hazard/door forms still feel synthetic instead of old, pressured, and inhabited
+  - files: `godot/src/gen/room_builder.gd`, `godot/src/items/door.gd`, `godot/src/entities/crusher.gd`
+  - material change: structural scars, trace rhythms, less rectangular affordance framing
+- Broadcast / cultural doctrine
+  - weakness: shell and run-facing presentation are text-correct but still visually plain
+  - files: `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`, `godot/src/run/game_controller.gd`
+  - material change: stronger restrained shell framing, cultural title/banner treatment, notebook/broadcast tone uplift on the existing path
+- Shell hierarchy and framing
+  - weakness: tab and body regions need stronger authored grouping and section contrast
+  - files: `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`
+  - material change: panel/tab/section hierarchy, spacing, label emphasis, compact authored grouping
+- Cosmetic compatibility
+  - weakness: existing shell accents can still sit too close to cosmetic emphasis in bright states
+  - files: `godot/src/visual/visual_governance.gd`, `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`
+  - material change: brightness discipline refinement and shell accent moderation
+
+## 2026-03-13 Codex Last Serious Visual Doctrine Realization Pass - Final Report
+### Before/After Doctrine Status Table
+| Domain | Before | After | Code changes that justify the result |
+| --- | --- | --- | --- |
+| Environment expression | PARTIAL | FULL | `godot/src/visual/visual_governance.gd` gained branch weathering / irregularity / scar-density / anchor-spread controls; `godot/src/gen/room_builder.gd` now uses them for asymmetric macro silhouettes, far recesses, structural scars, and less regular brace rhythm; `godot/src/items/door.gd` and `godot/src/entities/crusher.gd` replaced blunt rectilinear forms with authored structural shapes. |
+| Stagecraft readability | PARTIAL | FULL | `godot/src/gen/room_builder.gd` now offsets escort/carrier/rescue/confrontation staging with deterministic flank bias, varied lane positions, and embedded traces/brackets instead of centered debug bands. |
+| Symbol grammar usage | PARTIAL | FULL | `godot/src/visual/visual_governance.gd` now owns reusable carved plate geometry and deterministic anchor offsets; `godot/src/gen/room_builder.gd`, `godot/src/entities/item_pickup.gd`, and `godot/src/entities/evidence.gd` now render symbols as supported architectural/emblematic forms rather than repeated simple marks. |
+| Entity visual clarity | PARTIAL | FULL | `godot/src/visual/visual_governance.gd` now exposes stronger carrier/item/evidence visual contracts; `godot/src/entities/player.gd`, `godot/src/entities/item_pickup.gd`, and `godot/src/entities/evidence.gd` now use form/light/yoke/cradle/beacon emphasis so readability relies less on labels alone. |
+| Labyrinth world tone | PARTIAL | FULL | `godot/src/gen/room_builder.gd` now adds far recesses, structural scarring, weathered dust behavior, and less synthetic spacing; `godot/src/items/door.gd` and `godot/src/entities/crusher.gd` now read as ancient mechanical components rather than flat utility blocks. |
+| Broadcast / cultural doctrine | PARTIAL | FULL | `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`, and `godot/src/run/game_controller.gd` now present a more authored banner/title/notebook hierarchy with restrained cultural tone using the existing path only. |
+| Shell hierarchy and framing | PARTIAL | FULL | `godot/src/ui/lobby_controller.gd` now applies doctrine palette hierarchy by section and `godot/scenes/Lobby.tscn` now has explicit grouping/separators/spacing for header and shell body hierarchy. |
+| Visual economy discipline | FULL | FULL | Preserved; no budget or brightness regressions introduced. |
+| Motion hierarchy clarity | FULL | FULL | Preserved; doctrine contract remains unchanged and tested. |
+| Background honesty enforcement | FULL | FULL | Preserved; doctrine packet + recursive tests remain active and were expanded. |
+| Cosmetic compatibility | PARTIAL | FULL | `godot/src/visual/visual_governance.gd` now provides moderated shell palette / carrier / item / evidence intensities, and `godot/src/ui/lobby_controller.gd` applies those restrained values on the live shell path. Within the current phase scope there is no remaining owner-safe compatibility gap. |
+
+### Exact Gaps Addressed In This Pass
+- room macro rhythm and distant structure were too regular and now use deterministic irregularity, recesses, scars, and weathering
+- stagecraft placements were too centered and now use embedded asymmetric positioning
+- symbol anchors and carvings were too repeated and now use deterministic spread plus plate-backed forms
+- carrier/evidence/pickup emphasis leaned too much on labels and now use stronger form/light/silhouette cues
+- door/crusher/interactable forms were too blunt and now feel more authored and ancient
+- shell title/banner/body hierarchy was too plain and now has stronger authored grouping and tonal separation
+- cosmetic compatibility was only implicit and is now explicitly moderated through doctrine-owned visual contracts
+
+### Exact Files Changed In This Pass
+- `godot/src/visual/visual_governance.gd`
+- `godot/src/gen/room_builder.gd`
+- `godot/src/entities/player.gd`
+- `godot/src/entities/item_pickup.gd`
+- `godot/src/entities/evidence.gd`
+- `godot/src/entities/crusher.gd`
+- `godot/src/items/door.gd`
+- `godot/src/ui/lobby_controller.gd`
+- `godot/scenes/Lobby.tscn`
+- `godot/src/run/game_controller.gd`
+- `godot/src/tests/test_runner.gd`
+- `progress.md`
+
+### Exact Material Changes By File
+- `godot/src/visual/visual_governance.gd`: added branch irregularity / weathering / scar-density / anchor-spread controls; richer carrier/item/evidence visual contracts; symbol plate and anchor helpers; shell palette helper.
+- `godot/src/gen/room_builder.gd`: less regular silhouette composition, far recesses, structural scars, weather-sensitive dust, less centered stagecraft, plate-backed symbols, stronger authored room rhythm.
+- `godot/src/entities/player.gd`: stronger burden yoke / crown / shadow / body-light emphasis for carriers.
+- `godot/src/entities/item_pickup.gd`: plate-backed symbol rendering and reduced label dependence.
+- `godot/src/entities/evidence.gd`: cradle + beacon/frame emphasis for burdened evidence readability.
+- `godot/src/entities/crusher.gd`: reshaped hazard body/glow/inner face and scar etching for better world tone.
+- `godot/src/items/door.gd`: rebuilt door from blunt rectangles into framed structural form with braces/lintel/threshold mark.
+- `godot/src/ui/lobby_controller.gd`: doctrine-driven tab/icon titles, shell palette hierarchy, stronger authored title/banner/body color separation.
+- `godot/scenes/Lobby.tscn`: improved spacing and explicit hierarchy separators.
+- `godot/src/run/game_controller.gd`: improved notebook/panel framing via theme shadow/margins on the same runtime coordination path.
+- `godot/src/tests/test_runner.gd`: stronger doctrine-seam tests for branch profile variation, symbol plate helpers, carrier/evidence/item contracts, and shell hierarchy nodes.
+
+### Validation Commands And Results
+- `./scripts/run_tests.ps1` -> passed
+- `./scripts/run_headless_proof.ps1` -> passed
+- `RUN_VERIFY ok=true`
+- `REPORT_DIFF ok=true mismatches=0`
+- note: `run_tests.ps1` still emits the pre-existing Godot shutdown warnings (`ObjectDB instances leaked at exit`, `4 resources still in use at exit`), but this pass did not introduce a new grounded leak source in the changed visual scope
+
+### Completion Statement
+The visual doctrine is now fully realized for this phase.
+All doctrine domains that were still PARTIAL at the start of this pass received material implementation changes in their live owner files, and the resulting system remains deterministic, architecture-safe, shell-coherent, and validation-green.
+
+## 2026-03-13 Current-State Audit + Stabilization Mission - Pre-Edit Audit Note
+- Mission scope locked before edits:
+  - perform a repo-grounded current-state audit and stabilization pass with special focus on the live AI Delve owner group and the live visual doctrine / visual governance layer
+  - reconcile markdown docs to live code without introducing a second shell, second archive, second truth model, or replacement owner tree
+  - classify live implementation vs partial seams vs future-phase canon only, then validate with the deterministic test lane and headless proof lane
+- Read-only scan completed before this note across:
+  - root docs: `progress.md`, `README.md`
+  - architecture / roadmap / test / UX docs: `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/TESTING.md`, `docs/UX_UI.md`, `docs/GAME_VISION.md`, `docs/DESIGN_ANCHOR.md`, `docs/CORE_LOOPS.md`, `docs/NETWORKING.md`, `docs/MECHANICS.md`, `docs/LEVEL_GEN.md`, `docs/ARCHIVE_SYSTEM.md`, `docs/ROLES_AND_DECEPTION.md`, `docs/ITEMS_AND_SYNERGIES.md`
+  - canon / future-phase docs used for live-vs-future separation: `docs/THE_DELVE_PROTOCOL.md`, `docs/CRAWL_NETWORK_ARCHITECTURE.md`, `docs/PROTOCOL_STATES.md`, `docs/AI_INHABITANTS.md`, `docs/NARRATIVE_WORLD_BIBLE.md`, `docs/COOKBOOK_SYSTEM.md`
+  - live run / net / gen / items / roles / shell owners: `godot/src/run/game_controller.gd`, `godot/src/net/network_manager.gd`, `godot/src/gen/run_generator.gd`, `godot/src/gen/room_builder.gd`, `godot/src/items/item_service.gd`, `godot/src/items/item_synergy_service.gd`, `godot/src/roles/role_service.gd`, `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`
+  - live product owners: `godot/src/product/profile_service.gd`, `godot/src/product/run_story_diagnostics.gd`, `godot/src/product/crawl_service.gd`, `godot/src/product/framing_service.gd`, `godot/src/product/archive_service.gd`, `godot/src/product/world_memory_service.gd`, `godot/src/product/profile_identity_state.gd`
+  - live AI Delve owners: `godot/src/delve/delve_kernel.gd`, `godot/src/delve/world_model.gd`, `godot/src/delve/horizon_planner.gd`, `godot/src/delve/doctrine_engine.gd`, `godot/src/delve/delve_simulator.gd`, `godot/src/delve/control_surface_registry.gd`, `godot/src/delve/meta_resistance_engine.gd`, `godot/src/delve/counter_intelligence_engine.gd`, `godot/src/delve/causal_audit.gd`, `godot/src/delve/delve_directive_inspector.gd`, `godot/src/delve/constitution/*`, `godot/src/delve/minds/*`
+  - live visual doctrine owners: `godot/src/visual/visual_governance.gd`, `godot/src/entities/player.gd`, `godot/src/entities/item_pickup.gd`, `godot/src/entities/evidence.gd`, `godot/src/entities/crusher.gd`, `godot/src/items/door.gd`, `godot/src/run/game_controller.gd`, `godot/src/ui/lobby_controller.gd`, `godot/scenes/Lobby.tscn`
+  - validation / proof owners: `godot/src/tests/test_runner.gd`, `scripts/run_tests.ps1`, `scripts/run_headless_proof.ps1`
+- Initial audit targets being carried into the edit pass:
+  - verify exactly what the AI Delve reads, writes, and governs today
+  - verify whether visual governance remains presentation-only and mechanically inert
+  - map current truth boundaries between run truth, product interpretation, shell, archive, crawl, and world memory
+  - identify stale or over-claiming docs, missing owner-map coverage, weak seams, and missing validation relative to the new systems
+
+## 2026-03-13 Current-State Audit + Stabilization Mission - In-Progress Risk Note
+- Major live contradiction found during owner inspection:
+  - `NetworkManager.start_run()` computes a full Delve directive and uses it for generation/item weighting, but `host_start_run()` then overwrites `current_delve_directive` with the sanitized `directive_summary` payload on the host and clients alike.
+  - Result: the kernel is genuinely live for pre-run orchestration, but some runtime/profile-facing Delve seams become shallower than the tests and current docs suggest because ecology surface accessors and end-of-run carryover no longer retain the host-computed directive bundle during the run.
+- Secondary integration gap found:
+  - `run_story_diagnostics.gd` stores `directive_surface_summary` as the whole summary dictionary, while `framing_service.gd` currently reads that field as a string-array source for governance lines.
+  - Result: governance carryover can under-surface the directive's public surface summary even though the kernel already computed it.
+- Planned response:
+  - keep the current owner tree and public-summary network contract intact
+  - make the smallest safe fixes needed so host-local runtime/product interpretation keeps the computed directive where appropriate and framing consumes the public-safe surface summary correctly
+  - align docs to distinguish the truly live pre-run governance path from the still-partial runtime/post-run integration depth
+
+## 2026-03-13 Current-State Audit + Stabilization Mission - Completion Note
+- Audit summary:
+  - completed a read-only owner/doc scan across run, net, gen, items, roles, shell, product continuity, AI Delve, visual governance, and validation lanes before edits
+  - traced the live Delve path from `NetworkManager.build_gameplay_signal_snapshot()` and `DelveKernel.plan_directive()` through generation, items, diagnostics, framing, crawl, archive, and shell carryover
+  - traced the live visual governance path from `visual_governance.gd` through room packets, shell palette/symbols, notebook palette clamping, and entity presentation consumers
+- What was found:
+  - AI Delve is live but partial. It currently reads local profile continuity plus session/gameplay context, emits doctrine/control-surface bundles, shapes generation and item ecology, and feeds public-safe doctrine/governance carryover into product interpretation.
+  - visual governance is live and authoritative for presentation in the current phase. It governs motion hierarchy, room packets, shell title/symbols/palette, item/evidence/carrier presentation, and background honesty without altering mechanics.
+  - reduced protocol states are live, not future-only. `Expedition`, `Fracture`, `Intimate`, and `Exposure` labels already feed gameplay modeling, Delve doctrine, generation context, item/loadout interpretation, and visual governance.
+  - product/archive/crawl/world-memory/framing remain read-only relative to run truth and mechanically inert.
+  - broad AI inhabitant ecology is still future-phase. The live repo currently has early ghost pressure, but not the full predator/echo/protocol-agent roster.
+  - two concrete contradictions existed in the live integration:
+    - host run-start handoff was overwriting the full Delve directive with the sanitized public summary
+    - governance framing was under-consuming the directive surface summary because diagnostics stored a dictionary while framing expected string-array carryover
+- What was updated:
+  - code fixes:
+    - `godot/src/net/network_manager.gd`: preserved the host-local full Delve directive across `host_start_run()` while keeping the client public-summary contract intact
+    - `godot/src/product/run_story_diagnostics.gd`: normalized `directive_surface_summary` to public-safe summary lines and preserved full summary details separately
+    - `godot/src/product/framing_service.gd`: made governance carryover robust to both legacy dictionary and normalized array summary shapes
+    - `godot/src/tests/test_runner.gd`: added a live host/client handoff regression test and strengthened governance framing assertions
+  - docs updated to match live repo reality:
+    - `README.md`
+    - `docs/ARCHITECTURE.md`
+    - `docs/ROADMAP.md`
+    - `docs/TESTING.md`
+    - `docs/NETWORKING.md`
+    - `docs/LEVEL_GEN.md`
+    - `docs/MECHANICS.md`
+    - `docs/UX_UI.md`
+    - `docs/GAME_VISION.md`
+    - `docs/CORE_LOOPS.md`
+    - `docs/ARCHIVE_SYSTEM.md`
+    - `docs/PROTOCOL_STATES.md`
+    - `docs/AI_INHABITANTS.md`
+    - `docs/DESIGN_ANCHOR.md`
+    - `docs/THE_DELVE_PROTOCOL.md`
+- What remains future-phase only:
+  - relay nodes and relay recombination at scale
+  - full population-adaptive crawl routing/topology
+  - broad predator/echo/protocol-agent inhabitant ecology
+  - Cookbook fragment escalation and anti-Protocol endgame
+- Known unresolved risks:
+  - live Delve `control_surfaces` are real, but runtime consumers are still relatively narrow compared with what the directive model can already express
+  - the deterministic test lane passes, but Godot still emits shutdown warnings about leaked ObjectDB instances/resources at exit; this pass did not widen that issue, but it remains worth a dedicated cleanup pass
+  - the repo has a large dirty worktree outside this mission scope; this audit/doc pass intentionally did not rewrite unrelated owner paths
+- Recommended next development wave:
+  - immediate:
+    - deepen live Delve control-surface consumption through the existing `net`, `gen`, and `items` owners only
+    - keep expanding Delve/privacy/public-summary regression coverage as those consumers grow
+    - continue tightening compact shell/archive phrasing around doctrine/governance carryover without adding a second shell
+  - short next wave:
+    - deepen branch-family plus reduced protocol-state weighting before any relay expansion
+    - expand inhabitant pressure carefully from the existing ghost-pressure owner path rather than inventing a second AI stack
+  - wait:
+    - relay recombination, broad inhabitant rosters, and Cookbook escalation should wait until the live Delve/visual/product boundaries are more mature
+- Tests and proof commands run:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-13 Post-Audit Cleanup / Sanity Pass - Completion Note
+- Scope:
+  - this was a bounded cleanup/polish/sanity pass on the completed audit/stabilization work, not a new architecture phase
+  - review stayed inside the recently touched file set and the exact Delve/governance seams changed by the prior mission
+- Files cleaned:
+  - `docs/CORE_LOOPS.md`
+  - `docs/AI_INHABITANTS.md`
+  - `docs/PROTOCOL_STATES.md`
+  - `docs/THE_DELVE_PROTOCOL.md`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+- Files reviewed and left unchanged after bounded inspection:
+  - `README.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/ARCHIVE_SYSTEM.md`
+  - `docs/DESIGN_ANCHOR.md`
+  - `docs/GAME_VISION.md`
+  - `docs/LEVEL_GEN.md`
+  - `docs/MECHANICS.md`
+  - `docs/NETWORKING.md`
+  - `docs/ROADMAP.md`
+  - `docs/TESTING.md`
+  - `docs/UX_UI.md`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+- Cleanup corrections made:
+  - smoothed a few patch-residue phrases and reduced repeated "current repo already" wording in doctrine docs
+  - made `docs/PROTOCOL_STATES.md` more explicit that the detailed per-state profiles remain target behavior envelopes while only the reduced labels and current consumers are live
+  - tightened `docs/AI_INHABITANTS.md` so the live ghost-pressure status and future-phase inhabitant doctrine are not stated twice in slightly different ways
+  - made `docs/CORE_LOOPS.md` more precise that the directive is computed from host-local continuity
+  - updated the Delve handoff regression test to use the actual `_directive_public_summary()` contract rather than manually retyping the summary payload shape
+  - corrected the one visible progress-note encoding artifact (`directive's`)
+- Link/style review:
+  - touched markdown links were reviewed and left in the repo's existing absolute-path style because that style is already consistent across the touched docs; no partial link-normalization churn was introduced
+- Boundary re-verification:
+  - re-verified that `host_start_run()` still preserves the full Delve directive for the host while clients receive only the public-safe summary
+  - re-verified that host-local runtime accessors still read from the preserved host directive
+  - re-verified that doctrine/governance carryover still normalizes to public-safe summary lines in diagnostics and is consumed consistently by framing
+  - re-verified that no private Delve control-surface or causal-audit data was widened into shell/public/archive surfaces by this cleanup pass
+- Validation:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+- Deferred tiny cleanup debt:
+  - the pre-existing Godot shutdown warnings about leaked ObjectDB instances/resources still appear in the deterministic lane and should be handled separately rather than folded into this bounded pass
+
+## 2026-03-13 Influence Lattice Phase 0 Architecture Audit
+- Scope completed before edits:
+  - read:
+    - `docs/THE_DELVE_PROTOCOL.md`
+    - `docs/ARCHITECTURE.md`
+    - `docs/CORE_LOOPS.md`
+    - `docs/LEVEL_GEN.md`
+    - `docs/MECHANICS.md`
+    - `docs/AI_INHABITANTS.md`
+    - `docs/PROTOCOL_STATES.md`
+    - `docs/TESTING.md`
+  - inspected live owner paths under:
+    - `godot/src/delve/*`
+    - `godot/src/net/*`
+    - `godot/src/entities/*`
+    - `godot/src/items/*`
+    - `godot/src/visual/*`
+    - `godot/src/product/*`
+- Architecture reconstruction summary:
+  - the repo already has one live pre-run Delve owner path, not multiple GM/directive stacks
+  - `godot/src/net/network_manager.gd` is the host-authoritative seam that computes the full Delve directive before run start
+  - `godot/src/delve/delve_kernel.gd` is a bounded planner/orchestrator that produces a deterministic directive bundle for existing owners to consume
+  - generation, item ecology, inhabitant-pressure biasing, visual governance, and product carryover are all downstream consumers of that one directive path
+  - run truth still belongs to `godot/src/net/network_manager.gd` and `godot/src/run/game_controller.gd`
+  - product continuity still remains read-only relative to run truth through `godot/src/product/*`
+- Determination: where the directive is generated
+  - host flow:
+    - `network_manager.gd:502-511` builds a deterministic `gameplay_snapshot` plus `session_context`
+    - `network_manager.gd:511` calls `DelveKernel.plan_directive(profile, session_context, run_seed, room_count)`
+    - the host stores the full result in `current_delve_directive`
+  - kernel flow:
+    - `delve_kernel.gd:29-104` builds `world_model`, `planner`, `meta`, `counter`, doctrine candidates, aggregated mind pushes, clamped policy, simulation results, constitution validation, public summary, world goals, and causal audit
+    - the emitted live directive currently contains:
+      - `protocol_state`
+      - `doctrine_family`
+      - `doctrine_label`
+      - `control_surfaces`
+      - `surface_summary`
+      - `public_summary`
+      - `world_goals`
+      - `mind_balance`
+      - `causal_audit`
+- Determination: how doctrine affects generation
+  - doctrine selection is currently singular:
+    - `doctrine_engine.gd` scores doctrine candidates from `world_model`, protocol state, active crawl memory, myth gravity, and build convergence
+    - doctrine candidates contribute `preferred_surfaces` rather than direct gameplay facts
+  - generation consumption:
+    - `run_generator.gd:148-178` uses directive surfaces to bias room type weights and risk
+    - `run_generator.gd:180-298` uses doctrine plus surfaces to bias branch-family selection
+    - `run_generator.gd:216-237` threads doctrine/protocol/public summary/world goals into room `branch_context`
+    - `room_builder.gd` reads `branch_context.pressure_profile` and room visual packets to stage micro-plans and social readability
+- Determination: how pressure bundles operate
+  - live pressure bundle owner is `control_surface_registry.gd`
+  - current surfaces are grouped under:
+    - `generation`
+    - `social`
+    - `ecology`
+    - `economy`
+    - `culture`
+  - each surface is bounded and clamped to `[-2, 2]`
+  - pressure assembly path:
+    - doctrine `preferred_surfaces`
+    - aggregated Delve mind `surface_pushes`
+    - meta-resistance adjustments
+    - counter-intelligence adjustments
+    - constitution validation against simulation outputs
+  - public exposure path:
+    - `ControlSurfaceRegistry.public_summary()` compresses the strongest bounded pressures into public-safe summary lines
+  - live runtime consumers today:
+    - `run_generator.gd`
+    - `item_service.gd`
+    - `network_manager.gd` inhabitant/anomaly bias accessors
+    - framing/archive carryover through public-safe summary only
+  - important seam:
+    - the current system already authors tendencies, weights, and summaries; it does not inject arbitrary runtime events
+- Determination: how visual doctrine works
+  - visual doctrine owner is `godot/src/visual/visual_governance.gd`
+  - it is already isolated from mechanics and run authority
+  - `visual_governance.gd:215-305` synthesizes room visual packets from:
+    - branch family
+    - reduced protocol state
+    - room type
+    - hazard type
+  - outputs include:
+    - palette
+    - close symbol families
+    - stagecraft flags
+    - openness / density values
+    - strict background honesty flags
+    - doctrine budgets for particles, emissive lighting, landmark scale, cosmetic brightness
+  - consumers observed:
+    - `room_builder.gd`
+    - `player.gd`
+    - `item_pickup.gd`
+    - `evidence.gd`
+    - `crusher.gd`
+    - `door.gd`
+    - lobby shell presentation
+  - important seam:
+    - visual doctrine is an honesty-governed presentation layer and should receive symbolic/motif influence, not mechanical authority
+- Determination: how networking authority is preserved
+  - host-only directive computation:
+    - `network_manager.gd:511` computes the directive on the host
+  - host keeps the full directive:
+    - `network_manager.gd:547-548` sends only `_directive_public_summary(current_delve_directive)` during run start
+    - `network_manager.gd:724-730` keeps the full directive on host; clients only retain the summary payload
+  - client privacy boundary:
+    - `_directive_public_summary()` exposes protocol/doctrine labels, pressure line, world goal, and public surface summary
+    - clients do not receive `control_surfaces`, `mind_balance`, or `causal_audit`
+  - live tests already enforce this:
+    - `test_runner.gd:3036-3057` verifies host keeps full control surfaces and clients do not
+  - important seam:
+    - the new intelligence ecology must remain host-computed, host-owned, and client-sanitized through this same summary boundary
+- Determination: how deterministic tests validate runs
+  - deterministic unit/integration lane:
+    - `scripts/run_tests.ps1` launches `godot/src/tests/test_runner.gd`
+    - current live assertions already cover:
+      - kernel determinism
+      - constitution cleanliness
+      - generation consumption
+      - item-spawn determinism
+      - directive trace writing
+      - host/client directive privacy handoff
+      - visual doctrine budgets and honesty
+  - multiplayer proof lane:
+    - `scripts/run_headless_proof.ps1` launches one host and one client headlessly
+    - it waits for authoritative run lifecycle events, verifies `RUN_VERIFY ok=true`, and diffs host/client reports for `REPORT_DIFF ok=true mismatches=0`
+  - important seam:
+    - every phase of the Influence Lattice work must continue passing both lanes because the repo already treats them as the regression gates for determinism, authority, and report safety
+- Live owner seams that must remain intact during Influence Lattice implementation:
+  - kernel seam:
+    - extend `DelveKernel` and its supporting `godot/src/delve/*` modules rather than creating a second directive system beside doctrine/control surfaces
+  - generation seam:
+    - keep topology and branch authorship inside `run_generator.gd` and `room_builder.gd`
+  - item seam:
+    - keep item ecology shaping inside `item_service.gd`
+  - visual seam:
+    - keep symbolic/visual expression inside `visual_governance.gd` and its consumers
+  - networking seam:
+    - keep full ecology state on host only and preserve `_directive_public_summary()` as the client contract
+  - product seam:
+    - keep archive/crawl/world-memory consumers public-safe and mechanically inert
+- Phase 0 seam conclusions for the next implementation wave:
+  - the new Primal Force / Active Mind / Mind Role / Domain Influence work should replace or subsume the current doctrine-selection internals inside the existing `delve_kernel` path, not sit beside it as a second planner
+  - existing `control_surfaces` are the correct live insertion point for bounded domain influence, but they need to evolve to represent the new lattice domains without granting runtime omnipotence
+  - the required Run Identity Summary should become the successor to the current directive trace/public-summary split:
+    - full structured trace for host/debug/tests
+    - public-safe reduced summary for clients and product carryover
+  - the implementation order should follow the existing owner path already documented in repo canon:
+    - topology/generation first
+    - item ecology second
+    - pacing/pressure shaping next
+    - symbolic/group-tension/public-safe carryover after that
+  - perceptibility must be enforced through current consumers:
+    - each major lattice decision needs visible effect in generation or item ecology plus a readable symbolic/public signal
+  - negative-space/subtle runs are compatible with the live bounded-pressure architecture because surfaces already support neutral and suppressed values; the new lattice should preserve that restraint rather than forcing every run into maximal expression
+- Phase 0 status:
+  - architecture seams are now understood well enough to proceed without violating determinism, host authority, client privacy, or owner boundaries
+  - no code-path edits were made before completing this reconstruction and recording the audit
+
+## 2026-03-13 Influence Lattice Completion Report
+
+- Completed the Delve kernel transition from single-doctrine candidate selection to a bounded Influence Lattice orchestrator inside the existing host-owned directive path.
+- Added deterministic run-identity synthesis for:
+  - Primal Force profile
+  - active minds
+  - temporary mind roles and moods
+  - bounded domain influence weights
+  - pacing profile
+  - pressure grammar
+  - symbolic motifs
+  - item ecology bias
+  - group tension bias
+  - archive interpretation
+  - readability budget
+  - public-safe doctrine summary
+- Preserved the existing directive contract for consumers:
+  - `doctrine_family`
+  - `doctrine_label`
+  - `control_surfaces`
+  - `surface_summary`
+  - `public_summary`
+  - `world_goals`
+  - `mind_balance`
+  - `causal_audit`
+  - plus host-only `run_identity`
+- Preserved host authority and client privacy:
+  - host still computes and retains the full directive and run identity
+  - clients still receive only the public-safe summary through the existing networking seam
+- Added a deterministic stabilization pass in the kernel so lattice output is constitution-clean before emission.
+- Wired perceivable lattice effects into existing owners without adding a parallel directive system:
+  - topology and branch weighting in `run_generator.gd`
+  - item ecology weighting in `item_service.gd`
+  - symbolic/pacing expression in `visual_governance.gd`
+  - diagnostics and framing carryover in `run_story_diagnostics.gd` and `framing_service.gd`
+  - trace and audit visibility in `delve_directive_inspector.gd` and `causal_audit.gd`
+- Expanded deterministic coverage so tests now assert:
+  - run-identity emission
+  - bounded branch-context threading
+  - trace serialization of run identity
+  - directive-shaped visual packets
+- Updated live docs to describe the implemented Influence Lattice architecture and constraints:
+  - `docs/THE_DELVE_PROTOCOL.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/CORE_LOOPS.md`
+  - `docs/LEVEL_GEN.md`
+  - `docs/MECHANICS.md`
+  - `docs/AI_INHABITANTS.md`
+- Final verification status:
+  - `./scripts/run_tests.ps1` passed after kernel integration, after consumer wiring, and after final test additions
+  - `./scripts/run_headless_proof.ps1` passed with `RUN_VERIFY ok=true` and `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-13 Influence Lattice Post-Wave Audit
+
+- What I verified:
+  - the live owner path remains singular: `network_manager -> delve_kernel -> existing consumers`
+  - host still retains the full directive and `run_identity`
+  - clients still receive only a public-safe summary, with no control surfaces, no `mind_balance`, and no host-only `run_identity`
+  - the lattice already had real effects in topology, item ecology, visuals, diagnostics, framing, and trace output
+  - constitutions still gate the emitted directive before publication
+  - headless proof still preserves host/client report parity
+
+- What I fixed:
+  - domain influence weights were too close to trace-only
+    - fixed by letting domain weights modulate the intensity of the bounded control-surface projection instead of only appearing in `run_identity`
+  - several public-safe lattice outputs were being computed but stripped during the client handoff
+    - fixed by forwarding dominant minds, dominant forces/domains, pacing, pressure grammar, motifs, item ecology bias, group tension bias, archive tone, and convergence axis through the existing public-summary path
+  - product interpretation was underusing public-safe lattice carryover when host-only `run_identity` was unavailable
+    - fixed by letting diagnostics/framing consume the safe item/group/archive/pacing fields as fallback authored signals
+  - targeted tests were thin around these safe carryover fields
+    - fixed by asserting public-safe carryover emission in kernel tests and client handoff tests
+
+- What I intentionally left unchanged:
+  - the host-authoritative run/runtime path
+  - the client privacy boundary shape
+  - the constitution/stabilization architecture
+  - the legacy doctrine-support files under `godot/src/delve/*` that are no longer the live planner path but still exist in repo context
+  - any product shell behavior that would require widening scope beyond bounded carryover wording
+
+- Remaining narrow follow-up risks:
+  - the Godot test runner still prints the pre-existing exit-time `ObjectDB` / resource-use warnings even when milestone tests pass; this audit did not widen scope into lifecycle cleanup because the deterministic and proof lanes remain green
+
+## 2026-03-14 Safe Audit And Hardening Pass
+
+- What I verified:
+  - the live Influence Lattice remains on the single owner path and is still shaping topology, item ecology, pacing, symbolic motifs, and product carryover through existing consumers
+  - the host-only directive still retains `run_identity`, `mind_balance`, `causal_audit`, and full control-surface detail for generation, debug, and balancing
+  - public-safe carryover is still the only client-side doctrine payload used at run start
+  - deterministic baseline validation was green before touching code
+
+- What I fixed:
+  - `_directive_public_summary()` was still forwarding the full `surface_summary` payload, which included `clamped` policy data and strongest surface internals
+  - tightened that handoff so clients now receive line-level surface-summary strings only, preserving the stated privacy boundary without changing host authority
+  - expanded targeted tests to cover:
+    - run-identity summary integrity for roles, moods, domain weights, and readability budget
+    - public-summary integrity for dominant forces/domains, motifs, and convergence axis
+    - client-side rejection of clamped/strongest surface internals while retaining safe authored carryover
+
+- What I intentionally left unchanged:
+  - lattice synthesis logic and control-surface math that were already deterministic and passing proof
+  - host-only debug/trace surfaces such as `surface_summary.strongest`, `surface_summary.clamped`, `mind_balance`, and `causal_audit`
+  - runtime gameplay owners outside the already-wired lattice consumer path
+
+- Remaining narrow follow-up risks:
+  - the existing exit-time Godot `ObjectDB` / resource-use warnings are still present in the baseline and remain out of scope for this bounded hardening pass
+
+## 2026-03-14 Phase 0 Repository Truth Audit
+
+- Repo-safety intake:
+  - reviewed `git status --short`, `git diff --name-only`, `git diff --name-only --cached`, and `git ls-files --others --exclude-standard`
+  - verified no live `res://` runtime imports resolve to missing files in `godot/`
+  - resolved the specific coherence risk called out by the execution prompt: tracked runtime code already preloaded `godot/src/delve/influence_lattice.gd` and `godot/src/delve/delve_directive_inspector.gd` while both files were still untracked, so they were added to git without widening scope into broader cleanup
+- Owner verification:
+  - live and preserve:
+    - run truth: `godot/src/run/game_controller.gd`
+    - networking/session authority: `godot/src/net/network_manager.gd`
+    - generation: `godot/src/gen/run_generator.gd`, `godot/src/gen/room_builder.gd`
+    - items: `godot/src/items/item_service.gd`
+    - roles: `godot/src/roles/role_service.gd`
+    - Delve owner path: `godot/src/delve/delve_kernel.gd` plus the existing `godot/src/delve/*` support files
+    - visual governance: `godot/src/visual/visual_governance.gd`
+    - product continuity and interpretation: `godot/src/product/profile_service.gd`, `godot/src/product/run_story_diagnostics.gd`, `godot/src/product/crawl_service.gd`, `godot/src/product/framing_service.gd`, `godot/src/product/archive_service.gd`, `godot/src/product/world_memory_service.gd`
+    - unified shell: `godot/src/ui/lobby_controller.gd`
+  - live-but-partial and harden:
+    - Delve boundary coverage and consumer discipline across `network_manager -> delve_kernel -> generation/items/visual/product`
+    - reduced protocol-state behavior beyond label threading
+    - visual-governance contract enforcement where shared room-chain data reaches clients and reports
+    - public-safe product framing around doctrine/governance carryover
+  - scaffolded:
+    - inhabitant expansion beyond ghost pressure
+    - deeper reusable synergy/runtime ecology beyond the current item weighting path
+  - future-phase only:
+    - relay recombination and crawl-graph routing
+    - broad predator/echo/protocol-agent rosters
+    - Cookbook fragments/holders/anti-Protocol descent
+    - large-population protocol adaptation beyond the current reduced labels
+- Current active seam:
+  - `Delve boundary coverage and consumer discipline`
+- Determinism risks:
+  - new consumers can drift if they read unsanitized host-only directive structures instead of bounded summaries
+  - room-chain payloads can accidentally preserve planner/control-surface internals and then replay them differently across host/client or into reports
+  - future weighting changes become harder to prove if boundary contracts are implicit instead of tested
+- Truth-boundary risks:
+  - client-visible room-chain `branch_context` currently sits close to host-only directive data
+  - product/report flows duplicate generated room-chain context, so any leak there propagates beyond the initial handoff
+  - visual and product seams must keep consuming bounded summaries rather than full policy/audit internals
+- Files likely to change next:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/LEVEL_GEN.md`
+- Why this seam is the highest-risk live-but-partial seam:
+  - the Influence Lattice is already live and already fans into generation, item ecology, visual expression, and product carryover, so one bad boundary copy can leak host-only directive internals across multiple owners at once
+  - this is a continuation-risk seam, not a speculative future feature seam, and it is ordered first in `docs/ROADMAP.md`
+
+## 2026-03-14 Delve Boundary Coverage Hardening Pass
+
+- Active seam:
+  - `Delve boundary coverage and consumer discipline`
+- What changed:
+  - `godot/src/gen/run_generator.gd`
+    - tightened replicated room-chain `branch_context` carryover so it now keeps only public-safe directive data plus line-level surface summary text
+    - removed the replicated planner `world_goals` array from branch-context payloads
+  - `godot/src/tests/test_runner.gd`
+    - added regression assertions that generated branch context keeps `surface_summary.lines` but does not leak `surface_summary.strongest`, `surface_summary.clamped`, or `world_goals`
+  - `docs/LEVEL_GEN.md`
+    - synced the live branch-context contract to the public-safe carryover rule
+- Why this wave was necessary:
+  - `room_chain` is replicated to clients during `host_start_run()` and later copied into run summaries, so unsanitized branch-context payloads widen a Delve boundary leak across networking, generation, and reporting at once
+- Validation:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Remaining Work Inventory Table
+
+| Wave | Scope | Classification | Repo truth basis |
+| --- | --- | --- | --- |
+| 1A | Visual governance contract enforcement | ALREADY COMPLETE | completed and validated on 2026-03-14 |
+| 1B | Product framing and archive truth discipline | ALREADY COMPLETE | completed and validated on 2026-03-14 |
+| 2C | Deepen live Delve control surface consumption | ALREADY COMPLETE | completed and validated on 2026-03-14 |
+| 2D | Deepen branch / protocol weighting | ALREADY COMPLETE | completed and validated on 2026-03-14 |
+| 2E | Tighten shell explainability | ALREADY COMPLETE | completed and validated on 2026-03-14 |
+
+## MISSION STATE
+
+- Current Wave: `ordered next-tier implementation complete`
+- Next Wave: `none committed`
+- Remaining Waves: `future-phase only`
+- Inventory Status: `Near-term stabilization remains complete and the ordered next-tier pressure / memory / signal wave completed on 2026-03-14`
+- Validation Status: `Ordered implementation wave passed ./scripts/run_tests.ps1 and ./scripts/run_headless_proof.ps1 on 2026-03-14`
+- Mission Completion Status: `ORDERED WAVE COMPLETE`
+
+## 2026-03-14 Wave 1A - Visual Governance Contract Enforcement
+
+- Audit findings:
+  - visual packets were already budgeted and background honesty was already live
+  - the missing enforcement seam was explicit visual-only isolation for doctrine overlays and route cues inside the room builder
+  - motif influence was readable in packets, but the repo lacked regression proof that motif swaps stayed mechanically inert
+- Seam classification:
+  - `LIVE BUT PARTIAL -> FULLY IMPLEMENTED AND VALIDATED`
+- Files changed:
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/gen/room_builder.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/LEVEL_GEN.md`
+  - `docs/TESTING.md`
+- What changed:
+  - added generic visual-only layer validation plus dedicated doctrine-layer validation in `visual_governance.gd`
+  - introduced a dedicated per-room `Doctrine` layer in `room_builder.gd` and moved doctrine carvings, stagecraft overlays, route cues, focus lights, and pedestal visuals onto that non-mechanical layer
+  - kept gameplay-bearing platform collisions on the gameplay layer, separating them from doctrine visuals
+  - expanded the visual doctrine test suite to prove:
+    - doctrine layers reject nested mechanical bodies
+    - built doctrine layers stay clean in live room builds
+    - motif changes do not alter stagecraft flags, route markers, or traversal platforms
+- Reasoning:
+  - the roadmap requires presentation-only enforcement, not just packet generation
+  - isolating doctrine visuals into a validated room layer closes the strongest remaining contract gap without adding a second runtime authority path
+- Risks:
+  - room-layer composition is now stricter, so future room-builder edits must keep doctrine visuals on the doctrine layer instead of the gameplay-bearing foreground layer
+- Truth boundary considerations:
+  - no client payloads changed
+  - no host-only Delve data changed
+  - this wave stayed entirely inside presentation and test enforcement
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 2 - Relationship / Obligation / Trust Embodiment
+
+- Seam goal:
+  - route `relationship_fabric` and `persona_state` back into host gameplay conditions instead of leaving them in continuity, planner text, and lattice pressure only
+- Lawful owners touched:
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/tests/test_runner.gd`
+- Why lawful:
+  - host-only relationship routing now enters through the same `profile -> Delve -> generation contract -> generation/runtime` path already used for bounded continuity influences
+  - no second social simulation, no client payload widening, and no product write-back into active run truth were introduced
+- What changed:
+  - `NetworkManager.build_gameplay_signal_snapshot(...)` now derives a deterministic relationship gameplay model from `relationship_fabric` and `persona_state`
+  - the group gameplay snapshot now preserves escort, rescue-debt, custody-debt, suspicion-debt, and public-obligation signals as real host gameplay signals
+  - `DelveKernel` now emits a host-private `relationship_routing` slice inside the explicit GenerationContract
+  - `RunGenerator` now consumes that routing to shape branch weighting and room pressure profiles
+  - `VisualGovernance.room_visual_packet(...)` now converts those pressure-profile changes into existing lawful stagecraft flags
+  - extraction timing now reads the same host-private routing so trust topology changes a runtime condition, not just generation flavor
+- Validation:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed with `RUN_VERIFY ok=true` and `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 3 - Relay / Crawl-Network Embodiment
+
+- Seam goal:
+  - route relay stress, distributed witness, bottlenecks, rumor shock, and cohort pressure into live route/runtime consequences without creating transport simulation or a second networking layer
+- Lawful owners touched:
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - Delve now emits a host-private `relay_routing` slice through the explicit GenerationContract
+  - generation now turns that slice into branch weighting and relay-specific pressure-profile tags
+  - visual governance now expresses those tags through existing lawful stagecraft, keeping the effect embodied but presentation-safe
+  - runtime watch cadence, rumor/noise cadence, and extraction return pressure now react to relay overload and bottleneck state on the host
+- Validation:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed with `RUN_VERIFY ok=true` and `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 4 - Cookbook / Anti-Protocol Embodiment
+
+- Seam goal:
+  - make cookbook fragments, holders, and redirection pressure bend live route/item/runtime conditions without creating a second progression track or public codex owner
+- Lawful owners touched:
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - Delve now emits a host-private `cookbook_routing` slice through the explicit GenerationContract
+  - generation now converts that slice into branch pressure-profile tags
+  - visual governance now turns cookbook redirection into altered stagecraft conditions without violating presentation-only law
+  - item weighting now materially favors anti-Protocol-capable affordances under cookbook pressure
+  - host watch/extraction timing now reacts to cookbook redirection pressure instead of leaving it continuity-only
+- Validation:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed with `RUN_VERIFY ok=true` and `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 5 - Civilization-Conflict Embodiment
+
+- Seam goal:
+  - stop collapsing legitimacy/custody, taboo/silence, canon conflict, sacred order, mourning climate, and ontology heat into the same generic pressure pipe
+- Lawful owners touched:
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - Delve now emits a bounded `civilization_routing` slice through the explicit GenerationContract
+  - generation now preserves distinct cultural-family tags instead of collapsing them into one generic route pressure
+  - item weighting and host runtime timing now diverge across those families
+  - visual stagecraft now reflects those families through different lawful route conditions
+- Validation:
+  - `./scripts/run_tests.ps1` passed
+  - `./scripts/run_headless_proof.ps1` passed with `RUN_VERIFY ok=true` and `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Wave 1B - Product Framing and Archive Truth Discipline
+
+- Audit findings:
+  - product framing and archive continuity were already live, but `run_record` could still hand product code a full host directive on the host path
+  - `run_story_diagnostics.gd` was willing to read `run_identity` and full surface-summary structures if they were present, which left the product truth boundary too trusting
+  - wording safety was already centralized, but it did not explicitly scrub implementation-internal Delve terms if they somehow reached a public emitter
+- Seam classification:
+  - `LIVE BUT PARTIAL -> FULLY IMPLEMENTED AND VALIDATED`
+- Files changed:
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/narrative_wording_guard.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/ARCHIVE_SYSTEM.md`
+  - `docs/TESTING.md`
+- What changed:
+  - added a public-safe Delve summary getter on the networking owner path
+  - changed product run-record export to store only the public-safe Delve summary instead of the full host directive
+  - hardened `run_story_diagnostics.gd` with an explicit public-safe Delve sanitizer so product interpretation strips host-only internals even if a full directive is passed in
+  - removed the unused full `directive_surface_details` payload from diagnostics
+  - expanded the wording guard with direct fallbacks for implementation-internal Delve terms
+  - added regression coverage proving host-only fields such as `run_identity`, `mind_balance`, `causal_audit`, planner text, `world_goals`, and `surface_summary.strongest/clamped` do not survive into diagnostics, framing, home, or archive output
+- Reasoning:
+  - the roadmap target was not just good phrasing; it was product truth discipline
+  - hardening both the source export and the product consumer keeps archive/crawl/profile interpretation read-only and public-safe without adding a second product owner
+- Risks:
+  - future product features must continue consuming public-safe Delve summaries rather than reaching back into host-local directive structures
+- Truth boundary considerations:
+  - this wave intentionally narrowed what product systems can ever see
+  - no client/public payloads were widened
+  - host-only Delve internals remain available for host runtime/debug/test paths, but no longer flow into product interpretation
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Wave 2C - Deepen Live Delve Control Surface Consumption
+
+- Audit findings:
+  - `network_manager.gd` still left extraction timing, ghost wake/speed/reach, and carried-artifact noise cadence on mostly fixed runtime constants
+  - `run_generator.gd` already consumed some directive surfaces, but loop, stalking, anomaly, and rescue pressure were still underused in live room weighting and deterministic risk
+  - `item_service.gd` already consumed austerity, recovery, and ritual pressure, but commitment-cost and lure-abundance surfaces were still mechanically thin and only positive-signed
+- Seam classification:
+  - `LIVE BUT PARTIAL -> FULLY IMPLEMENTED AND VALIDATED`
+- Files changed:
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/LEVEL_GEN.md`
+  - `docs/TESTING.md`
+- What changed:
+  - added host-only runtime helpers in `network_manager.gd` so extraction hold duration, ghost wake timing, ghost speed, ghost strike reach, target scoring, and artifact noise cadence all respond deterministically to the existing Delve control-surface bundle
+  - updated extraction-window public events to publish the actual host-computed duration so clients keep the correct local countdown without receiving full control-surface policy
+  - extended `run_generator.gd` room-type weighting and room-risk shaping so loop, witness, stalking, anomaly, and rescue pressure materially alter generated room mixes while preserving deterministic endpoints
+  - extended `item_service.gd` item weighting with signed commitment-cost, lure-abundance, witness, and rescue geometry pressure so the same directive meaning reaches live item ecology more strongly
+  - added deterministic regression coverage proving these consumers now change real runtime/generation/item outcomes without widening client payloads
+- Reasoning:
+  - the roadmap target was live consumption depth, not more Delve telemetry
+  - wiring the existing host-only directive deeper into current owners closes the remaining narrow-consumer gap without introducing a second runtime authority path
+- Risks:
+  - stronger signed item weighting means future item additions need latent-dimension values that make sense under both positive and negative surface pressure
+  - runtime balance around ghost pressure and extraction timing is now more expressive, so future tuning should keep using the same host-only helper path rather than reintroducing ad hoc constants
+- Truth boundary considerations:
+  - all new runtime consumption stays host-side
+  - clients still receive only public-safe directive summaries plus already-allowed event meta such as extraction duration
+  - no host-only internals, control-surface bundles, or planner structures were added to replicated payloads
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Wave 2D - Deepen Branch / Protocol Weighting
+
+- Audit findings:
+  - branch families were already authored and selected deterministically, but most of their differentiation still lived in branch-context metadata instead of materially shaping room mixes
+  - reduced protocol labels already existed, but they were still too light-touch in room weighting and item spawning
+  - item definitions already carried branch affinities and protocol affinities, yet spawn weighting was barely consuming them in the live generation path
+- Seam classification:
+  - `LIVE BUT PARTIAL -> FULLY IMPLEMENTED AND VALIDATED`
+- Files changed:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/LEVEL_GEN.md`
+  - `docs/TESTING.md`
+- What changed:
+  - threaded the chosen branch family into room-type weighting so branch ideology now changes actual room mixes rather than only post-hoc summaries
+  - added stronger protocol-state weighting to both branch-family selection and room-type weighting, preserving deterministic generation while making reduced protocol labels meaningfully different
+  - wired item spawning to consume authored branch affinities and protocol affinities from room-chain truth, so item ecology now tracks the same branch/protocol doctrine shaping as room generation
+  - added regression coverage proving branch-family weights, protocol-state room weights, generated room chains, and generated item spawns all change deterministically under distinct branch/protocol conditions
+- Reasoning:
+  - the roadmap target was stronger branch differentiation and stronger protocol influence, not just more branch metadata
+  - using already-authored branch and protocol affinities keeps the implementation inside the existing owner path and avoids inventing a second planner or parallel generation model
+- Risks:
+  - future branch families need authored context fields that remain semantically aligned with room weighting, or they can drift into descriptive-only metadata again
+  - future item additions should include branch/protocol affinities when appropriate so the stronger weighting path stays coherent instead of favoring legacy items
+- Truth boundary considerations:
+  - this wave stayed inside deterministic generation and item-spawn owners
+  - no replicated payloads were widened
+  - item spawning still consumes room-chain truth rather than a second branch/protocol model
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Wave 2E - Tighten Shell Explainability
+
+- Audit findings:
+  - `framing_service.gd` already carried public-safe doctrine and governance meaning, but it still leaned on pipe-chained phrasing that was readable only in short cases and inconsistent across shell contexts
+  - `profile_service.gd` home overview output already surfaced the right carryover fields, but separate `Build:` and `Presence:` lines made the compact shell path noisier than necessary
+  - `lobby_controller.gd` was already correctly delegating to `build_home_overview_lines`, so the unified-shell seam could be completed inside the existing product helpers without introducing a new UI surface
+- Seam classification:
+  - `LIVE BUT PARTIAL -> FULLY IMPLEMENTED AND VALIDATED`
+- Files changed:
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/TESTING.md`
+  - `docs/ARCHIVE_SYSTEM.md`
+- What changed:
+  - rewrote doctrine and governance frame-line composition into compact clause-based phrasing so world-goal, surface, pacing, and dominant-mind carryover stay readable without pipe chains
+  - tightened Home overview phrasing by collapsing `Build` and `Presence` into one combined carryover line when both are present, while leaving the existing shell owner path unchanged
+  - added a dedicated shell explainability regression covering `build_run_frame`, focus/archive preview helpers, Home overview compaction, public identity carryover fallback, and the updated compact governance contract in the older kernel test
+- Reasoning:
+  - the roadmap target was better explainability on the existing unified shell, not a new presentation path
+  - keeping the change inside `framing_service.gd` and `profile_service.gd` preserves product-layer read-only behavior relative to run truth and avoids any parallel shell logic
+- Risks:
+  - authored doctrine pressure lines and surface-summary lines can still become verbose if future text additions are not kept concise
+  - future shell emitters should continue routing through the same framing/profile helpers or wording density can drift outside the new regression seam
+- Truth boundary considerations:
+  - all output still comes from public-safe frame and crawl data only
+  - no host-only Delve internals, planner structures, or wider payloads were introduced
+  - the unified shell remained the only output path; no new UI surfaces or alternate archive lanes were added
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Ordered Next-Tier Pressure / Memory / Signal Wave
+
+- Scope:
+  - mission-record correction
+  - proof-lane stability hardening
+  - branch pressure deepening
+  - item ecology signaling
+  - crawl memory and archive comparison
+  - signal environment shaping
+- Files changed:
+  - `progress.md`
+  - `scripts/run_headless_proof.ps1`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/LEVEL_GEN.md`
+  - `docs/ARCHIVE_SYSTEM.md`
+  - `docs/TESTING.md`
+- What changed:
+  - corrected the near-term wave ordering in this record to `1A -> 1B -> 2C -> 2D -> 2E` while preserving the verified Wave `1B` file coverage for `godot/src/product/narrative_wording_guard.gd` and `godot/src/run/game_controller.gd`
+  - hardened `scripts/run_headless_proof.ps1` with bounded retry and transient-stall detection so rare long pre-verify `noise_trace` hangs terminate cleanly without changing gameplay logic, seed behavior, or Delve semantics
+  - deepened deterministic branch selection and room shaping from the existing public-safe dominant-domain, archive-tone, convergence-axis, and item-ecology summaries already produced by the Delve handoff
+  - deepened item weighting from the existing branch-context memory seeds, symbolic anchors, slot bands, and surface-summary lines already present on the room chain, while keeping the new lineage / branch / prestige / memory hints product-only
+  - threaded compact artifact-lineage, branch-drift, prestige, and cultural-association signals through diagnostics, crawl continuity, archive comparison, and world-memory interpretation on the existing read-only product path
+  - added deterministic regression coverage for branch pressure shaping, artifact ecology signaling, crawl/archive comparison, and archive/world-memory signal stability
+- Reasoning:
+  - the next-tier roadmap target was to deepen existing world pressure and continuity seams, not to create new architecture
+  - each change stays inside the already-approved owners and extends the same run truth -> public-safe summary -> product interpretation path
+- Risks:
+  - future item definitions should keep lineage/prestige/memory hints aligned with their authored branch/protocol semantics or product interpretation can flatten
+  - proof stability is now hardened by bounded retry, so a future persistent gameplay regression should surface as repeated failed attempts rather than a hang
+- Truth boundary considerations:
+  - host authority remains in `godot/src/net/network_manager.gd` and `godot/src/run/game_controller.gd`
+  - product systems remain read-only relative to run truth
+  - visual governance remains presentation-only
+  - no second archive, second shell, second directive authority, second generation owner, second networking model, or widened public/client directive payload was introduced
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane completed on attempt `1/3`
+  - `RUN_VERIFY ok=true`
+  - `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-14 Markdown Freshness Pass
+
+- Scope:
+  - repo-wide markdown status scan
+  - roadmap freshness correction
+  - live-state wording updates for current generation, item, crawl, archive, and shell docs
+- Files changed:
+  - `README.md`
+  - `docs/ROADMAP.md`
+  - `docs/GAME_VISION.md`
+  - `docs/CORE_LOOPS.md`
+  - `docs/MECHANICS.md`
+  - `docs/ITEMS_AND_SYNERGIES.md`
+  - `docs/CRAWL_NETWORK_ARCHITECTURE.md`
+  - `progress.md`
+- What changed:
+  - marked the completed stabilization, near-term deepening, and ordered next-tier wave as complete in `docs/ROADMAP.md` so the roadmap no longer presents finished work as upcoming
+  - refreshed top-level and implementation docs to mention the now-live deterministic branch personality, item ecology signaling, crawl identity comparison, and compact archive/world-memory carryover
+  - documented the current bounded-retry proof-lane behavior in the repo root README so validation guidance matches the live script
+- Verification:
+  - repo-wide markdown inventory and stale-claim scan completed against current owners and scripts
+  - no gameplay or proof-owner code changed in this pass
+
+## 2026-03-15 Constitutional Completion Mission Intake
+
+- Required reading completed:
+  - `docs/DEDUCTION_DELVE_CIVILIZATION_SCALE_PROTOCOL_ARCHITECTURE_CONSTITUTION.md`
+  - `docs/MASTER_ARCHITECTURE_CANON.md`
+  - `docs/SYSTEM_CONSTANTS.md`
+  - `docs/IMPLEMENTATION_SUPERPLAN.md`
+  - `docs/DESIGN_ANCHOR.md`
+  - `docs/GAME_VISION.md`
+  - `docs/THE_DELVE_PROTOCOL.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/NETWORKING.md`
+  - `docs/LEVEL_GEN.md`
+  - `docs/MECHANICS.md`
+  - `docs/ROLES_AND_DECEPTION.md`
+  - `docs/ITEMS_AND_SYNERGIES.md`
+  - `docs/CRAWL_NETWORK_ARCHITECTURE.md`
+  - `docs/AI_INHABITANTS.md`
+  - `docs/PROTOCOL_STATES.md`
+  - `docs/ARCHIVE_SYSTEM.md`
+  - `docs/UX_UI.md`
+  - `docs/NARRATIVE_WORLD_BIBLE.md`
+  - `docs/COOKBOOK_SYSTEM.md`
+  - `docs/TESTING.md`
+  - `docs/ROADMAP.md`
+  - `progress.md`
+- Owner-tree audit completed against:
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/delve/world_model.gd`
+  - `godot/src/delve/influence_lattice.gd`
+  - `godot/src/delve/horizon_planner.gd`
+  - `godot/src/delve/doctrine_engine.gd`
+  - `godot/src/delve/meta_resistance_engine.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/roles/role_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/profile_identity_state.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/tests/test_runner.gd`
+- Still-open seams from the read-only constitutional audit:
+  - explicit first-class `GenerationContract` emission is still too implicit and generator-local
+  - relationship / alliance / trust / friendship / loyalty mostly route through continuity, planner text, and lattice pressure rather than stronger expedition consequence
+  - relay / witness / bottleneck / rumor / cohort state is mostly continuity-side and symbolic rather than lived route pressure
+  - cookbook / anti-Protocol continuity is real but still weakly embodied
+  - legitimacy / taboo / canon conflict / sacred-administrative / mourning / ontology families are too pressure-pipe-collapsed
+  - roles / deception / artifact custody are still thinner in live play than in continuity
+  - inhabitant classes are live but still too collapsed
+- Lawful owners I expect to touch:
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/roles/role_service.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/delve/world_model.gd`
+  - `godot/src/delve/influence_lattice.gd`
+  - `godot/src/delve/horizon_planner.gd`
+  - `godot/src/delve/doctrine_engine.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/product/crawl_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - support docs only where code makes the current wording factually wrong
+- Why those owners are lawful:
+  - they are the existing owner tree for Delve planning, authoritative run start, deterministic generation, runtime pressure, items, roles, and read-only product continuity
+  - no second networking layer, shell, archive, truth path, or runtime AI owner is needed to close the remaining seams
+  - the mission is to route already-authored continuity and cultural state back into existing embodied owners, not to invent parallel systems
+
+## 2026-03-15 Constitutional Completion Wave 1 - Explicit GenerationContract
+
+- Audit findings:
+  - `run_generator.gd` already enforced a narrow Delve-facing schema through `build_generation_contract(...)`, but that boundary was still too implicit because the full directive was being handed to generation and item owners first
+  - `delve_kernel.gd` did not emit a first-class `generation_contract` even though the constitution requires one
+  - `network_manager.gd` did not preserve a host-private generation-boundary artifact distinct from the client-safe directive summary
+- Seam classification:
+  - `PARTIALLY LIVE -> FULLY IMPLEMENTED AND VALIDATED`
+- Files changed:
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `docs/ARCHITECTURE.md`
+  - `docs/LEVEL_GEN.md`
+  - `docs/TESTING.md`
+- What changed:
+  - `DelveKernel.plan_directive(...)` now emits an explicit host-private `generation_contract`
+  - `NetworkManager` now preserves that contract on the host-only run-start path without widening the client payload
+  - generation and item spawning now consume the explicit contract directly on the authoritative path
+  - `RunGenerator.build_generation_contract(...)` now recognizes both full directives and already-narrow contract artifacts so the contract can act as the single narrow generation input
+  - regression coverage now proves emitted-contract presence, host-private retention, client absence, and parity between full-directive and explicit-contract generation/item consumption
+- Truth-boundary considerations:
+  - no client payload was widened
+  - the public summary remains the only client-facing Delve artifact
+  - no second generator, second directive owner, or second run-start owner was introduced
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 6 - Role / Deception / Artifact-Custody Deepening
+
+- Audit findings:
+  - roles were still mostly private labels plus one-off actions, while artifact custody consequence was stronger in continuity than in live host pressure
+  - the lawful runtime owner already had the right hooks: pickup, drop, steal, forge, sabotage, Warden checks, watch cadence, noise cadence, extraction timing, and ecology targeting
+- Seam classification:
+  - `LIVE BUT THIN -> DEEPENED AND VALIDATED`
+- Files changed:
+  - `godot/src/roles/role_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - `role_service.gd` now emits bounded private `duty_line`, `caution_line`, and `affordance_tags` without leaking the role map
+  - `network_manager.gd` now tracks host-private role/custody runtime pressure through:
+    - `role_pressure_by_peer`
+    - `custody_debt_by_peer`
+    - `suspicion_heat_by_peer`
+    - `counterfeit_heat_by_peer`
+  - those pressures are now updated only from existing lawful role/custody actions:
+    - artifact pickup
+    - artifact drop
+    - artifact steal
+    - Veil forgery
+    - sabotage
+    - Warden checks
+  - those host-private pressures now materially route into embodied play through:
+    - extraction window timing
+    - noise trace cadence
+    - protocol-watch cadence and target selection
+    - predator target pressure and rush cadence
+  - new seam-local test coverage proves the host path now turns volatile custody into real runtime pressure instead of leaving it as post-run flavor
+- Truth-boundary considerations:
+  - no client payload was widened
+  - no second role engine or second social-sim owner was introduced
+  - role/custody consequence stays inside the existing host runtime owner path
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 7 - Inhabitant Differentiation
+
+- Audit findings:
+  - the ecology path was lawful and live, but protocol watch still behaved more like a generic pulse than a materially distinct protocol-agent pressure
+  - predator rush was real but still under-signaled relative to ghost, echo, and protocol-watch differentiation
+- Seam classification:
+  - `LIVE BUT THIN -> DEEPENED AND VALIDATED`
+- Files changed:
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - `predator_state` now carries bounded `strike_strength` so isolated or burdened targets are differentiated from lighter predator pressure
+  - `protocol_watch_state` now carries bounded `mode` and `signal_room_slot`, making protocol-watch behave as a real protocol-agent pressure rather than only a generic hazard pulse
+  - containment-mode protocol watch now emits an explicit sweep trace and can abort an active extraction window on the same host runtime owner path when volatile custody pressure is high
+  - existing runtime ecology tests were deepened, and a new inhabitant-differentiation test now proves protocol-watch containment behavior and stronger predator distinction
+- Truth-boundary considerations:
+  - no second runtime AI owner was introduced
+  - no network payload was widened for clients beyond the existing lawful snapshot/event path
+  - ghost, echo, predator, and protocol-watch all remain inside the one host ecology owner path
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Constitutional Completion Wave 8 - Doc / Status / Claim Reconciliation
+
+- Audit findings:
+  - `docs/TESTING.md` still treated relay/crawl-network routing, cookbook embodiment, and broader ecology distinction as future-only even though those seams are now live in bounded form
+  - `docs/ROADMAP.md` still named inhabitant expansion beyond ghost pressure as the current frontier after that seam had already landed
+  - `docs/MECHANICS.md` and `docs/AI_INHABITANTS.md` under-described the newly embodied relay/cookbook/civilization/role/ecology return paths
+- Files changed:
+  - `docs/TESTING.md`
+  - `docs/ROADMAP.md`
+  - `docs/MECHANICS.md`
+  - `docs/AI_INHABITANTS.md`
+  - `progress.md`
+- What changed:
+  - moved the newly live bounded embodiment seams into current test focus
+  - narrowed future-phase wording to the genuinely deferred scale-up systems only
+  - updated roadmap wording so it no longer treats already-landed embodiment seams as upcoming
+  - updated mechanics and inhabitant docs so protocol-watch containment, bounded relay/cookbook/civilization routing, and stronger custody/ecology consequence are described honestly
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Final Completion Matrix
+
+- Fully live:
+  - host-authoritative networking, deterministic run start, deterministic generation, payload privacy, and proof lanes
+  - explicit GenerationContract emission and host-private handoff
+  - traversal / burden / extraction / rescue baseline
+  - item / carry law
+  - bounded trust-topology embodiment
+  - bounded relay / crawl-network embodiment
+  - bounded cookbook / anti-Protocol embodiment
+  - bounded civilization-conflict embodiment
+  - bounded role / deception / artifact-custody runtime consequence
+  - bounded inhabitant differentiation across ghost / echo / predator / protocol-watch
+- Partially live:
+  - civilization-scale institutional breadth beyond the bounded routing seams
+  - broader role roster and deeper social-deduction asymmetry beyond the current owner-safe role set
+  - broader inhabitant rosters beyond the bounded ecology path
+  - large-scale relay recombination / population-adaptive routing
+  - cookbook escalation and anti-Protocol descent beyond the current bounded routing seam
+- Intentionally bounded:
+  - Delve remains pre-run and host-bounded, not a runtime GM
+  - product systems remain read-only relative to run truth
+  - protocol-watch agents remain bounded runtime regulators rather than a second AI simulation
+  - civilization systems route back into play through generation/runtime pressure instead of separate governance minigames
+- Still not closed:
+  - the repo is materially closer to constitutional completion, but it is still not honestly `constitution-complete` because broader civilization breadth, role breadth, and inhabitant breadth remain intentionally bounded rather than exhaustively realized
+
+## 2026-03-15 Major Completion Mission - Pre-Implementation Execution Record
+
+- Required reads completed:
+  - `docs/DEDUCTION_DELVE_CIVILIZATION_SCALE_PROTOCOL_ARCHITECTURE_CONSTITUTION.md`
+  - `docs/MASTER_ARCHITECTURE_CANON.md`
+  - `docs/SYSTEM_CONSTANTS.md`
+  - `docs/IMPLEMENTATION_SUPERPLAN.md`
+  - `docs/DESIGN_ANCHOR.md`
+  - `docs/GAME_VISION.md`
+  - `docs/THE_DELVE_PROTOCOL.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/NETWORKING.md`
+  - `docs/LEVEL_GEN.md`
+  - `docs/MECHANICS.md`
+  - `docs/ROLES_AND_DECEPTION.md`
+  - `docs/ITEMS_AND_SYNERGIES.md`
+  - `docs/CRAWL_NETWORK_ARCHITECTURE.md`
+  - `docs/AI_INHABITANTS.md`
+  - `docs/PROTOCOL_STATES.md`
+  - `docs/ARCHIVE_SYSTEM.md`
+  - `docs/UX_UI.md`
+  - `docs/NARRATIVE_WORLD_BIBLE.md`
+  - `docs/COOKBOOK_SYSTEM.md`
+  - `docs/TESTING.md`
+  - `docs/ROADMAP.md`
+  - `progress.md`
+- Live owner audit completed:
+  - audited the active Delve -> generation -> network -> runtime -> product path
+  - audited the current role owner path in `godot/src/roles/role_service.gd`
+  - audited the current guidance and shell surfaces in `godot/src/run/game_controller.gd`, `godot/src/product/profile_service.gd`, `godot/src/product/framing_service.gd`, `godot/src/ui/lobby_controller.gd`, and `godot/src/product/run_story_diagnostics.gd`
+  - audited the current item/content/runtime breadth owners in `godot/src/items/item_service.gd`, `godot/src/gen/run_generator.gd`, `godot/src/gen/room_builder.gd`, and `godot/src/net/network_manager.gd`
+  - audited the current proof surface in `godot/src/tests/test_runner.gd`
+- Current git status summary:
+  - the worktree is already dirty and mid-stream across docs, Delve internals, runtime, product, and tests
+  - untracked constitutional docs and several added Delve support files are present
+  - existing modified gameplay owners must be extended carefully without opportunistic cleanup or revert churn
+- Proof gates held fixed:
+  - `./scripts/run_tests.ps1`
+  - `./scripts/run_headless_proof.ps1`
+  - deterministic replay parity, host authority, privacy boundary, public-safe directive summary, and product read-only law remain hard gates
+- Planned implementation waves:
+  - `Wave A` -> player guidance / comprehension architecture
+  - `Wave B` -> role expansion + deeper social deduction
+  - `Wave C` -> content / breadth expansion across inhabitants / branch families / artifacts
+  - `Wave D` -> docs / tests / status reconciliation
+
+## 2026-03-15 Senior-Architect Risk Matrix Before Final Completion Pass
+
+- Risk:
+  - player comprehension is still fragmented across help text, next-step hints, role text, shell overview, and post-run framing
+  - owner files:
+    - `godot/src/run/game_controller.gd`
+    - `godot/src/net/network_manager.gd`
+    - `godot/src/product/profile_service.gd`
+    - `godot/src/product/framing_service.gd`
+    - `godot/src/product/run_story_diagnostics.gd`
+    - `godot/src/ui/lobby_controller.gd`
+  - why it matters:
+    - the architecture already carries rich protocol / civilization / relay / cookbook / custody state, but players are still asked to infer too much of "what this run wants" from scattered surfaces
+  - severity:
+    - critical
+  - recommended lawful seam:
+    - unify the existing host-public and host-private run framing into a stronger guidance packet that feeds the HUD, role read, shell continuation, and review surfaces without widening private payloads
+
+- Risk:
+  - the role ecology is still too small for the social-deduction ambition of the repo
+  - owner files:
+    - `godot/src/roles/role_service.gd`
+    - `godot/src/net/network_manager.gd`
+    - `godot/src/run/game_controller.gd`
+    - `godot/src/items/item_service.gd`
+  - why it matters:
+    - custody, sabotage, witness pressure, rescue debt, and extraction drama now exist, but only a three-role ecology is reading most of that pressure
+  - severity:
+    - critical
+  - recommended lawful seam:
+    - expand the existing role owner path with bounded additional roles that reuse the current action/runtime hooks and materially alter suspicion, custody, witness, route, and extraction play
+
+- Risk:
+  - content breadth is still narrow enough to flatten replay even though the architecture is strong
+  - owner files:
+    - `godot/src/gen/run_generator.gd`
+    - `godot/src/gen/room_builder.gd`
+    - `godot/src/items/item_service.gd`
+    - `godot/src/net/network_manager.gd`
+    - `godot/src/visual/visual_governance.gd`
+  - why it matters:
+    - five branch families, five item defs, and a still-bounded ecology can make lawful systems feel samey even when the owner tree is doing the right thing
+  - severity:
+    - high
+  - recommended lawful seam:
+    - deepen branch family consequence, expand the item pool with role/civilization/protocol coupling, and strengthen inhabitant differentiation on the same host ecology path
+
+- Risk:
+  - the guidance and content surfaces can collapse back into generic pressure-pipe wording if they are not made concretely actionable
+  - owner files:
+    - `godot/src/net/network_manager.gd`
+    - `godot/src/run/game_controller.gd`
+    - `godot/src/product/profile_service.gd`
+    - `godot/src/product/run_story_diagnostics.gd`
+  - why it matters:
+    - the repo now carries many distinct pressures, but players still need clear "why this matters now" output tied to actual route, burden, artifact, suspicion, and extraction consequences
+  - severity:
+    - high
+  - recommended lawful seam:
+    - convert existing public-safe and private-safe state into actionable run framing, role advice, and recap surfaces that reference real live stakes rather than generic theme language
+
+- Risk:
+  - runtime breadth work could accidentally create state explosion or a second authority path if it is not kept inside the existing host owners
+  - owner files:
+    - `godot/src/net/network_manager.gd`
+    - `godot/src/run/game_controller.gd`
+    - `godot/src/roles/role_service.gd`
+    - `godot/src/items/item_service.gd`
+  - why it matters:
+    - this pass is intentionally ambitious, so owner drift is the main architectural failure mode
+  - severity:
+    - high
+- recommended lawful seam:
+  - keep all new consequence on the existing host runtime path, use deterministic seeded weighting for content growth, and add proof for every new private/public boundary and every new runtime consequence path
+
+## 2026-03-15 Major Completion Mission Wave A - Player Guidance / Comprehension Architecture
+
+- Audit findings:
+  - the repo already had help, hint, home-overview, continue-guidance, and run-diagnostics surfaces, but they were still fragmented enough that the live Delve / branch / role pressures were easy to miss
+  - private role payloads were already emitted, but the client reveal path only kept the role name and discarded the richer duty/caution/affordance fields
+- Seam classification:
+  - `LIVE BUT FRAGMENTED -> DEEPENED AND VALIDATED`
+- Files changed:
+  - `godot/src/run/run_state.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/ui/lobby_controller.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - role reveal now preserves the full private role payload on the existing lawful owner path instead of discarding everything but the role name
+  - `game_controller.gd` now builds a guidance packet from:
+    - the current public-safe Delve summary
+    - the current branch family context already present in the room chain
+    - the local private role payload
+    - live extraction / ghost / predator / protocol-watch state
+  - that packet now feeds:
+    - richer role read text
+    - a clearer run-kind line on the goal label
+    - a real run brief at the top of the help overlay
+    - stronger live action tips when generic note-taking advice would otherwise dominate
+  - `profile_service.gd` now surfaces the live Delve brief inside the existing Home / Continue shell helpers when a session is connected
+  - `lobby_controller.gd` now surfaces that same live brief inside the quick-start text instead of only generic prep language
+  - new tests now prove:
+    - the run guidance packet names the protocol / branch / doctrine cleanly
+    - the packet exposes pressure, stakes, route, social, artifact, and role lines
+    - the packet yields an actionable tip rather than only theme text
+    - the shell continue and home overview helpers surface the live Delve brief when connected
+- Truth-boundary considerations:
+  - no client payload was widened
+  - guidance still reads only the existing public-safe Delve summary plus the local private role reveal already lawfully owned by that client
+  - no tutorial subsystem or second shell owner was introduced
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Major Completion Mission Wave B - Role Expansion And Deeper Social Deduction
+
+- Audit findings:
+  - the live role owner path was still structurally healthy, but too much of the custody / witness / rescue / sabotage drama was being funneled through only `Warden`, `Veil`, and `Scavenger`
+  - the host runtime already had lawful places to deepen role consequence:
+    - artifact pickup / drop / steal / forge / inspect
+    - public callouts
+    - extraction timing
+    - noise cadence
+    - protocol-watch cadence and targeting
+    - predator targeting
+  - the product role path also still hardcoded the old three-role world, so expanded roles would have felt runtime-real but progression-fake without a matching mastery / codex update
+- Seam classification:
+  - `LIVE BUT TOO THIN -> EXPANDED, PERSISTED, AND VALIDATED`
+- Files changed:
+  - `godot/src/roles/role_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/product/product_catalog.gd`
+  - `godot/config/product_catalog.json`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - the role ecology now expands to:
+    - `Warden`
+    - `Steward`
+    - `Bearer`
+    - `Scavenger`
+    - `Veil`
+    - `Murmur`
+  - `role_service.gd` now owns:
+    - broader role counts by player band
+    - forge / sabotage / inspect capability law
+    - alignment law for the new saboteur `Murmur`
+    - stronger private duty / caution / affordance payloads for the added roles
+  - `network_manager.gd` now routes the expanded role ecology back into live play through the existing host truth path:
+    - `Steward` callouts can steady custody and suspicion instead of only labeling a room
+    - `Bearer` custody shortens extraction pressure but increases visible pursuit pressure
+    - `Murmur` callouts can bend witness pressure toward the live carrier without creating a second deception system
+    - forge / sabotage / inspect gating now reads the role owner instead of hardcoded single-role checks
+    - watch cadence, watch targeting, predator targeting, extraction timing, and noise cadence now react to the expanded role ecology
+  - `game_controller.gd` now exposes the expanded role actions and hints through the same prompt/help owners instead of leaving new roles opaque
+  - product role progression is now real for the added roles:
+    - default mastery tracks are built from the live role list
+    - product catalog validation now expects mastery support for all live roles
+    - the catalog now includes mastery tracks, codex pages, and titles for `Steward`, `Bearer`, and `Murmur`
+  - new tests now prove:
+    - the expanded role counts and alignment logic remain disciplined
+    - `Murmur` is a forge-capable saboteur without inheriting `Veil`'s camera-jam role
+    - `Steward` callouts materially calm live custody pressure
+    - `Murmur` callouts materially distort live watch pressure
+    - `Bearer` custody materially shortens extraction timing and tightens watch cadence
+    - product mastery / codex owners include the expanded role set
+- Truth-boundary considerations:
+  - no role-map leakage was added
+  - no second social sim or second role engine was introduced
+  - all new consequence stays on the normal host action / event / ecology / extraction owner path
+  - product support remained read-only relative to active run truth while becoming honest about the live role roster
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Major Completion Mission Wave C - Content / Breadth Expansion
+
+- Audit findings:
+  - the lawful owners were already more capable than the live content set:
+    - branch generation could already absorb more family doctrines than the repo was feeding it
+    - runtime ecology already had a bounded host path for distinct pursuit/watch/hazard behavior, but not enough authored signatures to make each inhabitant feel broader
+    - the item ecosystem still bottlenecked on five pickups despite now having stronger custody / witness / cookbook / relay / role routing to work with
+  - the largest Wave C risk was fake breadth:
+    - adding names, palettes, or narrative hints without making the new content materially change route shape, extraction pressure, or runtime ecology
+- Seam classification:
+  - `LIVE BUT NARROW -> BREADTH-EXPANDED, ROUTED, AND VALIDATED`
+- Files changed:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/gen/room_builder.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/items/item_synergy_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/tests/test_runner.gd`
+- What changed:
+  - branch-family breadth expanded from the original five families to seven live route doctrines by adding:
+    - `Oath Terraces`
+    - `Murmur Warrens`
+  - those new families do not just exist as names:
+    - `run_generator.gd` now weights them differently under custody / oath routing versus counter-reading / canon-conflict routing
+    - `visual_governance.gd` gives them distinct visual signatures
+    - `room_builder.gd` now renders those signatures through new macro/midground forms instead of collapsing them into the old silhouettes
+  - the item ecosystem expanded from five pickups to nine by adding:
+    - `Custody Seal`
+    - `Witness Chime`
+    - `Echo Lure`
+    - `Burden Sling`
+  - those additions route back into play through the existing owner tree:
+    - `Custody Seal` can materially steady an authentic carrier and speed the active extraction line
+    - `Witness Chime` turns witness pressure into a real bounded live action through the existing public-callout path
+    - `Echo Lure` now creates a bounded host-side lure state that can bend anomaly/protocol-watch behavior instead of only adding flavor
+    - `Burden Sling` materially changes carried-burden handling through the lawful loadout/runtime-affordance path
+  - the host ecology path became more distinct without becoming a second AI system:
+    - predator pressure now distinguishes pursuit / ambush / pack-style strikes
+    - protocol watch now distinguishes `inspection`, `containment`, and `interdiction`
+    - echo-lure state can now lawfully redirect bounded protocol/anomaly pressure long enough to matter in live play
+  - item synergies were widened just enough to make the expanded pool strategically expressive instead of merely larger:
+    - sealed burden lines
+    - public-ledger play
+    - hushed echo mazes
+    - echo-fork baiting
+- Truth-boundary considerations:
+  - no second runtime owner was introduced
+  - no new networking layer or widened private payload family was added
+  - all new breadth stays inside the existing generation, item, visual, and host ecology owners
+  - the new lure/ecology state remains bounded, host-authoritative, and deterministic
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Major Completion Mission Wave D - Doc / Test / Claim Reconciliation
+
+- Audit findings:
+  - the live code had moved beyond several support-doc claims again:
+    - role docs still described the old three-role world
+    - inhabitant docs still overclaimed `Protocol Agents` instead of describing the bounded live protocol-watch path accurately
+    - level / item / mechanics docs did not name the new branch/item breadth that was now actually live
+    - roadmap/testing wording needed to acknowledge that the current frontier is now breadth/tuning/audit rather than the earlier embodiment seams
+- Seam classification:
+  - `DOCS DRIFT -> FACTUAL RECONCILIATION`
+- Files changed:
+  - `docs/ROLES_AND_DECEPTION.md`
+  - `docs/AI_INHABITANTS.md`
+  - `docs/LEVEL_GEN.md`
+  - `docs/ITEMS_AND_SYNERGIES.md`
+  - `docs/MECHANICS.md`
+  - `docs/TESTING.md`
+  - `docs/ROADMAP.md`
+  - `progress.md`
+- What changed:
+  - role docs now name the live six-role roster and its expedition-vs-sabotage split
+  - inhabitant docs now describe the bounded live runtime honestly:
+    - ghost pressure
+    - anomaly echoes
+    - predator rush
+    - protocol watch with inspection / containment / interdiction
+  - level, mechanics, and item docs now name the added live breadth:
+    - `Oath Terraces`
+    - `Murmur Warrens`
+    - `Custody Seal`
+    - `Witness Chime`
+    - `Echo Lure`
+    - `Burden Sling`
+  - testing and roadmap docs now describe the repo's current frontier more honestly:
+    - no longer basic embodiment of those seams
+    - now breadth tuning, authored differentiation, and honest audit inside the same owner tree
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+## 2026-03-15 Final Honest Completion Matrix
+
+- Fully live:
+  - single host-authoritative run truth
+  - bounded pre-run Delve intelligence and explicit GenerationContract handoff
+  - deterministic room / item / role generation
+  - public-safe directive/privacy boundary
+  - player-guidance / live briefing comprehension path
+  - six-role bounded social-deduction roster
+  - seven-branch bounded route-family roster
+  - nine-item bounded pickup roster with real host-side use consequences
+  - bounded runtime ecology with ghost / echo / predator / protocol-watch differentiation
+  - read-only profile / crawl / archive / world-memory continuity
+  - proof-lane determinism and headless parity
+
+- Partially live:
+  - civilization-scale authored differentiation still exceeds the current breadth of branch / item / ecology / role content
+  - relay/crawl-network embodiment is real but not population-scale
+  - cookbook / anti-Protocol embodiment is real but not a full alternate descent path
+  - role ecology is materially deeper but not yet broad-roster complete
+  - bounded inhabitant ecology is materially deeper but not roster-complete
+
+- Intentionally bounded:
+  - Delve remains pre-run only and never becomes a runtime GM
+  - product continuity remains read-only relative to active run truth
+  - runtime ecology remains one host owner path rather than a second AI system
+  - role logic remains one role owner path rather than a parallel social sim
+  - breadth additions stay inside the current generation/item/runtime/shell owners rather than adding new subsystems
+
+- Still not closed under the harsh standard:
+  - broader authored civilization breadth beyond the current bounded role/item/branch/ecology content
+  - wider inhabitant rosters beyond the current bounded ecology owner
+  - larger relay/recombination scale
+  - cookbook escalation beyond the current bounded routing seam
+  - a truly exhaustive role roster beyond the current six-role ecology
+
+## 2026-03-16 Execution Run - Constitution Spine and Owner Migration
+
+- Wave 0 started:
+  - demoted competing authority claims in `docs/DEDUCTION_DELVE_CIVILIZATION_SCALE_PROTOCOL_ARCHITECTURE_CONSTITUTION.md`
+  - demoted legacy execution precedence in `docs/CODEX_EXECUTION_PROMPT.md`
+  - marked `docs/MASTER_ARCHITECTURE_CANON.md` as background lineage rather than active migration law
+
+- Wave 1 outputs landed:
+  - added `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `DelveKernel` now emits an expedition constitution artifact through `plan_constitution(...)`
+  - directive-era fields remain as migration adapters on the canonical constitution payload
+  - constitution hash, constitution summary, generation surface, mutation envelope, continuity hooks, multimodal contract defaults, and readability law now exist on the authored artifact
+
+- Wave 2 outputs landed:
+  - `godot/src/run/run_state.gd` now stores:
+    - loaded expedition constitution
+    - constitution hash
+    - constitution summary
+    - generation surface
+    - artifact/item mirrors
+    - survival/truth placeholders
+    - mutation ledgers and caps state
+  - `godot/src/net/network_manager.gd` now:
+    - treats the constitution as the canonical authored payload
+    - preserves directive/generation-contract adapters
+    - hands constitution data into `RunState`
+    - preserves host-only generation surface access
+  - `godot/src/run/game_controller.gd` now serializes constitution hash and expedition constitution summary into the run record while keeping `delve_directive_summary` as an adapter field
+
+- Item ecology / readability / downstream owner follow-through:
+  - `godot/src/items/item_service.gd`
+    - expanded canonical ecology categories to include trinket, pickup, covenant, curse, transformation, and environment_object
+    - added category aliasing (`world_object -> environment_object`)
+    - added ecology registry and modifier registry helpers
+    - added readability profiles and ecology-layer helpers without breaking existing live item IDs
+  - `godot/src/visual/visual_governance.gd`
+    - added expedition mutation stack slot taxonomy
+    - added readability validation for mutation stacks
+
+- Mutation / archive / multimodal follow-through:
+  - added `godot/src/run/expedition_mutation_engine.gd`
+  - extended `godot/src/run/event_log.gd` with explicit `constitution_mutation` event support
+  - added `godot/src/run/artifact_service.gd` as an adapter toward canonical artifact naming without breaking the live evidence owner
+  - added `godot/src/product/multimodal_contract_service.gd`
+  - integrated multimodal contract persistence into `godot/src/product/profile_service.gd`
+  - updated downstream interpretation readers to prefer `expedition_constitution_summary` while preserving `delve_directive_summary` fallback
+
+- Tests added / strengthened:
+  - constitution schema + hash stability
+  - RunState constitution handoff storage contract
+  - item ecology registry / canonical category migration
+  - deterministic mutation planning and logging
+  - multimodal non-authority contract
+  - mutation stack readability validation
+
+- Validation run:
+  - `./scripts/run_tests.ps1` -> passed
+  - `./scripts/run_headless_proof.ps1` -> passed
+  - proof lane reported `RUN_VERIFY ok=true`
+  - proof lane reported `REPORT_DIFF ok=true mismatches=0`
+
+- Remaining risk notes:
+  - live runtime triggers are now constitution-ready, but mutation activation still remains conservatively wired to avoid destabilizing existing proven gameplay loops in one pass
+  - artifact naming is now adapter-bridged, but the existing `evidence_service.gd` owner still remains the active implementation file pending a fuller rename migration
+
+## 2026-03-16 Post-Implementation Hostile Audit - Pre-Edit Snapshot
+
+- Read-only audit started against:
+  - `docs/the_delve_protocol_ai_supremacy_architecture_plan_master.md`
+  - latest 2026-03-16 migration entry in `progress.md`
+  - live owner files under `godot/src`
+
+- Dirty-worktree snapshot taken before edits:
+  - repo contains broad pre-existing changes outside this audit pass
+  - hostile audit fix scope will stay inside the newly migrated constitution / runtime / item / product seams and will not revert unrelated work
+
+- Concrete seams queued for verification/fix before any code claims are extended:
+  - constitution spine drift risk in `godot/src/net/network_manager.gd`, `godot/src/run/run_state.gd`, `godot/src/run/game_controller.gd`, and `godot/src/gen/run_generator.gd`
+  - mutation engine appears present but not materially invoked from live host custody / extraction paths
+  - item ecology taxonomy is ahead of live category semantics and legality depth in `godot/src/items/item_service.gd`
+  - multimodal contract normalization needs a stricter anti-bypass audit in `godot/src/product/multimodal_contract_service.gd` and `godot/src/product/profile_service.gd`
+  - public/archive summary migration still needs fallback-order and alias-safety verification across run record readers
+  - `artifact_service.gd` currently exists as a bridge but is not yet the active naming seam in the main runtime owners
+
+- Immediate audit plan:
+  - finish read-only verification of exact owner flows
+  - land the smallest coherent fixes needed to close real drift/scaffold gaps
+  - tighten tests around the repaired seams
+  - rerun `./scripts/run_tests.ps1` and `./scripts/run_headless_proof.ps1` before closing the pass
+
+## 2026-03-16 Post-Implementation Hostile Audit - Final Fix Pass
+
+- Audit findings closed:
+  - constitution spine:
+    - `NetworkManager` still had generation-surface and summary drift risk against `RunState`
+    - `GameController` and archive readers still needed stricter constitution-summary preference
+    - directive-era adapters were still safe, but several paths were still treating them too close to primary truth
+  - mutation integration:
+    - mutation engine existed but was not materially live through host custody/extraction paths
+    - mutation timeline events were host-local only and were not replicating to clients, which broke proof parity
+    - artifact sync could wipe local artifact state if `RunState` lookup missed during bootstrap/test paths
+  - item ecology:
+    - reserve categories existed in taxonomy but were still too shallow in validation/runtime affordance coverage
+    - runtime loadout resolution was still biased toward the original live `ITEM_IDS`
+  - multimodal contract:
+    - normalization still needed to hard-strip unsafe output requests and require consent on emission
+    - archive summaries needed an explicit bounded output contract
+  - player-facing/archive summary migration:
+    - diagnostics/framing/world-memory still needed stricter constitution-summary naming and alias discipline
+
+- Exact files changed in this hostile audit pass:
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/expedition_mutation_engine.gd`
+  - `godot/src/run/event_log.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/product/multimodal_contract_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/run/artifact_service.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact fixes landed:
+  - constitution spine integrity:
+    - `NetworkManager._effective_constitution()` and `_effective_generation_surface()` now prefer `RunState` runtime law/surface first
+    - run-start payload canonicalizes `directive_summary` and `constitution_summary` from one canonical public-safe summary
+    - `GameController` now prefers `RunState.constitution_summary` for live guidance and run-record serialization
+    - `ItemService` room-context weighting now prefers `constitution_summary` over directive-era fallback
+    - downstream readers now prefer `expedition_constitution_summary` while keeping compatibility aliases safe
+  - mutation integration truth:
+    - wired narrow live mutation triggers into host runtime:
+      - `artifact_picked`
+      - `artifact_dropped`
+      - `artifact_stolen`
+      - `extraction_window_started`
+    - mutation plans now write truth-state deltas, visibility state, and richer public meta
+    - `EventLog` now uses stable `timeline_event_id` for mutation entries
+    - host mutation events now replicate to clients through `NetworkManager` instead of remaining host-local only
+    - `NetworkManager` now supports explicit bound runtime-context overrides for proof/test harnesses
+    - artifact sync no longer clears local artifact state when `RunState` is temporarily unavailable
+  - item ecology truth:
+    - reserve category definitions now exist for `trinket`, `pickup`, `covenant`, `curse`, and `transformation`
+    - category rules, forbidden-combo rules, reserve-library counts, and category-specific validation are now live
+    - reserve categories now flow through authoring profiles, gameplay profiles, runtime affordances, active-item filtering, and category counts
+    - live spawn pools remain intentionally bounded to existing live items for migration safety
+  - multimodal contract seam:
+    - normalization now intersects allowed outputs with the canonical safe allowlist
+    - forbidden outputs are always re-applied and cannot be cleared by poisoned persisted state
+    - summary emission now requires both `enabled` and `consented`
+    - archive summaries now emit bounded text with explicit non-authoritative output kind
+  - summary / archive migration:
+    - diagnostics now emit `constitution_surface_summary` as canonical output and keep `directive_surface_summary` as a compatibility alias
+    - framing now prefers the constitution-named surface summary first
+    - world-memory constitution-summary naming was cleaned up for clarity and anti-drift
+
+- Tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - strengthened mutation determinism test to assert truth-state and visibility-state updates
+    - added live network-manager mutation integration coverage for artifact pickup and extraction-window triggers
+    - expanded item ecology coverage to reserve categories, forbidden combos, active-item filtering, and canonical authoring profiles
+    - strengthened multimodal non-authority coverage for poisoned persisted state and bounded archive output
+    - added constitution-summary migration/alias coverage for payload canonicalization and diagnostics safety
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Remaining deferred items:
+  - full artifact-service file rename is still adapter-bridged through `artifact_service.gd` over the live `evidence_service.gd` implementation
+  - additional mutation trigger families beyond custody/extraction remain intentionally bounded for this audit pass to avoid destabilizing already-proven loops
+  - reserve ecology categories are now real in owner logic and validation, but they remain out of the live spawn pool until a broader content activation pass is approved
+
+- Closing truth note:
+  - this hostile audit pass did not redesign the architecture
+  - it closed real post-migration drift/scaffold seams, made mutation events materially live and proof-safe, tightened category ecology semantics, hardened multimodal non-authority boundaries, and left the repo green on both tests and headless proof
+
+## 2026-03-16 Remaining Migration Finish Pass - Pre-Edit Snapshot
+
+- Active authority re-check completed against:
+  - `docs/the_delve_protocol_ai_supremacy_architecture_plan_master.md`
+  - latest 2026-03-16 migration entries in `progress.md`
+  - live owner files under `godot/src`
+
+- Dirty-worktree note:
+  - repo still contains broad pre-existing edits outside this finishing pass
+  - this pass will stay inside the already-migrated Delve Protocol owner seams and will not revert unrelated work
+
+- Exact remaining seams being closed in this pass:
+  - reserve ecology categories are real in taxonomy and validation, but still not materially live in the expedition spawn/use flow
+  - mutation engine is materially live for custody/extraction, but still needs the next safe constitution-authored trigger families from existing runtime seams
+  - main runtime owners still carry more `evidence_*` naming and bridge debt than is necessary now that `artifact_service.gd` exists
+  - constitution-first summary/owner cleanup still has safe-to-reduce directive-era adapters and fallback-order drift in a few live/runtime-facing helpers
+  - tests need to prove reserve ecology activation, deeper mutation trigger wiring, artifact naming migration safety, and constitution-summary canonical preference through the live owner path
+
+- Immediate execution plan:
+  - finish the focused read-only audit on the live owner files
+  - activate reserve ecology in a bounded lawful way inside the existing item owner tree
+  - wire the next narrow mutation triggers into the existing runtime owner path
+  - reduce safe artifact/evidence adapter debt and tighten constitution-summary canonical preference
+  - add regression coverage and rerun `./scripts/run_tests.ps1` plus `./scripts/run_headless_proof.ps1` before closing the pass
+
+## 2026-03-16 Remaining Migration Finish Pass - Final Execution Trail
+
+- Remaining seams found at pass start:
+  - reserve ecology categories existed in taxonomy and validation, but were still not materially live in the expedition spawn/use flow
+  - mutation engine was materially live only through custody/extraction seams and needed the next narrow constitution-authored trigger families already implied by the runtime
+  - artifact naming had inverted ownership conceptually, but the active implementation still lived behind `evidence_service.gd`
+  - constitution-first summary/owner cleanup still had a few safe-to-reduce directive-era and evidence-era hot-path seams
+
+- Exact files changed in this pass:
+  - `godot/src/run/artifact_service.gd`
+  - `godot/src/run/evidence_service.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/expedition_mutation_engine.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact systems completed in this pass:
+  - live reserve ecology activation:
+    - reserve categories now participate in lawful expedition spawn candidacy through the existing `ItemService` owner tree
+    - `trinket`, `pickup`, `covenant`, `curse`, and `transformation` reserve items now have bounded spawn eligibility, category caps, legality filters, readability metadata, and runtime affordance gating
+    - `pickup` effects remain burst-gated instead of leaking passive power while carried
+    - `covenant` and `transformation` reserve items now activate through contextual runtime conditions rather than dormant taxonomy only
+    - `VisualGovernance` now supplies canonical visual profiles for the live reserve items so readability stays enforced during activation
+  - next mutation trigger families:
+    - `NetworkManager` now wires narrow safe mutation triggers for:
+      - `chamber_entered`
+      - `species_escalation`
+      - `covenant_activated`
+      - `transformation_threshold_crossed`
+    - those triggers ride the existing host-authoritative owner path and update mutation history, truth-state, visibility state, and public/private event surfaces deterministically
+    - mutation test capture now includes constitution-mutation timeline events even in offline test harness mode, which keeps event-log visibility truthful without introducing a second authority path
+  - artifact naming completion:
+    - `artifact_service.gd` is now the canonical live implementation owner
+    - `evidence_service.gd` is now the compatibility bridge instead of the other way around
+    - main runtime owners now call `artifact_service` directly while keeping `evidence_state_changed` and `EvidenceService` only as compatibility adapters where still needed
+  - constitution / summary / owner cleanup:
+    - `RunGenerator` now builds `constitution_summary` first in branch context and only mirrors it into `directive_summary` as an adapter
+    - `RunStoryDiagnostics` now uses constitution-safe summary helpers as the canonical public-safe path and keeps directive-named helpers only as aliases
+    - runtime artifact synchronization and controller signal handling now prefer canonical artifact naming while preserving compatibility hooks
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - added `_test_live_reserve_ecology_activation`
+    - added `_test_extended_mutation_trigger_families`
+    - added `_test_artifact_service_naming_migration`
+    - tightened reserve-category registry expectations in `_test_item_ecology_registry_and_canonical_categories`
+    - tightened mutation coverage so deeper trigger families also assert truth-state effects and public event visibility
+    - added deterministic ecology-tick alignment inside the extended mutation test so it exercises the real live protocol-watch escalation path instead of a non-firing cadence
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Truly deferred items after this pass:
+  - a full repo-wide `evidence_*` identifier purge remains deferred because the hot-path runtime owners are now artifact-first and the remaining evidence-named seams are compatibility/state aliases rather than blocking migration debt
+  - broader reserve content expansion beyond the bounded live reserve set remains future expansion work; the migration requirement here was to make the constitutional reserve ecology materially live without destabilizing the sandbox
+  - broader mutation trigger proliferation remains future expansion work; the migration requirement here was to move beyond the custody/extraction-only seam into the next real runtime families without creating mutation chaos
+
+- Closing truth note:
+  - this pass finished the remaining obvious migration work instead of redesigning the project
+  - reserve ecology is now materially live, mutation is deeper and still proof-safe, artifact naming has real canonical ownership in the runtime, constitution-first summary semantics are coherent, and the repo remains green on both tests and headless proof
+
+## 2026-03-16 Post-Migration Gameplay Audit + Tuning + Polish - Pre-Edit Snapshot
+
+- Active authority re-check completed against:
+  - `docs/the_delve_protocol_ai_supremacy_architecture_plan_master.md`
+  - latest 2026-03-16 migration/hostile-audit/finish entries in `progress.md`
+  - live gameplay/product owner files under `godot/src`
+
+- Gameplay/tuning/polish seams under inspection:
+  - reserve ecology appearance frequency and category distribution in `godot/src/items/item_service.gd`
+  - mutation pacing, legibility, and player-facing event texture in `godot/src/net/network_manager.gd`, `godot/src/run/expedition_mutation_engine.gd`, and `godot/src/run/game_controller.gd`
+  - artifact/evidence wording drift and constitution-summary presentation in run/product/archive helpers
+  - player/product surfaces that now need cleanup because the live reserve ecology and deeper mutation systems are real
+
+- Specific live systems being tuned:
+  - reserve spawn caps, eligibility gates, and weighting for `trinket`, `pickup`, `covenant`, `curse`, and `transformation`
+  - covenant / transformation activation readability and mutation-event visibility
+  - timeline, hint, and run-summary wording around artifact flow, clue reading, and public pressure shifts
+
+- Specific player/product surfaces being verified:
+  - in-run timeline and hint surfaces in `godot/src/run/game_controller.gd`
+  - collection/archive framing surfaces in `godot/src/product/profile_service.gd`, `godot/src/product/run_story_diagnostics.gd`, and `godot/src/product/framing_service.gd`
+  - reserve-item visibility/readability enforcement in `godot/src/visual/visual_governance.gd`
+
+## 2026-03-16 Post-Migration Gameplay Audit + Tuning + Polish - Final Execution Trail
+
+- Hostile gameplay audit findings:
+  - reserve ecology was live but still underexpressed in the actual deterministic sandbox because reserve activation depended too heavily on raw weighting and too little on bounded phase activation
+  - mutation events were architecturally correct but not yet legible enough in run-facing summaries, clue recaps, framing, or product-facing interpretation
+  - artifact naming had mostly migrated in the runtime, but a few player-facing and product-facing strings still used older `evidence` phrasing in ways that made the post-migration game feel less coherent
+  - collection/product surfaces were still under-reporting the now-live ecology because the collection browser was not using the full item library
+
+- Exact tuning changes made:
+  - reserve ecology activation:
+    - `ItemService` now uses bounded reserve activation bands so expeditions pull reserve ecology into the live run at meaningful phases without breaking the expedition-wide reserve cap
+    - reserve weighting was strengthened for underrepresented categories while preserving per-category caps and the high-intensity reserve cap
+    - direct constitution/generation-surface ecology hints now flow cleanly into generation-contract building, which makes reserve tuning behave the same in tests and in live generation callers
+  - reserve category balance/readability:
+    - reserve spawn eligibility for `pickup`, `covenant`, `curse`, and `transformation` now keys more cleanly off branch family, room timing, and pressure context
+    - `VisualGovernance` now gives live reserve items clearer but still bounded glyph/plate/label tuning so the new ecology is more readable in play
+  - mutation pacing and legibility:
+    - `GameController` now surfaces `constitution_mutation` events as readable run texture in timeline tags, action summaries, key-clue recaps, and bookmarks
+    - mutation summary helpers now produce public-safe descriptions for species escalation, covenant activation, transformation threshold crossings, and chamber-shift beats
+
+- Exact product/readability/polish changes made:
+  - `ProfileService` collection surfaces now use the full live item library instead of only the old core item list
+  - item collection details now say `Public trace` instead of stale `Public evidence`
+  - lobby quick-start copy now acknowledges the live reserve ecology and visible threshold-shift texture without leaking hidden ontology
+  - `RunStoryDiagnostics` now produces public-safe `mutation_surface_lines`
+  - `FramingService` governance copy now folds live mutation texture into the public-safe framing line when appropriate
+  - in-run hint, action-summary, and inspection copy now prefer `artifact`/`clue` language over stale `evidence` phrasing where the migration is already canonically safe
+
+- Exact files changed in this pass:
+  - `godot/src/items/item_service.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/visual/visual_governance.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/ui/lobby_controller.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - added `_test_reserve_ecology_distribution_and_caps`
+    - added `_test_mutation_readability_and_collection_polish`
+    - tightened existing action-summary, collection-detail, and artifact-stat wording expectations to the new canonical player-facing copy
+    - made collection-size expectations dynamic against the real live item library so the test proves the product surface truthfully
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Truly deferred items after this pass:
+  - broader reserve-content expansion remains future content work; the bounded goal of this pass was to make the existing live reserve ecology materially relevant and readable without destabilizing the sandbox
+  - broader mutation-family proliferation remains future tuning/content work; this pass focused on making the currently live mutation families feel legible and valuable rather than opening more speculative event volume
+
+- Closing truth note:
+  - this pass did not redesign the game or reopen the migration
+  - it tuned the real live systems so the post-migration Delve Protocol is deeper, clearer, more readable, and more product-coherent while staying deterministic and proof-safe
+
+## 2026-03-16 Doctrine-Compliant Hostile Gameplay Evaluation / Balance Audit - Pre-Edit Snapshot
+
+- Active authority re-check completed against:
+  - `docs/the_delve_protocol_100_percent_codex_ready_canonical_architecture_doctrine.md`
+  - latest 2026-03-16 execution trail in `progress.md`
+  - live gameplay/product owner files under `godot/src`
+
+- Gameplay / balance / readability seams under hostile evaluation:
+  - whether constitution-level variety is materially reaching player decision-space through `godot/src/gen/run_generator.gd`, `godot/src/items/item_service.gd`, and `godot/src/net/network_manager.gd`
+  - whether reserve ecology is now strategically meaningful or still too often decorative in `godot/src/items/item_service.gd` and `godot/src/items/item_synergy_service.gd`
+  - whether live mutation families are meaningful, paced, and socially legible in `godot/src/run/expedition_mutation_engine.gd`, `godot/src/net/network_manager.gd`, and `godot/src/run/game_controller.gd`
+  - whether deduction readability, artifact centrality, and public-safe trace clarity are holding under the now-live ecology/mutation systems
+  - whether product-facing surfaces are useful and doctrine-clean in `godot/src/product/profile_service.gd`, `godot/src/product/run_story_diagnostics.gd`, `godot/src/product/framing_service.gd`, and `godot/src/ui/lobby_controller.gd`
+
+- Exact live systems being tested and judged:
+  - branch/pressure/ecology/convergence variation reaching expeditions
+  - reserve spawn distribution, reserve category impact, and build diversity
+  - mutation cadence, mutation visibility, and mutation replay-safe texture
+  - artifact/clue wording coherence, archive usefulness, and summary honesty
+  - readability-budget enforcement in the now-live sandbox
+
+- Exact live surfaces being verified:
+  - in-run artifact, clue, action-summary, and key-clue surfaces in `godot/src/run/game_controller.gd`
+  - collection/help/history/archive framing surfaces in `godot/src/product/profile_service.gd`, `godot/src/product/run_story_diagnostics.gd`, `godot/src/product/framing_service.gd`, and `godot/src/ui/lobby_controller.gd`
+  - proof-sensitive seams in `godot/src/tests/test_runner.gd` plus the headless proof lane
+
+## 2026-03-16 Doctrine-Compliant Hostile Gameplay Evaluation / Balance Audit - Final Execution Trail
+
+- Hostile gameplay audit findings:
+  - run variety was real at the branch/pressure/ecology level, but reserve ecology still lagged behind core relic/tool identities because several reserve items had thinner gameplay signatures and weaker cross-item expression than the core kit
+  - deterministic reserve sampling showed every expedition was now seeing reserve content, but transformation pressure was still overrepresented relative to covenant/trinket texture in the late-run reserve band
+  - mutation cadence was no longer trivial, but mutation texture was still too generic in the player-facing path because public mutation summaries were not consistently using the named surface that players could actually debate
+  - post-migration artifact wording had improved, but a few hot-path run strings and test expectations were still pinned to the older `E%d` / `evidence`-era phrasing in ways that made the shipped game feel half-migrated
+  - archive/product interpretation remained doctrine-safe, but it was still underselling live mutation texture because public-safe mutation surface lines were too generic
+
+- Doctrine-compliance findings:
+  - the implemented fixes stayed inside live owner files: `ItemService`, `ItemSynergyService`, `NetworkManager`, `ExpeditionMutationEngine`, `GameController`, `RunStoryDiagnostics`, and the existing product/readability surfaces
+  - no parallel systems or hidden authority paths were introduced
+  - runtime authority remained host-owned and deterministic; all gameplay-facing changes remained downstream of the constitution/generation surface or the existing runtime owner tree
+  - artifact centrality was preserved and strengthened by the wording/readability pass instead of weakened
+  - no hidden ontology was exposed in new player-facing lines
+
+- Exact tuning changes made:
+  - reserve ecology / run-variety tuning:
+    - `godot/src/items/item_service.gd`
+      - deepened reserve-item gameplay profiles so `hush_bead`, `flare_ampoule`, `oath_ribbon`, `doubt_ink`, and `echo_molt` now contribute stronger behavioral / ritual / anomaly / resource hooks instead of reading like thin taxonomy entries
+      - retuned reserve spawn balance so covenants are more competitive in lawful late-mid expedition bands and transformations remain special threshold events instead of crowding other reserve texture
+  - build-identity / strategic-texture tuning:
+    - `godot/src/items/item_synergy_service.gd`
+      - added live reserve/core synergy identities for:
+        - `hush_bead + lantern_snuffer`
+        - `flare_ampoule + witness_chime`
+        - `oath_ribbon + burden_sling`
+        - `doubt_ink + decoy_emitter`
+        - `echo_molt + echo_lure`
+      - these synergies now expose real build-language and hook contributions instead of leaving reserve items strategically under-described
+  - mutation readability / pacing tuning:
+    - `godot/src/run/expedition_mutation_engine.gd`
+      - public mutation summaries now carry named `public_surfaces` for species escalation, covenant activation, and transformation shifts
+    - `godot/src/run/game_controller.gd`
+      - mutation action-summary and key-clue lines now prefer named public surfaces such as predator ambush, covenant item identity, and visible threshold shifts
+      - live HUD status now surfaces active vow / shift states from runtime affordances so covenant and transformation systems are felt in play without leaking hidden truth
+    - `godot/src/net/network_manager.gd`
+      - exposed lawful loadout-runtime-affordance getters for the local player / peer path so the hot-path readability surface uses the live owner tree instead of duplicate state
+
+- Exact readability / product / player-surface changes made:
+  - `godot/src/run/game_controller.gd`
+    - cleaned hot-path artifact wording in prompts, status text, and objective text from `E%d` shorthand to `Artifact %d`
+    - improved public-safe clue phrasing for reserve items and mutation events
+  - `godot/src/product/run_story_diagnostics.gd`
+    - mutation surface lines now preserve named public texture where doctrine-safe, such as species pressure shape and visible vow / threshold signatures
+    - archive-safe artifact wording now prefers `artifact record` over stale evidence-era phrasing
+
+- Exact files changed in this pass:
+  - `godot/src/items/item_service.gd`
+  - `godot/src/items/item_synergy_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/run/expedition_mutation_engine.gd`
+  - `godot/src/run/game_controller.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - tightened private-note expectations to the canonical artifact wording
+    - tightened doctrine-shaped branch/item-spawn variety expectations so the regression harness now proves the real constitution/generation path instead of an overly thin empty-directive input
+    - added reserve/core synergy assertions for `oath_ribbon + burden_sling` and `echo_molt + echo_lure`
+    - tightened mutation readability expectations so the run-facing summaries must preserve named public mutation texture
+    - tightened diagnostics expectations so archive/product interpretation must preserve named public-safe mutation surfaces
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Truly deferred items after this pass:
+  - a full repo-wide purge of every remaining `evidence` identifier is still deferred because the hot-path runtime and product surfaces are now canonically artifact-first and the remaining aliases are not current gameplay/balance blockers
+  - broader reserve content expansion remains future content work; this pass finished the high-value tuning of the live reserve set rather than opening a speculative content wave
+  - broader mutation-family proliferation remains future tuning/content work; this pass focused on making the currently live mutation families materially felt and publicly legible
+
+- Closing truth note:
+  - this pass did not redesign the doctrine or reopen migration work
+  - it tuned the real shipped game so run variety is more materially expressed, reserve ecology has stronger strategic identity, mutation is more legible in public-safe surfaces, and the product-facing experience reads more coherently without sacrificing determinism or doctrine law
+
+## 2026-03-16 Doctrine Completion Implementation - Pre-Edit Snapshot
+
+- Doctrine phases audited against repo truth:
+  - Phase 1 — Ownership and schema groundwork: partial
+    - constitution runtime/schema work exists, but doctrine-owned config schema files and a dedicated schema-validation harness are still missing
+  - Phase 2 — Ontology Engine: missing as a doctrine-owned generation system
+    - ontology language exists in `world_memory_service.gd`, `archive_service.gd`, `run_story_diagnostics.gd`, and `delve/world_model.gd`, but there is no explicit `godot/src/gen/ontology_engine.gd` with node/lineage/niche/lifecycle/rediscovery semantics
+  - Phase 3 — Constitution Compiler: partial
+    - symbolic constitution artifacts exist, but there is no dedicated `godot/src/gen/constitution_compiler.gd`; the generation path still leans on schema helpers plus `RunGenerator.build_generation_contract(...)`
+  - Phase 4 — Cultural Simulation: partial but materially present in live product owners
+    - `profile_service.gd`, `crawl_service.gd`, `archive_service.gd`, `world_memory_service.gd`, and `run_story_diagnostics.gd` already carry real cultural interpretation/state, so this phase is not the next missing lower layer
+  - Phase 5 — Narrative Pressure Ecosystem: missing as an explicit doctrine-owned engine
+  - Phase 6 — Experimental Ontology + Grammar: missing
+  - Phase 7 — Evaluation Engine + Learning Loop: missing
+  - Phase 8 — Integration and tooling: partial via tests/proof, but doctrine-owned traceability/schema tooling is still incomplete
+
+- Exact live owners being extended in this pass:
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/tests/test_runner.gd`
+  - new doctrine-owned generation files under `godot/src/gen/`
+  - new doctrine-owned schema/catalog files under `godot/config/`
+
+- Exact doctrine phase being implemented now:
+  - finish Phase 1 groundwork materially by adding the doctrine-mandated schema/catalog files and validation hooks
+  - implement Phase 2 Ontology Engine as a real generation-facing owner with explicit ontology nodes, lineages, niches, lifecycle state, dormancy, and rediscovery semantics
+  - add only the smallest lawful compile bridge needed so ontology has real consequence in the constitution/generation path without pretending the full Phase 3 compiler is done
+
+- Exact things this pass will NOT touch because they are out of phase order:
+  - no experiment-family runtime logic
+  - no DelveMind learning loop
+  - no product-side experiment engine
+  - no runtime legality changes
+  - no new cultural actor runtime authority path
+
+## 2026-03-16 Doctrine Completion Implementation - Final Execution Trail
+
+- Doctrine gap findings:
+  - Phase 1 - Ownership and schema groundwork:
+    - was still partial at pass start because the doctrine-mandated schema/catalog files and a dedicated validation registry were not yet present in `godot/config/` and `godot/src/gen/`
+    - is now materially complete for the doctrine-owned groundwork in this repo pass
+  - Phase 2 - Ontology Engine:
+    - was missing as an explicit generation-facing owner; ontology language existed in world/archive/product layers, but there was no doctrine-owned generation engine with node/lineage/niche/lifecycle/rediscovery semantics
+    - is now materially implemented as a real pre-run/generation-facing system
+  - Phase 3 - Constitution Compiler:
+    - was partial at pass start because symbolic constitutions existed but there was no dedicated compiler owner, no explicit compile metadata, and no doctrine-owned compile validation bridge
+    - is now materially advanced with a real compiler owner, doctrine inheritance, ontology-aware compile outputs, compile metadata, and compile validation
+    - remains only partially complete in the strict doctrine sense because fairness-bound enforcement still lives primarily in the existing Delve constitutional validator stack rather than a standalone compiler-phase enforcement layer
+  - Phase 4 - Cultural Simulation:
+    - remains materially present in the live product owner tree and was not the next missing lower phase
+  - Phases 5-8:
+    - remain out of phase order for this pass and were not implemented here
+
+- Exact doctrine phase implemented in this pass:
+  - finished Phase 1 groundwork materially by adding doctrine-owned schema/catalog files plus a validation registry
+  - implemented Phase 2 Ontology Engine in the generation owner tree
+  - added the smallest lawful Phase 3 Constitution Compiler bridge needed so ontology and doctrine inheritance now flow into the constitution/generation path with explicit compile metadata and traceability
+
+- Exact architecture/data changes made:
+  - added doctrine-owned schema/config files:
+    - `godot/config/constitution_schema.json`
+    - `godot/config/ontology_schema.json`
+    - `godot/config/experiment_schema.json`
+    - `godot/config/cultural_actor_schema.json`
+    - `godot/config/narrative_pressure_schema.json`
+    - `godot/config/doctrine_family_catalog.json`
+    - `godot/config/experiment_family_catalog.json`
+  - added `godot/src/gen/doctrine_schema_registry.gd`
+    - centralized schema/catalog loading
+    - added doctrine-groundwork validation hooks
+    - validated constitution required sections and ontology-routing requirements
+  - added `godot/src/gen/ontology_engine.gd`
+    - explicit ontology nodes, lineages, niches, lifecycle state, hybridization, absence, dormancy, and rediscovery semantics
+    - generation-facing routing output for route/item/pressure bias and public-safe ontology lines
+  - added `godot/src/gen/constitution_compiler.gd`
+    - doctrine inheritance
+    - ontology-aware generation-surface compilation
+    - explicit compile metadata and compile validation
+  - extended `godot/src/delve/doctrine_engine.gd`
+    - doctrine families now come from the doctrine family catalog instead of a local hardcoded list
+  - extended `godot/src/delve/delve_kernel.gd`
+    - constitution authoring now flows through the doctrine-owned compiler before constitution finalization
+  - extended `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - constitutions now persist ontology snapshot, doctrine inheritance, compiler trace, and compile metadata
+  - extended `godot/src/gen/run_generator.gd`
+    - generation surfaces now carry and consume `ontology_routing`
+    - route weighting and public summary lines now accept ontology-derived routing/public-safe output
+  - extended `godot/src/items/item_service.gd`
+    - reserve/item ecology weighting now lawfully consumes ontology routing tags
+  - fixed a real compiler round-trip defect:
+    - `godot/src/gen/constitution_compiler.gd` was initially dropping axis text on round-trip because split-token handling ignored `PackedStringArray`; this was fixed so the emitted generation surface remains canonical when rebuilt at the generator boundary
+
+- Exact files changed in this pass:
+  - `progress.md`
+  - `godot/config/constitution_schema.json`
+  - `godot/config/ontology_schema.json`
+  - `godot/config/experiment_schema.json`
+  - `godot/config/cultural_actor_schema.json`
+  - `godot/config/narrative_pressure_schema.json`
+  - `godot/config/doctrine_family_catalog.json`
+  - `godot/config/experiment_family_catalog.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/gen/ontology_engine.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/gen/run_generator.gd`
+  - `godot/src/delve/doctrine_engine.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/items/item_service.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - added `_test_doctrine_schema_registry_and_phase_groundwork`
+    - added `_test_ontology_engine_and_compiler_bridge`
+    - tightened `_test_generation_contract_narrowing` so the generation contract round-trips through the compiler path without drift
+    - tightened `_test_expedition_constitution_schema_and_hash` so constitutions must now carry ontology snapshot, compiler trace, compile metadata, and ontology routing
+
+- Doctrine-compliance findings:
+  - all new doctrine systems were placed in doctrine-approved owners under `godot/src/gen/` and `godot/config/`
+  - no new runtime authority path was introduced
+  - no runtime legality moved out of the existing runtime owner tree
+  - no hidden ontology was exposed to public-facing product surfaces in this pass
+  - no DelveMind/runtime conflation was introduced
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Truly deferred doctrine phases after this pass:
+  - Phase 3 full completion remains partially deferred:
+    - fairness-bound enforcement is still distributed across the existing constitutional validator stack rather than isolated into a dedicated compiler-phase enforcement owner
+    - that work is still doctrinally contiguous and should be the next completion target before moving to Phase 5+
+  - Phase 5 Narrative Pressure Ecosystem, Phase 6 Experimental Ontology + Grammar, Phase 7 Evaluation Engine + Learning Loop, and Phase 8 Integration/tooling remain deferred by strict phase order
+  - no higher-layer experimental or learning systems were added in this pass because doing so would have skipped lower-layer doctrine completion
+
+- Closing truth note:
+  - this pass did not reopen architecture or add speculative upper-layer systems
+  - it materially completed the missing doctrine groundwork, implemented the ontology engine in the correct owner tree, and made the constitution compiler a real doctrine-facing seam instead of an implied future placeholder
+
+## 2026-03-16 Doctrine Completion Implementation - Phase 3 Pre-Edit Snapshot
+
+- Doctrine phases audited against repo truth:
+  - Phase 1 - Ownership and schema groundwork: materially complete
+  - Phase 2 - Ontology Engine: materially complete in the generation owner tree
+  - Phase 3 - Constitution Compiler: still partial
+    - doctrine inheritance and ontology-aware generation outputs now exist
+    - but the canonical symbolic constitution shape is still only partially formalized
+    - compile-phase fairness bounds are still implicit/distributed instead of explicit compile-owned outputs
+    - compile traceability exists, but the constitution artifact still needs doctrine-model fields that match the canonical doctrine data model more directly
+  - Phase 4 - Cultural Simulation: materially present in existing product owners
+  - Phase 5 - Narrative Pressure Ecosystem: still missing as an explicit doctrine-owned engine and remains out of order until Phase 3 is materially complete
+  - Phases 6-8: still out of order for this pass
+
+- Exact live owners being extended in this pass:
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/config/constitution_schema.json`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact doctrine phase being implemented now:
+  - finish Phase 3 Constitution Compiler materially by:
+    - formalizing the canonical symbolic constitution outputs
+    - emitting explicit compile-owned fairness bounds and compile profiles
+    - tightening compiler validation and doctrine traceability so the constitution artifact matches the doctrine more directly and becomes a stronger base for Phase 5
+
+- Exact things this pass will NOT touch because they are out of phase order:
+  - no narrative pressure engine
+  - no experiment grammar or hypothesis runtime
+  - no learning-loop implementation
+  - no runtime legality changes
+  - no product-side DelveMind experiment systems
+
+## 2026-03-16 Doctrine Completion Implementation - Phase 3 Final Execution Trail
+
+- Doctrine gap findings:
+  - Phase 1 - Ownership and schema groundwork:
+    - remained materially complete at pass start and did not require new owner movement
+  - Phase 2 - Ontology Engine:
+    - remained materially complete at pass start and did not require new owner movement
+  - Phase 3 - Constitution Compiler:
+    - was still partial at pass start because the canonical symbolic constitution model was only partially formalized in the final constitution artifact
+    - compile-owned fairness bounds existed implicitly through validators but were not yet emitted as an explicit symbolic profile set the doctrine could treat as complete
+    - the regression harness did not yet prove the final constitution carried the doctrine-mandated symbolic compiler fields cleanly and deterministically
+    - is now materially complete for the doctrine-defined compiler phase in this repo layer
+  - Phase 4 - Cultural Simulation:
+    - remains materially present in the existing product/archive owners and was not the next unfinished contiguous phase
+  - Phase 5 - Narrative Pressure Ecosystem:
+    - is now the next lawful unfinished contiguous doctrine phase
+  - Phases 6-8:
+    - remain deferred by strict phase order
+
+- Exact doctrine phase implemented in this pass:
+  - materially completed Phase 3 Constitution Compiler by:
+    - formalizing the doctrine-mandated symbolic constitution outputs in the final constitution artifact
+    - emitting explicit compile-owned fairness bounds and symbolic profiles
+    - tightening schema validation and regression proof so the compiler layer is now explicit, traceable, deterministic, and buildable for Phase 5
+
+- Exact architecture/data changes made:
+  - `godot/config/constitution_schema.json`
+    - added `required_symbolic_fields` for the doctrine-mandated symbolic constitution model
+  - `godot/src/gen/doctrine_schema_registry.gd`
+    - extended fallback constitution schema with required symbolic fields
+    - tightened registry validation so symbolic compiler fields are now schema-enforced instead of implied
+  - `godot/src/gen/constitution_compiler.gd`
+    - compiler now accepts policy, simulation, validator violations, and counter context directly from the live Delve owner path
+    - compiler now emits explicit symbolic outputs:
+      - `doctrine_family_id`
+      - `doctrine_variant_id`
+      - `generation_seed`
+      - `topology_profile`
+      - `chamber_grammar_profile`
+      - `route_profile`
+      - `item_ecology_profile`
+      - `pressure_ecology_profile`
+      - `information_doctrine_profile`
+      - `pacing_profile`
+      - `custody_profile`
+      - `mutation_permissions`
+      - `fairness_bounds`
+    - compiler validation now treats these symbolic outputs as real required fields
+    - compiler traceability now records variant identity and fairness-bound failures explicitly
+  - `godot/src/delve/delve_kernel.gd`
+    - the live constitution-authoring path now passes the real compile context into the compiler instead of relying on a thinner bridge
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - the final constitution artifact now persists the symbolic compiler profiles directly and normalizes them deterministically
+    - compile metadata now records final `constitution_hash`, `constitution_id`, and doctrine family/variant identity
+  - `godot/src/tests/test_runner.gd`
+    - added direct proof that the final constitution now carries the doctrine-mandated symbolic compiler model and fairness bounds
+    - tightened constitution-hash/schema tests so the final artifact cannot silently drift back to a thinner pre-symbolic form
+
+- Exact files changed in this pass:
+  - `progress.md`
+  - `godot/config/constitution_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - added `_test_constitution_compiler_symbolic_profiles_and_bounds`
+    - tightened `_test_doctrine_schema_registry_and_phase_groundwork` so schema groundwork must now expose required symbolic fields
+    - tightened `_test_ontology_engine_and_compiler_bridge` so compile metadata must preserve doctrine variant identity
+    - tightened `_test_expedition_constitution_schema_and_hash` so the final constitution must preserve symbolic compiler profiles, fairness bounds, and final constitution metadata
+
+- Doctrine-compliance findings:
+  - no new runtime authority path was introduced
+  - no runtime legality moved outside the existing runtime owners
+  - no DelveMind/runtime conflation was introduced
+  - no hidden ontology was exposed to player-facing product surfaces
+  - artifact centrality remained explicit in both custody profile and fairness bounds
+  - the work stayed inside the doctrine-approved generation/compiler/schema owners
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+  - note: proof attempt 1 hit transient multiplayer node lookup noise and retried cleanly; attempt 2 passed with matching host/client reports
+
+- Truly deferred doctrine phases after this pass:
+  - Phase 5 Narrative Pressure Ecosystem is now the next lawful unfinished contiguous phase
+  - Phase 6 Experimental Ontology + Grammar, Phase 7 Evaluation Engine + Learning Loop, and Phase 8 Integration/tooling remain deferred by strict phase order
+  - no higher-layer doctrine systems were added in this pass because Phase 3 was the last contiguous unfinished lower dependency
+
+- Closing truth note:
+  - this pass did not reopen architecture or add speculative upper-layer systems
+  - it finished the remaining real compiler-layer doctrine work so the constitution artifact now matches the doctrine’s symbolic model much more directly and the repo is buildable for the Narrative Pressure phase
+
+## 2026-03-16 Phase 5 Narrative Pressure Ecosystem - Pre-Edit Snapshot
+
+- Exact doctrine phases audited:
+  - Phase 3 Constitution Compiler
+    - materially complete enough to host symbolic Phase 5 outputs
+  - Phase 4 Cultural Simulation
+    - materially sufficient through the existing product/archive/continuity owners and world-model intake
+  - Phase 5 Narrative Pressure Ecosystem
+    - still missing as an explicit symbolic system
+  - Phases 6-8
+    - out of phase order and will not be touched in this pass
+
+- Exact repo seams checked for Phase 5 readiness:
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/gen/ontology_engine.gd`
+  - `godot/src/delve/world_model.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/archive_service.gd`
+  - `godot/src/product/world_memory_service.gd`
+  - `godot/src/run/event_log.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/config/narrative_pressure_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact owner files about to be extended:
+  - `godot/src/gen/narrative_pressure_engine.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/config/narrative_pressure_schema.json`
+  - `godot/config/constitution_schema.json`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact Phase 5 requirements being implemented now:
+  - explicit symbolic `NarrativePressureState`
+  - doctrine pressure axes, momentum, resonance, and cascade risk
+  - compiler-owned pressure weighting that shapes authored possibility space without mutating runtime legality
+  - pressure safety bounds and banned runtime-field validation
+  - constitution traceability and public-safe interpretation surfaces for pressure outputs
+
+- Exact things this pass will NOT touch because they are out of phase order:
+  - no experiment grammar
+  - no hypothesis or experiment persistence systems
+  - no DelveMind learning loop
+  - no runtime authority mutations
+  - no hidden pressure gameplay cheats
+
+## 2026-03-16 Phase 5 Narrative Pressure Ecosystem - Execution Trail
+
+- Exact Phase 5 readiness findings:
+  - pressure substrate status:
+    - the repo already had local runtime danger pressure and symbolic doctrine/compiler infrastructure, but no explicit world-scale narrative pressure state
+    - current runtime `pressure` concepts in `NetworkManager` were gameplay pressure only and were correctly left out of Phase 5 ownership
+  - cultural substrate sufficiency:
+    - the existing product/archive/framing owners were sufficient to host public-safe pressure interpretation without adding new systems
+    - `run_story_diagnostics.gd`, `framing_service.gd`, and continuity readers were already the lawful downstream expression seams
+  - compiler readiness:
+    - the current constitution compiler and constitution schema were sufficient to accept symbolic pressure state once explicit schema + engine support were added
+  - insufficiency found and fixed:
+    - `godot/config/narrative_pressure_schema.json` was too thin to count as Phase 5
+    - there was no explicit narrative pressure engine or compiler-owned pressure output
+    - constitutions and diagnostics had no explicit pressure traceability
+
+- Exact substrate judged sufficient vs insufficient:
+  - sufficient:
+    - `godot/src/gen/constitution_compiler.gd`
+    - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - `godot/src/delve/world_model.gd`
+    - `godot/src/product/run_story_diagnostics.gd`
+    - `godot/src/product/framing_service.gd`
+    - existing proof/test harnesses
+  - insufficient and completed in this pass:
+    - explicit symbolic pressure state schema
+    - explicit narrative pressure engine
+    - compiler-owned pressure weighting and trace metadata
+    - constitution-level pressure state persistence and public-safe summary projection
+
+- Exact Phase 5 systems implemented:
+  - `godot/src/gen/narrative_pressure_engine.gd`
+    - added the explicit symbolic `NarrativePressureState`
+    - implemented doctrine pressure axes:
+      - `stability` / `disruption`
+      - `authority` / `skepticism`
+      - `fear` / `curiosity`
+      - `certainty` / `ambiguity`
+      - `ritual` / `innovation`
+      - `extraction` / `stewardship`
+    - implemented `momentum`, `resonance`, and `cascade_risk`
+    - added safety-bounded `generation_weighting`, `constitution_bias`, `archive_bias`, `allowed_outputs`, `public_lines`, and `trace`
+    - added validation that forbids runtime-facing mutation fields inside pressure outputs
+  - `godot/src/gen/constitution_compiler.gd`
+    - compiler now builds `narrative_pressure_state` from world/doctrine inputs
+    - pressure now lawfully influences authored possibility-space outputs like archive tone, convergence axis, routing pressure, and symbolic public summary lines
+    - compile trace and metadata now preserve pressure family, tensions, momentum, resonance, cascade risk, schema identity, and validation failures
+    - pressure validation now explicitly rejects banned runtime-facing fields
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - constitutions now persist a normalized `narrative_pressure_state`
+    - constitution/public summaries now expose public-safe pressure family, lines, tensions, momentum, resonance, and cascade risk
+  - `godot/src/product/run_story_diagnostics.gd`
+    - public-safe diagnostics now preserve narrative pressure signals downstream instead of dropping them
+  - `godot/src/product/framing_service.gd`
+    - public-safe framing can now surface pressure lines when resonance is materially present
+  - `godot/src/delve/delve_kernel.gd`
+    - compatibility summary aliases now inherit pressure-influenced public summary values instead of drifting from the canonical constitution summary
+
+- Exact files changed in this pass:
+  - `progress.md`
+  - `godot/config/narrative_pressure_schema.json`
+  - `godot/config/constitution_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/gen/narrative_pressure_engine.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/delve/delve_kernel.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/items/bomb.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - tightened `_test_doctrine_schema_registry_and_phase_groundwork`
+      - narrative pressure schema must expose doctrine axes, allowed outputs, and forbidden runtime fields
+    - added `_test_narrative_pressure_phase5_compilation_and_surfaces`
+      - proves deterministic symbolic pressure-state generation
+      - proves compile influence on authored possibility space
+      - proves public-safe pressure propagation into constitution summaries, diagnostics, and framing
+      - proves banned runtime keys are absent from pressure state
+
+- Doctrine-compliance findings:
+  - no new runtime authority path was introduced
+  - no runtime legality mutation was added
+  - no pressure logic was placed inside authoritative runtime gameplay owners
+  - no experiment grammar, hypothesis system, or learning-loop logic was introduced out of phase order
+  - pressure remains symbolic, inspectable, compiler-owned, and downstream-readable
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+  - proof-integrity note:
+    - Phase 5 implementation itself stayed proof-safe
+    - final validation exposed a pre-existing stale bomb-node RPC seam in the headless proof lane
+    - fixed by moving authoritative bomb detonation relay onto `NetworkManager`, eliminating missing-node RPC packets without changing host authority or run truth
+
+- Truly deferred systems after this pass:
+  - Phase 6 Experimental Ontology + Grammar
+  - Phase 7 Evaluation Engine + Learning Loop
+  - Phase 8 Integration / tooling
+  - these remain deferred by strict doctrine phase order; no higher-layer experimentation was added in this Phase 5 pass
+
+- Closing truth note:
+  - Phase 5 is now materially implemented as a real symbolic system
+  - narrative pressure now has explicit representation, compile influence, traceability, safety bounds, and lawful downstream expression
+  - runtime legality and event truth remain untouched
+
+## 2026-03-16 Phase 6 Experimental Ontology + Grammar - Pre-Edit Snapshot
+
+- Phase 6 readiness:
+  - Phase 3 constitution compiler is materially sufficient to host explicit experiment outputs.
+  - Phase 5 narrative pressure is materially sufficient to accept bounded experiment pressure inputs.
+  - Phase 6 itself is still missing as a real system:
+    - no structured hypothesis model
+    - no structured experiment model
+    - no grammar slot validation/compatibility
+    - no persistent experiment state owner
+    - no lineage-aware experiment storage
+
+- Missing seams identified in repo truth:
+  - `godot/config/experiment_schema.json` is still a thin placeholder.
+  - `godot/config/experiment_family_catalog.json` is still phase-locked and structurally incomplete.
+  - there is no `godot/src/product/delvemind_experiment_engine.gd`.
+  - `godot/src/delve/world_model.gd` does not yet expose persistent experiment state into pre-run world modeling.
+  - `godot/src/gen/constitution_compiler.gd` has no experiment compile step.
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd` has no experiment section.
+  - product/archive surfaces do not yet carry public-safe experiment traceability.
+
+- Exact owner files about to be extended:
+  - `godot/config/experiment_schema.json`
+  - `godot/config/experiment_family_catalog.json`
+  - `godot/config/constitution_schema.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/delve/world_model.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/gen/narrative_pressure_engine.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact Phase 6 requirements being implemented now:
+  - explicit hypothesis structures
+  - explicit experiment structures
+  - experiment grammar slots, normalization, and compatibility validation
+  - persistence states and lineage links
+  - compiler integration points that influence authored possibility space and pressure inputs without mutating runtime legality
+  - constitution storage and public-safe product/archive traceability
+
+- Exact things this pass will NOT touch because they are out of phase order:
+  - no learning loop
+  - no evaluation engine scoring
+  - no hypothesis updating from outcomes
+  - no runtime authority mutation
+  - no experiment system inside runtime owners

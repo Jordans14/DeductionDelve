@@ -1,0 +1,161 @@
+{
+  "schema_name": "DelveMindExperiment",
+  "schema_version": 1,
+  "hypothesis_required_fields": [
+    "hypothesis_id",
+    "domain",
+    "thesis",
+    "confidence",
+    "target_layers",
+    "supporting_evidence_ids",
+    "contradicting_evidence_ids",
+    "open_branches",
+    "persistence_state",
+    "recurrence_weight",
+    "foundational_flag"
+  ],
+  "experiment_required_fields": [
+    "experiment_id",
+    "family_id",
+    "program_id",
+    "hypothesis_id",
+    "target",
+    "axis",
+    "stressor",
+    "ontology_condition",
+    "cultural_medium",
+    "time_horizon",
+    "observation_contract",
+    "fairness_bounds",
+    "state",
+    "topology_type",
+    "expression_mode",
+    "compile_outputs",
+    "lineage_parent_id",
+    "branch_ids",
+    "synthesis_sources",
+    "recurrence_weight"
+  ],
+  "grammar_slots": [
+    "target",
+    "axis",
+    "stressor",
+    "ontology_condition",
+    "cultural_medium",
+    "time_horizon",
+    "observation_contract",
+    "fairness_bounds"
+  ],
+  "allowed_domains": [
+    "artifact_custody",
+    "stewardship",
+    "public_argument",
+    "ritual_memory",
+    "taxonomy_memory",
+    "wonder_allocation"
+  ],
+  "allowed_target_layers": [
+    "constitution",
+    "ontology",
+    "pressure",
+    "archive",
+    "framing",
+    "continuity"
+  ],
+  "allowed_targets": [
+    "constitution",
+    "ontology",
+    "archive",
+    "pressure_ecology",
+    "framing",
+    "continuity"
+  ],
+  "allowed_axes": [
+    "stability",
+    "skepticism",
+    "stewardship",
+    "ritual",
+    "ambiguity",
+    "curiosity"
+  ],
+  "allowed_stressors": [
+    "contradiction",
+    "classification_drift",
+    "public_attention",
+    "ritual_load",
+    "archive_echo",
+    "stewardship_debt"
+  ],
+  "allowed_ontology_conditions": [
+    "missing_verification_classes",
+    "taboo_category_activation",
+    "rediscovered_extinct_categories",
+    "hybrid_lineage_emergence",
+    "residue_density_spike",
+    "ritual_fragment_return"
+  ],
+  "allowed_cultural_media": [
+    "archive_case",
+    "legend_cluster",
+    "rumor_field",
+    "institutional_memo",
+    "public_shorthand",
+    "ritual_annotation"
+  ],
+  "allowed_time_horizons": [
+    "immediate",
+    "short_cycle",
+    "seasonal",
+    "long_arc"
+  ],
+  "allowed_observation_contracts": [
+    "traceable_archive_only",
+    "public_safe_summary",
+    "constitution_trace",
+    "pressure_trace"
+  ],
+  "allowed_topology_types": [
+    "linear",
+    "branching",
+    "recurring",
+    "synthesis"
+  ],
+  "allowed_expression_modes": [
+    "whisper_mode",
+    "public_surface",
+    "archive_bias",
+    "constitution_bias"
+  ],
+  "allowed_persistence_states": [
+    "active",
+    "recurring",
+    "rare",
+    "dormant",
+    "archival",
+    "foundational"
+  ],
+  "allowed_compile_targets": [
+    "constitution_weighting",
+    "ontology_weighting",
+    "pressure_input_bias",
+    "archive_framing_bias",
+    "public_activation"
+  ],
+  "allowed_status_values": [
+    "active",
+    "recurring",
+    "rare",
+    "dormant",
+    "archival",
+    "foundational"
+  ],
+  "forbidden_runtime_fields": [
+    "peer_ids",
+    "runtime_state",
+    "event_log",
+    "physics_override",
+    "legality_override",
+    "artifact_truth_override",
+    "runtime_ai_arbitration"
+  ]
+}

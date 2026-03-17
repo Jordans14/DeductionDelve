@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const VISUAL_GOVERNANCE_SCRIPT = preload("res://src/visual/visual_governance.gd")
+
 const MOVE_SPEED := 420.0
 const ACCEL := 2000.0
 const FRICTION := 2000.0
@@ -45,6 +47,10 @@ var focus_light: PointLight2D
 var camera: Camera2D
 var shake_intensity: float = 0.0
 var dust: CPUParticles2D
+var burden_halo: Polygon2D
+var burden_frame: Line2D
+var burden_light: PointLight2D
+var visual_governance: RefCounted = VISUAL_GOVERNANCE_SCRIPT.new()
 
 var inventory_bombs := 4
 var inventory_ropes := 4
@@ -74,6 +80,7 @@ var camera_look_offset_y := 0.0
 
 func _ready() -> void:
 	collision_mask = 1 | 2 # Layer 1 (World) and Layer 2 (Scaffolding/Platforms)
+	z_index = visual_governance.motion_priority_for("player")
 	
 	visual_root = Node2D.new()
 	add_child(visual_root)
@@ -172,6 +179,58 @@ func _ready() -> void:
 	ambient_light.energy = 0.45
 	ambient_light.scale = Vector2(7.0, 7.0)
 	add_child(ambient_light)
+
+	burden_halo = Polygon2D.new()
+	burden_halo.color = Color(0.96, 0.72, 0.28, 0.0)
+	burden_halo.polygon = PackedVector2Array([
+		Vector2(-12, -30), Vector2(12, -30), Vector2(24, -18), Vector2(28, 0),
+		Vector2(22, 18), Vector2(0, 30), Vector2(-22, 18), Vector2(-28, 0), Vector2(-24, -18)
+	])
+	visual_root.add_child(burden_halo)
+
+	burden_frame = Line2D.new()
+	burden_frame.width = 3.0
+	burden_frame.default_color = Color(1.0, 0.86, 0.34, 0.0)
+	burden_frame.antialiased = true
+	burden_frame.points = PackedVector2Array([
+		Vector2(-16, -8), Vector2(-12, -20), Vector2(0, -26), Vector2(12, -20), Vector2(16, -8)
+	])
+	visual_root.add_child(burden_frame)
+	var burden_crown := Line2D.new()
+	burden_crown.name = "BurdenCrown"
+	burden_crown.width = 2.0
+	burden_crown.default_color = Color(1.0, 0.90, 0.44, 0.0)
+	burden_crown.antialiased = true
+	burden_crown.points = PackedVector2Array([
+		Vector2(-10, -18), Vector2(0, -30), Vector2(10, -18)
+	])
+	visual_root.add_child(burden_crown)
+	var burden_yoke := Line2D.new()
+	burden_yoke.name = "BurdenYoke"
+	burden_yoke.width = 3.0
+	burden_yoke.default_color = Color(0.96, 0.78, 0.34, 0.0)
+	burden_yoke.antialiased = true
+	burden_yoke.points = PackedVector2Array([
+		Vector2(-16, -4), Vector2(-8, -16), Vector2(0, -12), Vector2(8, -16), Vector2(16, -4)
+	])
+	visual_root.add_child(burden_yoke)
+
+	var burden_gradient := Gradient.new()
+	burden_gradient.offsets = PackedFloat32Array([0.0, 1.0])
+	burden_gradient.colors = PackedColorArray([Color(1, 1, 1, 1), Color(0, 0, 0, 1)])
+	var burden_tex := GradientTexture2D.new()
+	burden_tex.gradient = burden_gradient
+	burden_tex.fill = GradientTexture2D.FILL_RADIAL
+	burden_tex.fill_from = Vector2(0.5, 0.5)
+	burden_tex.fill_to = Vector2(1.0, 0.5)
+	burden_tex.width = 128
+	burden_tex.height = 128
+	burden_light = PointLight2D.new()
+	burden_light.texture = burden_tex
+	burden_light.color = Color(1.0, 0.80, 0.30)
+	burden_light.energy = 0.0
+	burden_light.scale = Vector2(1.6, 1.6)
+	add_child(burden_light)
 
 	# Particles
 	dust = CPUParticles2D.new()
@@ -294,6 +353,28 @@ func _process(delta: float) -> void:
 		ambient_light.energy = 0.45 * lerpf(0.8, 1.0, light_scale_mult)
 	if focus_light:
 		focus_light.energy = 0.8 * lerpf(0.4, 1.0, light_scale_mult)
+	var carrier_profile: Dictionary = visual_governance.artifact_carrier_profile(carrying_artifact)
+	var burden_offset: Vector2 = carrier_profile.get("burden_offset", Vector2.ZERO)
+	var carry_highlight := float(carrier_profile.get("body_light", 0.0))
+	body_poly.modulate = Color(1.0 + carry_highlight, 1.0 + carry_highlight * 0.55, 1.0, 1.0)
+	if shadow:
+		shadow.scale = shadow.scale.lerp(Vector2.ONE * float(carrier_profile.get("shadow_scale", 1.0)), 8.0 * delta)
+	if burden_halo:
+		burden_halo.color.a = lerpf(burden_halo.color.a, float(carrier_profile.get("halo_energy", 0.0)) * 0.32, 10.0 * delta)
+		burden_halo.scale = burden_halo.scale.lerp(Vector2.ONE * float(carrier_profile.get("silhouette_emphasis", 1.0)), 8.0 * delta)
+	if burden_frame:
+		var target_alpha := 0.88 if carrying_artifact else 0.0
+		burden_frame.default_color.a = lerpf(burden_frame.default_color.a, target_alpha, 10.0 * delta)
+	var burden_crown_node := visual_root.get_node_or_null("BurdenCrown") as Line2D
+	if burden_crown_node:
+		var crown_alpha := float(carrier_profile.get("crown_energy", 0.0))
+		burden_crown_node.default_color.a = lerpf(burden_crown_node.default_color.a, crown_alpha, 10.0 * delta)
+	var burden_yoke_node := visual_root.get_node_or_null("BurdenYoke") as Line2D
+	if burden_yoke_node:
+		burden_yoke_node.default_color.a = lerpf(burden_yoke_node.default_color.a, float(carrier_profile.get("yoke_alpha", 0.0)), 10.0 * delta)
+	if burden_light:
+		burden_light.energy = lerpf(burden_light.energy, 0.65 if carrying_artifact else 0.0, 10.0 * delta)
+		burden_light.position = Vector2(0, -18) + burden_offset
 
 	if not is_multiplayer_authority() and net_initialized:
 		# Dynamic interpolation: adjust and buffer targets for fluid network motion
@@ -845,7 +926,8 @@ func set_carrying_artifact(carrying: bool) -> void:
 	carry_label.visible = carrying
 	if carrying:
 		carry_label.text = "ARTIFACT"
-		carry_label.modulate = Color(1.0, 0.8, 0.2)
+		var label_alpha := float(visual_governance.artifact_carrier_profile(true).get("label_alpha", 0.96))
+		carry_label.modulate = Color(1.0, 0.86, 0.34, label_alpha)
 	else:
 		carry_label.text = ""
 

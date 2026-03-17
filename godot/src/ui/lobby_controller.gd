@@ -2,6 +2,7 @@ extends Control
 
 const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
 const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
+const VISUAL_GOVERNANCE_SCRIPT = preload("res://src/visual/visual_governance.gd")
 
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var banner_label: Label = $Panel/VBox/BannerLabel
@@ -86,11 +87,14 @@ var history_sort_mode: String = "RECENT"
 var history_selected_key: String = ""
 var history_focus_target: String = "filter"
 var selected_cosmetic_id: String = ""
+var visual_governance: RefCounted = VISUAL_GOVERNANCE_SCRIPT.new()
+var product_shell_refresh_queued: bool = false
 
 func _ready() -> void:
 	print("LOBBY_READY")
 	product_catalog = PRODUCT_CATALOG_SCRIPT.load_catalog()
 	profile_state = PROFILE_SERVICE_SCRIPT.load_profile(PROFILE_SERVICE_SCRIPT.SAVE_PATH, product_catalog)
+	print("LOBBY_READY_PROFILE")
 	NetworkManager.connection_changed.connect(_on_connection_changed)
 	if NetworkManager.has_signal("reconnect_offer_changed"):
 		NetworkManager.reconnect_offer_changed.connect(_on_reconnect_offer_changed)
@@ -103,13 +107,16 @@ func _ready() -> void:
 	_populate_collection_sections()
 	_populate_codex_sections()
 	_refresh_product_shell()
+	print("LOBBY_READY_SHELL")
 	_apply_profile_defaults_to_inputs()
 	_apply_cli_args()
+	print("LOBBY_READY_ARGS")
 	set_process(true)
 	set_process_unhandled_input(true)
 	status_label.text = str(Dictionary(NetworkManager.get_session_overview()).get("status", "Not connected"))
 	_refresh_buttons()
 	_focus_current_tab_primary()
+	print("LOBBY_READY_DONE")
 
 func _process(_delta: float) -> void:
 	if cli_mode == "host":
@@ -120,24 +127,7 @@ func _process(_delta: float) -> void:
 		print("LOBBY_CLI_CLIENT")
 		cli_mode = ""
 		_on_join_button_pressed()
-
-	var connected := multiplayer.multiplayer_peer != null
-	if cli_auto_ready and not cli_auto_ready_done and connected:
-		var local_id := multiplayer.get_unique_id()
-		var can_ready: bool = NetworkManager.is_host or (NetworkManager.connected_peers.has(local_id) and NetworkManager.connected_peers.has(1) and NetworkManager.connected_peers.size() >= 2)
-		if can_ready and not bool(NetworkManager.ready_by_id.get(local_id, false)):
-			_on_ready_button_pressed()
-		cli_auto_ready_done = can_ready and bool(NetworkManager.ready_by_id.get(local_id, local_ready))
-
-	if cli_auto_start and not cli_auto_start_done and connected and NetworkManager.is_host:
-		var gate: Dictionary = NetworkManager.can_host_start_run(NetworkManager.connected_peers, NetworkManager.ready_by_id, true, NetworkManager.is_run_active())
-		print("START_GATE allowed=%s reason=%s" % [
-			str(bool(gate.get("allowed", false))).to_lower(),
-			str(gate.get("reason", ""))
-		])
-		if bool(gate.get("allowed", false)):
-			_on_start_button_pressed()
-			cli_auto_start_done = true
+	_run_cli_automation()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if shell_tabs == null:
@@ -207,8 +197,9 @@ func _on_reconnect_button_pressed() -> void:
 
 func _on_ready_button_pressed() -> void:
 	var current_ready := local_ready
-	if multiplayer.multiplayer_peer != null:
-		current_ready = bool(NetworkManager.ready_by_id.get(multiplayer.get_unique_id(), local_ready))
+	var mp := _multiplayer_api()
+	if mp != null and mp.multiplayer_peer != null:
+		current_ready = bool(NetworkManager.ready_by_id.get(mp.get_unique_id(), local_ready))
 	local_ready = not current_ready
 	NetworkManager.set_local_ready(local_ready)
 	_refresh_buttons()
@@ -217,45 +208,84 @@ func _on_start_button_pressed() -> void:
 	if not NetworkManager.is_host:
 		return
 	var seed := int(seed_edit.text)
-	NetworkManager.start_run(seed, 8)
+	NetworkManager.start_run(seed)
 
 func _on_connection_changed(status: String) -> void:
 	status_label.text = status
-	_refresh_product_shell()
-	_refresh_buttons()
+	_queue_product_shell_refresh()
+	_run_cli_automation()
 
 func _on_reconnect_offer_changed(_offer: Dictionary) -> void:
-	_refresh_product_shell()
-	_refresh_buttons()
+	_queue_product_shell_refresh()
 
 func _on_lobby_updated(players: Array, ready_state: Dictionary, host_flag: bool) -> void:
-	var lines: Array[String] = []
-	if multiplayer.multiplayer_peer != null:
-		local_ready = bool(ready_state.get(multiplayer.get_unique_id(), local_ready))
-	for peer_id in players:
-		var state := "Not Ready"
-		if bool(ready_state.get(peer_id, false)):
-			state = "Ready"
-		lines.append("P%d - %s" % [int(peer_id), state])
-	players_label.text = "\n".join(lines)
+	var mp := _multiplayer_api()
+	var local_id := -1
+	if mp != null and mp.multiplayer_peer != null:
+		local_id = mp.get_unique_id()
+		local_ready = bool(ready_state.get(local_id, local_ready))
+	var public_cards := NetworkManager.get_public_player_cards() if NetworkManager.has_method("get_public_player_cards") else {}
+	players_label.text = "\n".join(
+		PROFILE_SERVICE_SCRIPT.build_lobby_roster_lines(
+			profile_state,
+			ready_state,
+			public_cards,
+			local_id
+		)
+	)
 	start_button.visible = host_flag
 	start_button.disabled = not NetworkManager.all_ready()
-	var local_id := -1
-	if multiplayer.multiplayer_peer != null:
-		local_id = multiplayer.get_unique_id()
 	local_ready = local_id > 0 and bool(ready_state.get(local_id, false))
 	ready_button.text = "Ready: %s" % ["YES" if local_ready else "NO"]
+	_run_cli_automation()
 
 func _on_run_started(_seed: int, _chain: Array) -> void:
 	get_tree().change_scene_to_file("res://scenes/Game.tscn")
 
 func _refresh_buttons() -> void:
-	var connected := multiplayer.multiplayer_peer != null
+	var mp := _multiplayer_api()
+	var connected := mp != null and mp.multiplayer_peer != null
 	ready_button.disabled = not connected
 	start_button.disabled = not (connected and NetworkManager.is_host and NetworkManager.all_ready())
 	start_button.visible = NetworkManager.is_host
 	if reconnect_button:
 		reconnect_button.disabled = connected or not NetworkManager.can_attempt_reconnect()
+
+func _queue_product_shell_refresh() -> void:
+	if product_shell_refresh_queued:
+		return
+	product_shell_refresh_queued = true
+	call_deferred("_flush_product_shell_refresh")
+
+func _flush_product_shell_refresh() -> void:
+	product_shell_refresh_queued = false
+	_refresh_product_shell()
+	_refresh_buttons()
+
+func _multiplayer_api() -> MultiplayerAPI:
+	if not is_inside_tree():
+		return null
+	return get_tree().get_multiplayer()
+
+func _run_cli_automation() -> void:
+	var mp := _multiplayer_api()
+	var connected := mp != null and mp.multiplayer_peer != null
+	if cli_auto_ready and not cli_auto_ready_done and connected:
+		var local_id := mp.get_unique_id()
+		var can_ready := NetworkManager.is_host or (NetworkManager.connected_peers.has(local_id) and NetworkManager.connected_peers.has(1) and NetworkManager.connected_peers.size() >= 2)
+		if can_ready:
+			if not bool(NetworkManager.ready_by_id.get(local_id, false)):
+				_on_ready_button_pressed()
+			cli_auto_ready_done = true
+	if cli_auto_start and not cli_auto_start_done and connected and NetworkManager.is_host:
+		var gate: Dictionary = NetworkManager.can_host_start_run(NetworkManager.connected_peers, NetworkManager.ready_by_id, true, NetworkManager.is_run_active())
+		print("START_GATE allowed=%s reason=%s" % [
+			str(bool(gate.get("allowed", false))).to_lower(),
+			str(gate.get("reason", ""))
+		])
+		if bool(gate.get("allowed", false)):
+			_on_start_button_pressed()
+			cli_auto_start_done = true
 
 func _apply_cli_args() -> void:
 	for arg in OS.get_cmdline_user_args():
@@ -305,7 +335,7 @@ func _populate_codex_sections() -> void:
 		return
 	product_ui_refreshing = true
 	codex_section_option.clear()
-	var sections := PRODUCT_CATALOG_SCRIPT.codex_sections(product_catalog)
+	var sections := PROFILE_SERVICE_SCRIPT.build_codex_sections(profile_state, product_catalog)
 	for section in sections:
 		codex_section_option.add_item(_title_case(section))
 	if not sections.is_empty():
@@ -316,7 +346,14 @@ func _populate_codex_sections() -> void:
 func _configure_tab_titles() -> void:
 	if shell_tabs == null:
 		return
-	var titles := ["Home", "Profile", "Collection", "Codex", "Cosmetics", "Settings"]
+	var titles := [
+		"%s Home" % visual_governance.shell_symbol_for_symbol_family("threshold"),
+		"%s Profile" % visual_governance.shell_symbol_for_symbol_family("burden"),
+		"%s Collection" % visual_governance.shell_symbol_for_symbol_family("witness"),
+		"%s Archive" % visual_governance.shell_symbol_for_symbol_family("recursion"),
+		"%s Cosmetics" % visual_governance.shell_symbol_for_symbol_family("witness"),
+		"%s Settings" % visual_governance.shell_symbol_for_symbol_family("threshold")
+	]
 	for i in range(mini(shell_tabs.get_tab_count(), titles.size())):
 		shell_tabs.set_tab_title(i, titles[i])
 
@@ -329,9 +366,9 @@ func _refresh_product_shell() -> void:
 	product_ui_refreshing = true
 	_apply_shell_accessibility()
 	if title_label:
-		title_label.text = "Deduction Delve"
+		title_label.text = visual_governance.shell_title()
 	if banner_label:
-		banner_label.text = " | ".join(PROFILE_SERVICE_SCRIPT.build_profile_card_lines(profile_state, product_catalog))
+		banner_label.text = "  //  ".join(PROFILE_SERVICE_SCRIPT.build_profile_card_lines(profile_state, product_catalog))
 	if session_summary_label:
 		session_summary_label.text = "\n".join(_build_session_summary_lines())
 	if shell_hint_label:
@@ -443,7 +480,7 @@ func _refresh_codex_entries() -> void:
 		codex_entries_list.add_item(str(entry.get("label", "")))
 	if codex_entries_cache.is_empty():
 		if codex_detail_label:
-			codex_detail_label.text = "No codex entries available."
+			codex_detail_label.text = "No archive entries available."
 		return
 	codex_selected_index = clampi(codex_selected_index, 0, codex_entries_cache.size() - 1)
 	codex_entries_list.select(codex_selected_index)
@@ -525,12 +562,17 @@ func _focus_home_primary_control() -> void:
 
 func _build_home_quick_start_text() -> String:
 	var lines: Array[String] = []
+	var session: Dictionary = NetworkManager.get_session_overview() if NetworkManager.has_method("get_session_overview") else {}
+	var live_brief := PROFILE_SERVICE_SCRIPT._session_delve_brief_line(session)
 	if bool(profile_state.get("first_run_pending", true)):
 		lines.append("First run: recover an authentic Artifact and hold it in Extraction.")
 		lines.append("Warden reads clues. Veil hides sabotage. Scavenger keeps the route alive.")
 	else:
 		lines.append("Host a room, ready up, and commit to a route when the Ghost starts forcing choices.")
+	if not live_brief.is_empty():
+		lines.append("Current read: %s" % live_brief)
 	lines.append("Artifacts are the objective. Tools are active. Relics are passive.")
+	lines.append("Some runs surface charms, bursts, vows, burdens, and visible threshold shifts.")
 	lines.append("Progression unlocks identity only: titles, banners, notebook themes, and future cosmetics.")
 	return "\n".join(lines)
 
@@ -542,6 +584,9 @@ func _build_session_summary_lines() -> Array[String]:
 	var seed_value := int(session.get("seed", 0))
 	if seed_value > 0:
 		lines.append("Seed: %d" % seed_value)
+	var profile_lines := PROFILE_SERVICE_SCRIPT.build_home_overview_lines(profile_state, session, product_catalog)
+	if profile_lines.size() >= 4:
+		lines.append(profile_lines[3])
 	return lines
 
 func _owned_cosmetics_for_category(category: String) -> Array[String]:
@@ -621,11 +666,45 @@ func _apply_shell_accessibility() -> void:
 	var label_size := 20 if large_text else 16
 	var title_size := 28 if large_text else 22
 	var emphasis_size := label_size + 2
+	var shell_palette: Dictionary = visual_governance.shell_palette()
+	var shell_title_color: Color = shell_palette.get("title", Color(0.92, 0.82, 0.58))
+	var shell_banner_color: Color = shell_palette.get("banner", Color(0.69, 0.77, 0.84))
+	var shell_hint_color: Color = shell_palette.get("muted", Color(0.58, 0.62, 0.70))
+	var shell_focus_color: Color = shell_palette.get("focus", Color(0.86, 0.84, 0.70))
+	var shell_secondary: Color = shell_palette.get("secondary", Color(0.76, 0.76, 0.74))
+	var shell_archive: Color = shell_palette.get("archive", Color(0.76, 0.70, 0.58))
+	var shell_broadcast: Color = shell_palette.get("broadcast", Color(0.80, 0.73, 0.62))
 	for control in [title_label, banner_label, status_label, players_label, shell_hint_label, home_hero_label, home_overview_label, home_quick_start_label, home_continue_label, home_last_run_label, home_recent_runs_label, home_run_diagnostics_label, profile_summary_label, mastery_summary_label, progress_summary_label, achievement_summary_label, history_summary_label, history_focus_label, history_compare_label, history_detail_label, collection_detail_label, collection_summary_label, codex_detail_label, codex_summary_label, cosmetic_preview_label, cosmetic_summary_label, settings_summary_label, data_health_label, controls_summary_label]:
 		if control == null:
 			continue
 		control.add_theme_font_size_override("font_size", title_size if control == title_label else label_size)
-	for emphasis_control in [home_continue_label, history_focus_label]:
+		control.add_theme_color_override("font_color", shell_palette.get("primary", Color(0.84, 0.84, 0.84)))
+	if title_label:
+		title_label.add_theme_color_override("font_color", shell_title_color)
+	if banner_label:
+		banner_label.add_theme_color_override("font_color", shell_banner_color)
+		banner_label.add_theme_font_size_override("font_size", emphasis_size)
+	if session_summary_label:
+		session_summary_label.add_theme_color_override("font_color", shell_secondary)
+	if shell_hint_label:
+		shell_hint_label.add_theme_color_override("font_color", shell_hint_color)
+	for secondary_control in [home_overview_label, home_last_run_label, history_summary_label, history_detail_label, collection_summary_label, collection_detail_label]:
+		if secondary_control == null:
+			continue
+		secondary_control.add_theme_color_override("font_color", shell_secondary)
+	for archive_control in [codex_summary_label, codex_detail_label, history_compare_label]:
+		if archive_control == null:
+			continue
+		archive_control.add_theme_color_override("font_color", shell_archive)
+	for broadcast_control in [home_recent_runs_label, home_run_diagnostics_label]:
+		if broadcast_control == null:
+			continue
+		broadcast_control.add_theme_color_override("font_color", shell_broadcast)
+	for emphasis_control in [home_hero_label, home_continue_label, history_focus_label, profile_summary_label]:
+		if emphasis_control == null:
+			continue
+		emphasis_control.add_theme_color_override("font_color", shell_focus_color)
+	for emphasis_control in [home_continue_label, history_focus_label, profile_summary_label]:
 		if emphasis_control == null:
 			continue
 		emphasis_control.add_theme_font_size_override("font_size", emphasis_size)
@@ -688,7 +767,7 @@ func _on_collection_entry_selected(index: int) -> void:
 func _on_codex_section_selected(index: int) -> void:
 	if product_ui_refreshing:
 		return
-	var sections := PRODUCT_CATALOG_SCRIPT.codex_sections(product_catalog)
+	var sections := PROFILE_SERVICE_SCRIPT.build_codex_sections(profile_state, product_catalog)
 	if index < 0 or index >= sections.size():
 		return
 	codex_section = sections[index]

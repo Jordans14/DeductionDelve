@@ -1,0 +1,18 @@
+{
+  "schema_name": "CulturalActor",
+  "schema_version": 1,
+  "required_fields": [
+    "id",
+    "actor_type",
+    "legitimacy_sources",
+    "rumor_vectors",
+    "archive_position"
+  ],
+  "allowed_actor_types": [
+    "institution",
+    "school",
+    "crew",
+    "public",
+    "ritual_holder"
+  ]
+}

@@ -130,6 +130,45 @@
       }
     },
     {
+      "id": "title_public_steward",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Public Steward",
+      "family": "mastery",
+      "rarity": "rare",
+      "source": {
+        "type": "role_mastery",
+        "role": "Steward",
+        "level": 2
+      }
+    },
+    {
+      "id": "title_burden_bearer",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Burden Bearer",
+      "family": "mastery",
+      "rarity": "rare",
+      "source": {
+        "type": "role_mastery",
+        "role": "Bearer",
+        "level": 2
+      }
+    },
+    {
+      "id": "title_quiet_murmur",
+      "category": "title",
+      "slot": "title",
+      "display_name": "Quiet Murmur",
+      "family": "mastery",
+      "rarity": "rare",
+      "source": {
+        "type": "role_mastery",
+        "role": "Murmur",
+        "level": 2
+      }
+    },
+    {
       "id": "banner_ghostline",
       "category": "banner",
       "slot": "banner",
@@ -186,6 +225,18 @@
     },
     "Veil": {
       "display_name": "Veil Mastery",
+      "levels": [0, 70, 180, 340]
+    },
+    "Steward": {
+      "display_name": "Steward Mastery",
+      "levels": [0, 70, 180, 340]
+    },
+    "Bearer": {
+      "display_name": "Bearer Mastery",
+      "levels": [0, 70, 180, 340]
+    },
+    "Murmur": {
+      "display_name": "Murmur Mastery",
       "levels": [0, 70, 180, 340]
     },
     "Scavenger": {
@@ -255,6 +306,21 @@
         "description": "Wins by turning the expedition against itself while staying ambiguous."
       },
       {
+        "id": "Steward",
+        "display_name": "Steward",
+        "description": "Uses public callouts and visible certainty to steady contested custody before rumor hardens."
+      },
+      {
+        "id": "Bearer",
+        "display_name": "Bearer",
+        "description": "Commits to burden, escort, and extraction under visible pursuit pressure."
+      },
+      {
+        "id": "Murmur",
+        "display_name": "Murmur",
+        "description": "Bends witness pressure around the wrong carrier and lets counterfeit stories feel earned."
+      },
+      {
         "id": "Scavenger",
         "display_name": "Scavenger",
         "description": "Keeps routes alive, survives the chaos, and carries the expedition forward."
@@ -309,6 +375,41 @@
         "id": "counterfeit",
         "display_name": "Counterfeit Artifact",
         "description": "Looks plausible, but extraction hands victory to sabotage."
+      },
+      {
+        "id": "lost",
+        "display_name": "Lost Artifact",
+        "description": "The run ended without securing the artifact line."
+      },
+      {
+        "id": "recoverable_loss",
+        "display_name": "Recoverable Loss",
+        "description": "The artifact line remained in live custody or reachable loss when the run broke."
+      },
+      {
+        "id": "burial",
+        "display_name": "Burial",
+        "description": "The artifact line was left buried in the labyrinth and now survives culturally."
+      },
+      {
+        "id": "fragmented_legacy",
+        "display_name": "Fragmented Legacy",
+        "description": "Conflicting custody or unresolved lines split the artifact's remembered continuity."
+      },
+      {
+        "id": "successor_emergence",
+        "display_name": "Successor Emergence",
+        "description": "A successor or counterfeit line displaced the expected artifact continuity."
+      },
+      {
+        "id": "archive_only_residue",
+        "display_name": "Archive-Only Residue",
+        "description": "Only residue, rumor, or counterfeit echo remained for later interpretation."
+      },
+      {
+        "id": "extinction",
+        "display_name": "Extinct Artifact Line",
+        "description": "The artifact line fell extinct and survives only as aftermath pressure."
       }
     ],
     "clue_families": [

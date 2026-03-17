@@ -2,6 +2,7 @@ class_name ProductCatalog
 extends RefCounted
 
 const CATALOG_PATH := "res://config/product_catalog.json"
+const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const FALLBACK_CATALOG := {
 	"schema_version": 1,
 	"cosmetic_categories": ["title", "banner", "notebook_theme"],
@@ -80,7 +81,10 @@ static func validate_catalog(catalog: Dictionary = {}) -> Array[String]:
 		if str(source.get("type", "")).is_empty():
 			failures.append("%s missing source.type" % cosmetic_id)
 	var mastery_tracks: Dictionary = current.get("mastery_tracks", {})
-	for role_name in ["account", "Warden", "Veil", "Scavenger"]:
+	var required_tracks: Array[String] = ["account"]
+	for role_name in ROLE_SERVICE_SCRIPT.new().all_role_names():
+		required_tracks.append(role_name)
+	for role_name in required_tracks:
 		if not mastery_tracks.has(role_name):
 			failures.append("mastery_tracks missing %s" % role_name)
 		else:

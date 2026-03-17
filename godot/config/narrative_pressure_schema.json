@@ -1,0 +1,61 @@
+{
+  "schema_name": "NarrativePressureState",
+  "schema_version": 1,
+  "required_fields": [
+    "id",
+    "pressure_family",
+    "stability",
+    "disruption",
+    "authority",
+    "skepticism",
+    "fear",
+    "curiosity",
+    "certainty",
+    "ambiguity",
+    "ritual",
+    "innovation",
+    "extraction",
+    "stewardship",
+    "momentum",
+    "resonance",
+    "cascade_risk",
+    "dominant_tensions",
+    "generation_weighting",
+    "constitution_bias",
+    "archive_bias",
+    "allowed_outputs",
+    "safety_bounds",
+    "public_lines",
+    "trace"
+  ],
+  "required_axes": [
+    "stability",
+    "disruption",
+    "authority",
+    "skepticism",
+    "fear",
+    "curiosity",
+    "certainty",
+    "ambiguity",
+    "ritual",
+    "innovation",
+    "extraction",
+    "stewardship"
+  ],
+  "allowed_outputs": [
+    "generation_weighting",
+    "archive_bias",
+    "constitution_bias"
+  ],
+  "min_axis_value": 0,
+  "max_axis_value": 4,
+  "forbidden_runtime_fields": [
+    "peer_ids",
+    "role_payload",
+    "runtime_state",
+    "event_log",
+    "physics_override",
+    "legality_override",
+    "artifact_truth_override"
+  ]
+}
