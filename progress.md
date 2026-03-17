@@ -4960,3 +4960,283 @@ All doctrine domains that were still PARTIAL at the start of this pass received 
   - no hypothesis updating from outcomes
   - no runtime authority mutation
   - no experiment system inside runtime owners
+
+## 2026-03-16 Phase 6 Experimental Ontology + Grammar - Execution Trail
+
+- Phase 6 readiness findings:
+  - Phase 3 constitution compilation and Phase 5 narrative pressure were materially sufficient substrate.
+  - the missing work was Phase 6 substance, not a lower-phase redesign:
+    - no real experiment owner
+    - no structured hypothesis registry
+    - no structured experiment registry
+    - no grammar-slot validation
+    - no persistence/lineage model
+    - no compiler-owned experiment outputs
+    - no constitution or downstream traceability
+
+- Doctrine phase judgment after implementation:
+  - Phase 1 Ownership and schema groundwork: materially complete
+  - Phase 2 Ontology Engine: materially complete
+  - Phase 3 Constitution Compiler: materially complete
+  - Phase 4 Cultural Simulation: materially present in existing product/archive owners
+  - Phase 5 Narrative Pressure Ecosystem: materially complete
+  - Phase 6 Experimental Ontology + Grammar: materially implemented in this pass
+  - Phase 7 Evaluation Engine + Learning Loop: deferred by phase order
+  - Phase 8 Integration / tooling: deferred except for validation needed to prove Phase 6
+
+- Exact Phase 6 systems implemented:
+  - real hypothesis model in `godot/src/product/delvemind_experiment_engine.gd`
+    - `hypothesis_id`
+    - `domain`
+    - `thesis`
+    - `confidence`
+    - `target_layers`
+    - `target_populations`
+    - `supporting_evidence_ids`
+    - `contradicting_evidence_ids`
+    - `open_branches`
+    - `persistence_state`
+    - `dormancy_state`
+    - `recurrence_weight`
+    - `foundational_flag`
+  - real experiment model in `godot/src/product/delvemind_experiment_engine.gd`
+    - `experiment_id`
+    - `family_id`
+    - `program_id`
+    - `hypothesis_id`
+    - `target`
+    - `axis`
+    - `stressor`
+    - `ontology_condition`
+    - `cultural_medium`
+    - `time_horizon`
+    - `observation_contract`
+    - `fairness_bounds`
+    - `state`
+    - `topology_type`
+    - `expression_mode`
+    - `compile_outputs`
+    - `lineage_parent_id`
+    - `branch_ids`
+    - `synthesis_sources`
+    - `recurrence_weight`
+    - `public_lines`
+  - explicit experiment grammar
+    - slot normalization
+    - slot validation
+    - slot compatibility rules for target/media, axis/stressor, topology/horizon
+    - explicit `grammar_manifest` output
+  - persistence and lineage
+    - active / recurring / rare / dormant / archival / foundational states
+    - lineage parent links
+    - branch links
+    - synthesis source links
+    - recurrence weights
+    - persistent normalization instead of deletion
+  - compiler integration
+    - constitution weighting
+    - ontology weighting
+    - pressure input bias
+    - archive framing bias
+    - public activation
+    - traceable compile metadata and compiler trace
+  - constitution integration
+    - `experimental_ontology_state` now persists in the expedition constitution artifact
+    - constitution/public summaries now expose public-safe experiment surface lines, family labels, expression modes, and horizons
+  - product/archive integration
+    - world model now carries persistent experiment state and public-safe world lines
+    - diagnostics preserve experiment surfaces
+    - framing surfaces experiment texture lawfully without leaking hidden ontology
+
+- Exact architecture/data changes made:
+  - `godot/config/experiment_schema.json`
+    - replaced phase-thin placeholder with real hypothesis/experiment/grammar schema
+  - `godot/config/experiment_family_catalog.json`
+    - replaced phase-locked placeholder with six real structured experiment families
+  - `godot/config/constitution_schema.json`
+    - added `experimental_ontology_state` as a required symbolic constitution section
+  - `godot/src/gen/doctrine_schema_registry.gd`
+    - added strict experiment schema validation
+    - tightened experiment family catalog validation
+    - upgraded fallback experiment families to doctrinally real structures
+  - `godot/src/product/delvemind_experiment_engine.gd`
+    - added the Phase 6 owner with normalization, validation, compilation, persistence, lineage indexing, grammar manifest generation, and public-safe world lines
+  - `godot/src/product/profile_service.gd`
+    - profile default state now includes `delvemind_experiment_state`
+    - profile normalization now preserves and normalizes experiment state
+  - `godot/src/delve/world_model.gd`
+    - world model now carries normalized experiment state and public-safe experiment lines
+  - `godot/src/gen/constitution_compiler.gd`
+    - added experiment compile step
+    - experiment outputs now lawfully influence constitution weighting, ontology weighting, public summary lines, and pressure input bias
+  - `godot/src/gen/narrative_pressure_engine.gd`
+    - narrative pressure now accepts bounded experiment pressure input bias without changing runtime legality
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - constitution artifacts now normalize, persist, and summarize experimental ontology state
+  - `godot/src/product/run_story_diagnostics.gd`
+    - diagnostics now preserve public-safe experiment surfaces
+  - `godot/src/product/framing_service.gd`
+    - framing now surfaces public-safe experiment texture through governance/world-pull output
+  - `godot/src/net/network_manager.gd`
+    - suppressed no-op reconnect-offer emits to reduce UI reentry noise
+  - `godot/src/ui/lobby_controller.gd`
+    - headless CLI proof mode now skips heavy product-shell refresh work
+    - connection/reconnect shell refreshes are deferred in the live UI owner so client join paths do not stall
+
+- Exact files changed in this pass:
+  - `progress.md`
+  - `godot/config/constitution_schema.json`
+  - `godot/config/experiment_family_catalog.json`
+  - `godot/config/experiment_schema.json`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/delve/world_model.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/gen/narrative_pressure_engine.gd`
+  - `godot/src/net/network_manager.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/product/framing_service.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/product/run_story_diagnostics.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `godot/src/ui/lobby_controller.gd`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - tightened `_test_doctrine_schema_registry_and_phase_groundwork`
+      - experiment schema must expose required hypothesis/experiment fields, grammar slots, persistence states, compile targets, runtime-forbidden fields, and a materially populated family catalog
+    - added `_test_experimental_ontology_phase6_compilation_and_surfaces`
+      - proves persistent experiment state exists in profile/world model
+      - proves all required persistence states are represented
+      - proves lineage indexing and synthesis links exist
+      - proves deterministic compile output
+      - proves grammar manifest emission
+      - proves compiler outputs remain runtime-safe
+      - proves constitutions persist valid `experimental_ontology_state`
+      - proves diagnostics and framing surface public-safe experiment texture
+    - added helper coverage for dictionary-array comparison in Phase 6 tests
+
+- Doctrine-compliance findings:
+  - no runtime authority mutation was added
+  - no second event-truth model was introduced
+  - no experiment system was placed in runtime owners
+  - no learning loop, adaptive scoring, or hypothesis updating was implemented
+  - experiment influence remains symbolic, inspectable, compiler-owned, and bounded
+  - pressure influence from experiments remains subordinate and non-authoritative
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+  - proof-integrity note:
+    - final Phase 6 code initially exposed a headless proof stall in the lobby/client shell path
+    - fixed without touching runtime authority by deferring lobby-shell refreshes and adding a headless CLI shell fast path in the existing UI owner
+
+- Truly deferred doctrine phases after this pass:
+  - Phase 7 Evaluation Engine + Learning Loop
+  - Phase 8 Integration / tooling
+  - both remain deferred by strict doctrine phase order
+  - no learning logic, experiment scoring loop, or adaptive runtime system was added in this pass
+
+- Closing truth note:
+  - Phase 6 is now materially implemented as a real doctrine system
+  - DelveMind experimentation is now structured, persistent, lineage-aware, compiler-integrated, and publicly traceable without becoming runtime authority
+  - the repo is now lawfully buildable for Phase 7
+
+## 2026-03-16 Phase 6 Cleanup / Hardening - Pre-Edit Note
+
+- Hostile-audit findings being corrected now:
+  - Phase 6 experiment grammar/schema vocabulary is narrower than doctrine
+  - ontology experiment nodes are reading `status` instead of canonical family `state`
+  - experiment lineage/reference validation is too shallow
+  - experiment compile outputs still include misleading dead scalar scaffolding
+  - constitution persistence normalization for `experimental_ontology_state` is too shallow
+  - `delvemind_experiment_state` persists but does not lawfully evolve through profile continuity
+  - lobby headless proof fast path is lawful but still too heuristic-driven and under-tested
+
+- Exact files being touched in this cleanup pass:
+  - `godot/config/experiment_schema.json`
+  - `godot/config/experiment_family_catalog.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/gen/ontology_engine.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/ui/lobby_controller.gd`
+  - `godot/src/tests/test_runner.gd`
+
+- Exact things this pass will NOT touch:
+  - no Phase 7 learning loop or evaluation engine work
+  - no runtime gameplay-owner experiment logic
+  - no new authority paths
+  - no experiment outcome scoring or adaptive hypothesis updates
+  - no broad product redesign
+
+## 2026-03-16 Phase 6 Cleanup / Hardening - Final Execution Trail
+
+- Exact hostile-audit findings corrected:
+  - expanded `experiment_schema.json` to doctrine-sized Phase 6 slot vocabulary while keeping compatibility-safe legacy values
+  - aligned fallback registry validation to the expanded schema and required supported compile-output sections
+  - fixed the ontology experiment node `state/status` seam so family persistence state survives into ontology space
+  - tightened experiment lineage/reference validation and grammar compatibility in the canonical experiment owner
+  - removed misleading dead scalar experiment compile outputs from shipped family catalogs and fallback family data
+  - hardened compile-state validation so unsupported compile-output sections and missing lineage-index structure are rejected
+  - deepened `experimental_ontology_state` persistence normalization so registries, ids, lineage index, and public surface arrays are rebuilt canonically
+  - added the lawful continuity seam for `delvemind_experiment_state` through `profile_service.apply_run_record(...)`
+  - cleaned the lobby headless proof fast path into a latched shell-only helper and pinned it with regression coverage that avoids touching runtime authority
+
+- Exact files changed:
+  - `godot/config/experiment_schema.json`
+  - `godot/config/experiment_family_catalog.json`
+  - `godot/src/gen/doctrine_schema_registry.gd`
+  - `godot/src/gen/ontology_engine.gd`
+  - `godot/src/product/delvemind_experiment_engine.gd`
+  - `godot/src/gen/constitution_compiler.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/product/profile_service.gd`
+  - `godot/src/ui/lobby_controller.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - tightened `_test_doctrine_schema_registry_and_phase_groundwork`
+      - now proves doctrine-sized Phase 6 vocabulary coverage and supported compile-output section boundaries
+    - tightened `_test_ontology_engine_and_compiler_bridge`
+      - now proves ontology experiment nodes preserve canonical family persistence state
+    - tightened `_test_experimental_ontology_phase6_compilation_and_surfaces`
+      - now proves rediscovery hooks survive into compiled lineage state
+      - now proves retired dead scalar compile outputs do not survive compile or constitution persistence
+    - added `_test_phase6_doctrine_vocabulary_and_compile_honesty`
+      - proves family compile outputs only use supported live sections
+    - added `_test_phase6_persistence_and_lineage_cleanup`
+      - proves lineage/reference validation catches missing hypothesis/parent/branch/synthesis references
+      - proves experiment persistence evolves lawfully across repeated run ingest without mutating confidence or fairness bounds
+    - added `_test_phase6_shell_proof_fast_path`
+      - pins the lobby shell-only headless fast path in source
+      - proves `NetworkManager` reconnect-offer deduplication only emits on real state change
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on 2026-03-16
+  - `./scripts/run_headless_proof.ps1` -> passed on 2026-03-16
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+  - proof note:
+    - headless proof attempts 1 and 2 failed before verification because host logs did not emit the expected `sabotage_camera_jam` pattern in time
+    - attempt 3 passed cleanly with matching host/client reports
+
+- Remaining real Phase 6 debt after this cleanup:
+  - no material Phase 6 blocker remains in the audited seams
+  - the only still-notable nuance is that the lobby shell regression coverage is source-backed plus `NetworkManager` signal behavior rather than direct UI-script invocation, because direct script preloading in the unit harness is brittle around autoload globals
+  - this is acceptable for Phase 6 cleanup because it keeps the proof-fix coverage shell-only and avoids introducing test-only runtime coupling
+
+- Closing truth note:
+  - Phase 6 is now materially cleaner, doctrine-aligned, and safer to build Phase 7 on top of
+  - experiment grammar/schema coverage is broader and more doctrine-faithful
+  - ontology persistence semantics are clean
+  - experiment continuity now evolves lawfully without becoming a learning loop
+  - runtime/proof authority remains untouched

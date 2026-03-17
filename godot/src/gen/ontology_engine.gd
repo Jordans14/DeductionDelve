@@ -229,7 +229,8 @@ static func _residue_node(public_summary: Dictionary, cultural: Dictionary) -> D
 
 static func _experiment_node(family: Dictionary) -> Dictionary:
 	var family_id := str(family.get("id", "")).strip_edges()
-	return _build_node("experiment:%s" % family_id, str(family.get("label", family_id)).strip_edges(), "experiment_families", "experiment_%s" % family_id, ["preparation_culture_niche"], 0, 0, "dormancy", str(family.get("status", "phase_locked")), _string_array(family.get("target_layers", [])), "")
+	var persistence_state := str(family.get("state", family.get("status", "phase_locked"))).strip_edges()
+	return _build_node("experiment:%s" % family_id, str(family.get("label", family_id)).strip_edges(), "experiment_families", "experiment_%s" % family_id, ["preparation_culture_niche"], 0, 0, "dormancy", persistence_state, _string_array(family.get("target_layers", [])), "")
 
 static func _hybrid_nodes(nodes: Array[Dictionary], cultural: Dictionary, generation_surface: Dictionary) -> Array[Dictionary]:
 	var hybrids: Array[Dictionary] = []

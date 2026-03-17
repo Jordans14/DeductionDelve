@@ -89,12 +89,12 @@ var history_focus_target: String = "filter"
 var selected_cosmetic_id: String = ""
 var visual_governance: RefCounted = VISUAL_GOVERNANCE_SCRIPT.new()
 var product_shell_refresh_queued: bool = false
+var headless_cli_shell_latched: bool = false
 
 func _ready() -> void:
 	print("LOBBY_READY")
 	product_catalog = PRODUCT_CATALOG_SCRIPT.load_catalog()
 	profile_state = PROFILE_SERVICE_SCRIPT.load_profile(PROFILE_SERVICE_SCRIPT.SAVE_PATH, product_catalog)
-	print("LOBBY_READY_PROFILE")
 	NetworkManager.connection_changed.connect(_on_connection_changed)
 	if NetworkManager.has_signal("reconnect_offer_changed"):
 		NetworkManager.reconnect_offer_changed.connect(_on_reconnect_offer_changed)
@@ -106,17 +106,16 @@ func _ready() -> void:
 	_populate_cosmetic_categories()
 	_populate_collection_sections()
 	_populate_codex_sections()
-	_refresh_product_shell()
-	print("LOBBY_READY_SHELL")
 	_apply_profile_defaults_to_inputs()
 	_apply_cli_args()
-	print("LOBBY_READY_ARGS")
+	headless_cli_shell_latched = headless_cli_shell_mode_for_test(DisplayServer.get_name(), cli_mode, cli_auto_ready, cli_auto_start)
+	if not _headless_cli_shell_mode():
+		_refresh_product_shell()
 	set_process(true)
 	set_process_unhandled_input(true)
 	status_label.text = str(Dictionary(NetworkManager.get_session_overview()).get("status", "Not connected"))
 	_refresh_buttons()
 	_focus_current_tab_primary()
-	print("LOBBY_READY_DONE")
 
 func _process(_delta: float) -> void:
 	if cli_mode == "host":
@@ -212,10 +211,17 @@ func _on_start_button_pressed() -> void:
 
 func _on_connection_changed(status: String) -> void:
 	status_label.text = status
+	if _headless_cli_shell_mode():
+		_refresh_buttons()
+		_run_cli_automation()
+		return
 	_queue_product_shell_refresh()
 	_run_cli_automation()
 
 func _on_reconnect_offer_changed(_offer: Dictionary) -> void:
+	if _headless_cli_shell_mode():
+		_refresh_buttons()
+		return
 	_queue_product_shell_refresh()
 
 func _on_lobby_updated(players: Array, ready_state: Dictionary, host_flag: bool) -> void:
@@ -261,6 +267,13 @@ func _flush_product_shell_refresh() -> void:
 	product_shell_refresh_queued = false
 	_refresh_product_shell()
 	_refresh_buttons()
+
+func _headless_cli_shell_mode() -> bool:
+	return headless_cli_shell_latched
+
+static func headless_cli_shell_mode_for_test(display_name: String, mode: String, auto_ready: bool, auto_start: bool) -> bool:
+	var normalized_display := display_name.to_lower()
+	return normalized_display.find("headless") != -1 and (not mode.is_empty() or auto_ready or auto_start)
 
 func _multiplayer_api() -> MultiplayerAPI:
 	if not is_inside_tree():

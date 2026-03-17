@@ -293,6 +293,12 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	var unlocked_achievements := _unlock_achievements(next_profile, run_record, current_catalog)
 	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
 	var frame := FRAMING_SERVICE_SCRIPT.build_run_frame(run_record, diagnostics, next_profile)
+	next_profile["delvemind_experiment_state"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.advance_persistence(
+		Dictionary(next_profile.get("delvemind_experiment_state", {})),
+		run_record,
+		diagnostics,
+		frame
+	)
 	var crawl_result := CRAWL_SERVICE_SCRIPT.apply_run(next_profile, run_record, diagnostics, frame)
 	next_profile["cookbook_state"] = _advance_cookbook_state(
 		Dictionary(next_profile.get("cookbook_state", {})),

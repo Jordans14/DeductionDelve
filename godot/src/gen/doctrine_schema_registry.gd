@@ -183,6 +183,15 @@ const FALLBACK_EXPERIMENT_SCHEMA := {
 		"fairness_bounds"
 	],
 	"allowed_domains": [
+		"authority",
+		"trust",
+		"ritual",
+		"counterfeit",
+		"taxonomy",
+		"memory",
+		"wonder",
+		"public_fracture",
+		"negative_space",
 		"artifact_custody",
 		"stewardship",
 		"public_argument",
@@ -191,17 +200,126 @@ const FALLBACK_EXPERIMENT_SCHEMA := {
 		"wonder_allocation"
 	],
 	"allowed_target_layers": ["constitution", "ontology", "pressure", "archive", "framing", "continuity"],
-	"allowed_targets": ["constitution", "ontology", "archive", "pressure_ecology", "framing", "continuity"],
-	"allowed_axes": ["stability", "skepticism", "stewardship", "ritual", "ambiguity", "curiosity"],
-	"allowed_stressors": ["contradiction", "classification_drift", "public_attention", "ritual_load", "archive_echo", "stewardship_debt"],
-	"allowed_ontology_conditions": ["missing_verification_classes", "taboo_category_activation", "rediscovered_extinct_categories", "hybrid_lineage_emergence", "residue_density_spike", "ritual_fragment_return"],
-	"allowed_cultural_media": ["archive_case", "legend_cluster", "rumor_field", "institutional_memo", "public_shorthand", "ritual_annotation"],
-	"allowed_time_horizons": ["immediate", "short_cycle", "seasonal", "long_arc"],
-	"allowed_observation_contracts": ["traceable_archive_only", "public_safe_summary", "constitution_trace", "pressure_trace"],
-	"allowed_topology_types": ["linear", "branching", "recurring", "synthesis"],
-	"allowed_expression_modes": ["whisper_mode", "public_surface", "archive_bias", "constitution_bias"],
+	"allowed_targets": [
+		"operators",
+		"institutions",
+		"publics",
+		"archive_systems",
+		"taxonomy_systems",
+		"artifact_careers",
+		"ontology_itself",
+		"mixed_civilizational_layers",
+		"constitution",
+		"ontology",
+		"archive",
+		"pressure_ecology",
+		"framing",
+		"continuity"
+	],
+	"allowed_axes": [
+		"trust",
+		"authority_dependence",
+		"ambiguity_tolerance",
+		"stability",
+		"skepticism",
+		"stewardship",
+		"ritual",
+		"ambiguity",
+		"curiosity",
+		"fear",
+		"ritual_reliance",
+		"greed",
+		"legitimacy_formation",
+		"classification_hunger",
+		"wonder_receptivity",
+		"memory_fidelity"
+	],
+	"allowed_stressors": [
+		"contradiction",
+		"scarcity",
+		"lesion_surfacing",
+		"counterfeit_pressure",
+		"taxonomy_split",
+		"rediscovery",
+		"hybridization",
+		"prestige_shock",
+		"rumor_acceleration",
+		"fossil_activation",
+		"anomaly_cluster",
+		"public_schism",
+		"classification_drift",
+		"public_attention",
+		"ritual_load",
+		"archive_echo",
+		"stewardship_debt"
+	],
+	"allowed_ontology_conditions": [
+		"stable_categories",
+		"contested_categories",
+		"missing_verification_classes",
+		"taboo_category_activation",
+		"category_split",
+		"niche_overcrowding",
+		"rediscovered_extinct_categories",
+		"hybrid_lineage_emergence",
+		"fossil_density_increase",
+		"residue_density_spike",
+		"ritual_fragment_return"
+	],
+	"allowed_cultural_media": [
+		"archive_framing",
+		"rumor_ecology",
+		"civic_response",
+		"public_naming",
+		"legend_pressure",
+		"market_reaction",
+		"codex_conflict",
+		"chamber_reputation_drift",
+		"archive_case",
+		"legend_cluster",
+		"rumor_field",
+		"institutional_memo",
+		"public_shorthand",
+		"ritual_annotation"
+	],
+	"allowed_time_horizons": ["expedition", "run_cluster", "season", "era", "immediate", "short_cycle", "seasonal", "long_arc"],
+	"allowed_observation_contracts": [
+		"extraction_behavior",
+		"verification_use",
+		"legitimacy_movement",
+		"archive_relabeling",
+		"rumor_uptake",
+		"public_divergence",
+		"category_adoption",
+		"canonized_failure_formation",
+		"wonder_retention",
+		"traceable_archive_only",
+		"public_safe_summary",
+		"constitution_trace",
+		"pressure_trace"
+	],
+	"allowed_topology_types": ["linear", "branching", "nested", "recursive", "convergent", "oscillatory", "recurring", "synthesis"],
+	"allowed_expression_modes": ["whisper_mode", "fracture_mode", "crisis_mode", "renaissance_mode", "fossil_mode", "mirror_mode", "public_surface", "archive_bias", "constitution_bias"],
 	"allowed_persistence_states": ["active", "recurring", "rare", "dormant", "archival", "foundational"],
-	"allowed_compile_targets": ["constitution_weighting", "ontology_weighting", "pressure_input_bias", "archive_framing_bias", "public_activation"],
+	"allowed_compile_targets": [
+		"constitution_weighting",
+		"ontology_weighting",
+		"artifact_career_pressure",
+		"pressure_ecosystem_bias",
+		"pressure_input_bias",
+		"archive_framing_bias",
+		"public_activation",
+		"legitimacy_stress",
+		"rumor_volatility",
+		"wonder_allocation"
+	],
+	"supported_compile_output_sections": [
+		"constitution_weighting",
+		"ontology_weighting",
+		"pressure_input_bias",
+		"archive_framing_bias",
+		"public_activation"
+	],
 	"allowed_status_values": ["active", "recurring", "rare", "dormant", "archival", "foundational"],
 	"forbidden_runtime_fields": [
 		"peer_ids",
@@ -407,7 +525,6 @@ const FALLBACK_EXPERIMENT_FAMILIES: Array[Dictionary] = [
 						"Old wonder is still clinging to the cases people thought were settled."
 					]
 				},
-				"wonder_allocation": 2,
 				"compile_targets": ["archive_framing_bias", "public_activation"]
 			},
 			"lineage_parent_id": "exp_taxonomy_dormant",
@@ -499,9 +616,6 @@ const FALLBACK_EXPERIMENT_FAMILIES: Array[Dictionary] = [
 						"Older custody habits are quietly shaping what the route calls important."
 					]
 				},
-				"legitimacy_stress": 1,
-				"rumor_volatility": 0,
-				"wonder_allocation": 0,
 				"compile_targets": [
 					"constitution_weighting",
 					"ontology_weighting",
@@ -592,7 +706,6 @@ const FALLBACK_EXPERIMENT_FAMILIES: Array[Dictionary] = [
 						"Split readings keep returning before the public answer can settle."
 					]
 				},
-				"rumor_volatility": 2,
 				"compile_targets": [
 					"constitution_weighting",
 					"pressure_input_bias",
@@ -678,7 +791,6 @@ const FALLBACK_EXPERIMENT_FAMILIES: Array[Dictionary] = [
 						"Older rites are starting to look useful again instead of merely old."
 					]
 				},
-				"wonder_allocation": 1,
 				"compile_targets": [
 					"constitution_weighting",
 					"ontology_weighting",
@@ -766,7 +878,6 @@ const FALLBACK_EXPERIMENT_FAMILIES: Array[Dictionary] = [
 						"Stewardship claims are starting to travel faster than extraction talk."
 					]
 				},
-				"legitimacy_stress": 1,
 				"compile_targets": [
 					"constitution_weighting",
 					"pressure_input_bias",
@@ -987,6 +1098,7 @@ static func _validate_experiment_schema(schema: Dictionary) -> Array[String]:
 		"allowed_expression_modes",
 		"allowed_persistence_states",
 		"allowed_compile_targets",
+		"supported_compile_output_sections",
 		"forbidden_runtime_fields"
 	]:
 		if not schema.has(key):
@@ -1004,6 +1116,36 @@ static func _validate_experiment_schema(schema: Dictionary) -> Array[String]:
 		failures.append("DelveMindExperiment allowed_persistence_states must include foundational")
 	if not _string_array(schema.get("allowed_compile_targets", [])).has("pressure_input_bias"):
 		failures.append("DelveMindExperiment allowed_compile_targets must include pressure_input_bias")
+	_require_values(_string_array(schema.get("allowed_targets", [])), [
+		"operators", "institutions", "publics", "archive_systems", "taxonomy_systems", "artifact_careers", "ontology_itself", "mixed_civilizational_layers"
+	], "DelveMindExperiment allowed_targets", failures)
+	_require_values(_string_array(schema.get("allowed_axes", [])), [
+		"trust", "authority_dependence", "ambiguity_tolerance", "curiosity", "fear", "ritual_reliance", "stewardship", "greed", "legitimacy_formation", "classification_hunger", "wonder_receptivity", "memory_fidelity"
+	], "DelveMindExperiment allowed_axes", failures)
+	_require_values(_string_array(schema.get("allowed_stressors", [])), [
+		"contradiction", "scarcity", "lesion_surfacing", "counterfeit_pressure", "taxonomy_split", "rediscovery", "hybridization", "prestige_shock", "rumor_acceleration", "fossil_activation", "anomaly_cluster", "public_schism"
+	], "DelveMindExperiment allowed_stressors", failures)
+	_require_values(_string_array(schema.get("allowed_ontology_conditions", [])), [
+		"stable_categories", "contested_categories", "missing_verification_classes", "taboo_category_activation", "category_split", "niche_overcrowding", "hybrid_lineage_emergence", "fossil_density_increase", "rediscovered_extinct_categories"
+	], "DelveMindExperiment allowed_ontology_conditions", failures)
+	_require_values(_string_array(schema.get("allowed_cultural_media", [])), [
+		"archive_framing", "rumor_ecology", "civic_response", "public_naming", "legend_pressure", "market_reaction", "codex_conflict", "chamber_reputation_drift"
+	], "DelveMindExperiment allowed_cultural_media", failures)
+	_require_values(_string_array(schema.get("allowed_time_horizons", [])), [
+		"expedition", "run_cluster", "season", "era"
+	], "DelveMindExperiment allowed_time_horizons", failures)
+	_require_values(_string_array(schema.get("allowed_observation_contracts", [])), [
+		"extraction_behavior", "verification_use", "legitimacy_movement", "archive_relabeling", "rumor_uptake", "public_divergence", "category_adoption", "canonized_failure_formation", "wonder_retention"
+	], "DelveMindExperiment allowed_observation_contracts", failures)
+	_require_values(_string_array(schema.get("allowed_topology_types", [])), [
+		"linear", "branching", "nested", "recursive", "convergent", "oscillatory"
+	], "DelveMindExperiment allowed_topology_types", failures)
+	_require_values(_string_array(schema.get("allowed_expression_modes", [])), [
+		"whisper_mode", "fracture_mode", "crisis_mode", "renaissance_mode", "fossil_mode", "mirror_mode"
+	], "DelveMindExperiment allowed_expression_modes", failures)
+	_require_values(_string_array(schema.get("allowed_compile_targets", [])), [
+		"constitution_weighting", "ontology_weighting", "artifact_career_pressure", "public_activation", "archive_framing_bias", "legitimacy_stress", "rumor_volatility", "pressure_ecosystem_bias", "wonder_allocation"
+	], "DelveMindExperiment allowed_compile_targets", failures)
 	return failures
 
 static func _validate_narrative_pressure_schema(schema: Dictionary) -> Array[String]:
@@ -1096,7 +1238,37 @@ static func _validate_experiment_catalog(catalog: Dictionary) -> Array[String]:
 		for key in ["target", "axis", "stressor", "ontology_condition", "cultural_medium", "time_horizon", "observation_contract", "state", "topology_type", "expression_mode", "compile_outputs"]:
 			if not experiment.has(key):
 				failures.append("%s experiment missing %s" % [family_id, key])
+		for pair in [
+			["target", "allowed_targets"],
+			["axis", "allowed_axes"],
+			["stressor", "allowed_stressors"],
+			["ontology_condition", "allowed_ontology_conditions"],
+			["cultural_medium", "allowed_cultural_media"],
+			["time_horizon", "allowed_time_horizons"],
+			["observation_contract", "allowed_observation_contracts"],
+			["topology_type", "allowed_topology_types"],
+			["expression_mode", "allowed_expression_modes"]
+		]:
+			var field := str(pair[0])
+			var allowed_key := str(pair[1])
+			if not _string_array(experiment_schema_dict.get(allowed_key, [])).has(str(experiment.get(field, "")).strip_edges()):
+				failures.append("%s experiment %s is not allowed by %s" % [family_id, field, allowed_key])
+		var compile_outputs: Dictionary = Dictionary(experiment.get("compile_outputs", {}))
+		for key in compile_outputs.keys():
+			var section := str(key).strip_edges()
+			if section == "compile_targets":
+				continue
+			if not _string_array(experiment_schema_dict.get("supported_compile_output_sections", [])).has(section):
+				failures.append("%s compile_outputs section %s is not supported" % [family_id, section])
+		for compile_target in _string_array(compile_outputs.get("compile_targets", [])):
+			if not _string_array(experiment_schema_dict.get("allowed_compile_targets", [])).has(compile_target):
+				failures.append("%s compile target %s is not allowed" % [family_id, compile_target])
 	return failures
+
+static func _require_values(actual: Array[String], required: Array[String], label: String, failures: Array[String]) -> void:
+	for value in required:
+		if not actual.has(value):
+			failures.append("%s missing %s" % [label, value])
 
 static func _string_array(values: Variant) -> Array[String]:
 	var result: Array[String] = []

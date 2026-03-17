@@ -132,6 +132,9 @@ func _init() -> void:
 	_test_constitution_compiler_symbolic_profiles_and_bounds(failures)
 	_test_narrative_pressure_phase5_compilation_and_surfaces(failures)
 	_test_experimental_ontology_phase6_compilation_and_surfaces(failures)
+	_test_phase6_doctrine_vocabulary_and_compile_honesty(failures)
+	_test_phase6_persistence_and_lineage_cleanup(failures)
+	_test_phase6_shell_proof_fast_path(failures)
 	_test_expedition_constitution_schema_and_hash(failures)
 	_test_delve_live_handoff_and_summary(failures)
 	_test_runstate_constitution_handoff(failures)
@@ -6263,6 +6266,42 @@ func _test_doctrine_schema_registry_and_phase_groundwork(failures: Array[String]
 		failures.append("experiment schema should allow foundational persistence for doctrine lineage carryover")
 	if not Array(experiment_schema.get("allowed_compile_targets", [])).has("pressure_input_bias"):
 		failures.append("experiment schema should allow bounded pressure_input_bias for Phase 6")
+	for required_target in ["operators", "institutions", "publics", "archive_systems", "taxonomy_systems", "artifact_careers", "ontology_itself", "mixed_civilizational_layers"]:
+		if not Array(experiment_schema.get("allowed_targets", [])).has(required_target):
+			failures.append("experiment schema should expose doctrine target %s" % required_target)
+	for required_axis in ["trust", "authority_dependence", "ambiguity_tolerance", "curiosity", "fear", "ritual_reliance", "stewardship", "greed", "legitimacy_formation", "classification_hunger", "wonder_receptivity", "memory_fidelity"]:
+		if not Array(experiment_schema.get("allowed_axes", [])).has(required_axis):
+			failures.append("experiment schema should expose doctrine axis %s" % required_axis)
+	for required_stressor in ["scarcity", "lesion_surfacing", "counterfeit_pressure", "taxonomy_split", "rediscovery", "hybridization", "prestige_shock", "rumor_acceleration", "fossil_activation", "anomaly_cluster", "public_schism"]:
+		if not Array(experiment_schema.get("allowed_stressors", [])).has(required_stressor):
+			failures.append("experiment schema should expose doctrine stressor %s" % required_stressor)
+	for required_condition in ["stable_categories", "contested_categories", "category_split", "niche_overcrowding", "hybrid_lineage_emergence", "fossil_density_increase", "rediscovered_extinct_categories"]:
+		if not Array(experiment_schema.get("allowed_ontology_conditions", [])).has(required_condition):
+			failures.append("experiment schema should expose doctrine ontology condition %s" % required_condition)
+	for required_medium in ["archive_framing", "rumor_ecology", "civic_response", "public_naming", "legend_pressure", "market_reaction", "codex_conflict", "chamber_reputation_drift"]:
+		if not Array(experiment_schema.get("allowed_cultural_media", [])).has(required_medium):
+			failures.append("experiment schema should expose doctrine cultural medium %s" % required_medium)
+	for required_horizon in ["expedition", "run_cluster", "season", "era"]:
+		if not Array(experiment_schema.get("allowed_time_horizons", [])).has(required_horizon):
+			failures.append("experiment schema should expose doctrine time horizon %s" % required_horizon)
+	for required_contract in ["extraction_behavior", "verification_use", "legitimacy_movement", "archive_relabeling", "rumor_uptake", "public_divergence", "category_adoption", "canonized_failure_formation", "wonder_retention"]:
+		if not Array(experiment_schema.get("allowed_observation_contracts", [])).has(required_contract):
+			failures.append("experiment schema should expose doctrine observation contract %s" % required_contract)
+	for required_topology in ["linear", "branching", "nested", "recursive", "convergent", "oscillatory"]:
+		if not Array(experiment_schema.get("allowed_topology_types", [])).has(required_topology):
+			failures.append("experiment schema should expose doctrine topology %s" % required_topology)
+	for required_mode in ["whisper_mode", "fracture_mode", "crisis_mode", "renaissance_mode", "fossil_mode", "mirror_mode"]:
+		if not Array(experiment_schema.get("allowed_expression_modes", [])).has(required_mode):
+			failures.append("experiment schema should expose doctrine expression mode %s" % required_mode)
+	for required_target in ["constitution_weighting", "ontology_weighting", "artifact_career_pressure", "pressure_ecosystem_bias", "pressure_input_bias", "archive_framing_bias", "public_activation", "legitimacy_stress", "rumor_volatility", "wonder_allocation"]:
+		if not Array(experiment_schema.get("allowed_compile_targets", [])).has(required_target):
+			failures.append("experiment schema should expose doctrine compile target %s" % required_target)
+	for required_section in ["constitution_weighting", "ontology_weighting", "pressure_input_bias", "archive_framing_bias", "public_activation"]:
+		if not Array(experiment_schema.get("supported_compile_output_sections", [])).has(required_section):
+			failures.append("experiment schema should expose supported compile output section %s" % required_section)
+	for banned_section in ["legitimacy_stress", "rumor_volatility", "wonder_allocation"]:
+		if Array(experiment_schema.get("supported_compile_output_sections", [])).has(banned_section):
+			failures.append("experiment schema should keep %s out of supported compile output sections until a later doctrine phase wires it lawfully" % banned_section)
 	var doctrine_families := DOCTRINE_SCHEMA_REGISTRY_SCRIPT.doctrine_families()
 	if doctrine_families.size() < 6:
 		failures.append("doctrine family catalog should expose the live doctrine families for compiler inheritance")
@@ -6413,6 +6452,19 @@ func _test_ontology_engine_and_compiler_bridge(failures: Array[String]) -> void:
 		failures.append("ontology routing should express taboo thresholds when taboo-class absences are present")
 	if not Array(ontology_routing.get("item_bias_tags", [])).has("verification_dispute"):
 		failures.append("ontology routing should express verification dispute when stable verification is absent")
+	var experiment_node_states := {}
+	for node_raw in Array(ontology_snapshot.get("nodes", [])):
+		var node: Dictionary = Dictionary(node_raw)
+		if str(node.get("domain", "")).strip_edges() != "experiment_families":
+			continue
+		var node_id := str(node.get("id", "")).strip_edges()
+		if not node_id.begins_with("experiment:"):
+			continue
+		experiment_node_states[node_id.replace("experiment:", "")] = str(node.get("status", "")).strip_edges()
+	if str(experiment_node_states.get("custody_foundation", "")) != "foundational":
+		failures.append("ontology experiment nodes should preserve foundational family state from the catalog")
+	if str(experiment_node_states.get("archive_wonder_residue", "")) != "archival":
+		failures.append("ontology experiment nodes should preserve archival family state from the catalog")
 	var compile_metadata: Dictionary = Dictionary(compile_outputs.get("compile_metadata", {}))
 	if str(compile_metadata.get("lineage_id", "")).strip_edges() != "ritual_custody_lineage":
 		failures.append("compile metadata should preserve doctrine lineage identity for traceability")
@@ -6980,6 +7032,11 @@ func _test_experimental_ontology_phase6_compilation_and_surfaces(failures: Array
 		failures.append("Phase 6 compile state should emit an explicit grammar manifest")
 	if not Dictionary(compiled_a.get("compile_outputs", {})).has("pressure_input_bias"):
 		failures.append("Phase 6 compile state should emit bounded pressure input bias")
+	if Dictionary(Dictionary(compiled_a.get("lineage_index", {})).get("rediscovery_hooks", {})).is_empty():
+		failures.append("Phase 6 compile state should preserve rediscovery hooks in its lineage index")
+	for retired_output in ["legitimacy_stress", "rumor_volatility", "wonder_allocation"]:
+		if Dictionary(compiled_a.get("compile_outputs", {})).has(retired_output):
+			failures.append("Phase 6 compile state should not expose retired compile output scalar %s" % retired_output)
 	for banned in ["runtime_state", "event_log", "peer_ids", "artifact_truth_override"]:
 		if JSON.stringify(compiled_a).find("\"%s\"" % banned) != -1:
 			failures.append("Phase 6 compile state must not expose runtime-only field %s" % banned)
@@ -6993,6 +7050,9 @@ func _test_experimental_ontology_phase6_compilation_and_surfaces(failures: Array
 		failures.append("constitution experimental_ontology_state should remain deterministic for identical authored inputs")
 	if not DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.validate_compile_state(experimental_state_a).is_empty():
 		failures.append("constitution experimental_ontology_state should validate cleanly once persisted")
+	for retired_output in ["legitimacy_stress", "rumor_volatility", "wonder_allocation"]:
+		if Dictionary(experimental_state_a.get("compile_outputs", {})).has(retired_output):
+			failures.append("persisted experimental_ontology_state should not retain retired compile output scalar %s" % retired_output)
 	var constitution_summary: Dictionary = Dictionary(constitution_a.get("constitution_summary", {}))
 	if _string_array_for_test(Array(constitution_summary.get("experiment_surface_lines", []))).is_empty():
 		failures.append("constitution summary should surface public-safe experiment lines once Phase 6 is live")
@@ -7033,6 +7093,143 @@ func _test_experimental_ontology_phase6_compilation_and_surfaces(failures: Array
 		expected_line = diagnostic_experiment_lines[0]
 	if not expected_line.is_empty() and combined_text.find(expected_line) == -1:
 		failures.append("framing should surface public-safe experiment texture through the existing governance/world-pull path")
+
+func _test_phase6_doctrine_vocabulary_and_compile_honesty(failures: Array[String]) -> void:
+	var experiment_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_schema()
+	var supported_sections := _string_array_for_test(Array(experiment_schema.get("supported_compile_output_sections", [])))
+	for required_section in ["constitution_weighting", "ontology_weighting", "pressure_input_bias", "archive_framing_bias", "public_activation"]:
+		if not supported_sections.has(required_section):
+			failures.append("Phase 6 cleanup should keep %s as an explicitly supported compile output section" % required_section)
+	for retired_output in ["legitimacy_stress", "rumor_volatility", "wonder_allocation"]:
+		if supported_sections.has(retired_output):
+			failures.append("Phase 6 cleanup should retire %s from supported compile output sections" % retired_output)
+	for family_raw in DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_families():
+		var family: Dictionary = Dictionary(family_raw)
+		var compile_outputs: Dictionary = Dictionary(Dictionary(family.get("experiment", {})).get("compile_outputs", {}))
+		for retired_output in ["legitimacy_stress", "rumor_volatility", "wonder_allocation"]:
+			if compile_outputs.has(retired_output):
+				failures.append("Phase 6 cleanup should retire %s from family %s compile outputs" % [retired_output, str(family.get("id", ""))])
+		for section_key in compile_outputs.keys():
+			var section := str(section_key).strip_edges()
+			if section == "compile_targets":
+				continue
+			if not supported_sections.has(section):
+				failures.append("Phase 6 family %s should only emit supported compile output sections, got %s" % [str(family.get("id", "")), section])
+
+func _test_phase6_persistence_and_lineage_cleanup(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var lineage_index: Dictionary = Dictionary(base_state.get("lineage_index", {}))
+	if Dictionary(lineage_index.get("rediscovery_hooks", {})).is_empty():
+		failures.append("Phase 6 lineage index should preserve rediscovery hooks for dormant and archival experiments")
+	if not _string_array_for_test(Array(Dictionary(lineage_index.get("state_bands", {})).get("archival", []))).has("exp_archive_wonder_residue"):
+		failures.append("Phase 6 lineage state bands should preserve archival experiment ids")
+	if not _string_array_for_test(Array(Dictionary(lineage_index.get("state_bands", {})).get("dormant", []))).has("exp_taxonomy_dormant"):
+		failures.append("Phase 6 lineage state bands should preserve dormant experiment ids")
+
+	var broken_state: Dictionary = base_state.duplicate(true)
+	var broken_hypotheses: Dictionary = Dictionary(broken_state.get("hypotheses", {})).duplicate(true)
+	var broken_experiments: Dictionary = Dictionary(broken_state.get("experiments", {})).duplicate(true)
+	var broken_hypothesis: Dictionary = Dictionary(broken_hypotheses.get("hyp_stewardship_campaign", {})).duplicate(true)
+	broken_hypothesis["open_branches"] = ["exp_missing_branch"]
+	broken_hypotheses["hyp_stewardship_campaign"] = broken_hypothesis
+	var broken_experiment: Dictionary = Dictionary(broken_experiments.get("exp_stewardship_campaign", {})).duplicate(true)
+	broken_experiment["lineage_parent_id"] = "exp_missing_parent"
+	broken_experiment["branch_ids"] = ["exp_missing_branch"]
+	broken_experiment["synthesis_sources"] = ["exp_missing_source"]
+	broken_experiment["hypothesis_id"] = "hyp_missing"
+	broken_experiments["exp_stewardship_campaign"] = broken_experiment
+	broken_state["hypotheses"] = broken_hypotheses
+	broken_state["experiments"] = broken_experiments
+	var validation_text := "; ".join(DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.validate_state(broken_state))
+	for expected_fragment in [
+		"open_branches references missing experiment exp_missing_branch",
+		"references missing hypothesis hyp_missing",
+		"lineage_parent_id exp_missing_parent is missing",
+		"branch_id exp_missing_branch is missing",
+		"synthesis_source exp_missing_source is missing"
+	]:
+		if validation_text.find(expected_fragment) == -1:
+			failures.append("Phase 6 validation should report %s" % expected_fragment)
+
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var before_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(profile.get("delvemind_experiment_state", {})))
+	var before_experiment: Dictionary = Dictionary(Dictionary(before_state.get("experiments", {})).get("exp_custody_foundation", {})).duplicate(true)
+	var before_hypothesis: Dictionary = Dictionary(Dictionary(before_state.get("hypotheses", {})).get("hyp_custody_foundation", {})).duplicate(true)
+	var run_record := {
+		"seed": 515151,
+		"local_role": "Archivist",
+		"role_result_success": true,
+		"timeline_public_events": [],
+		"action_summary": [],
+		"key_clues": [],
+		"communication_summary": {"total": 0, "danger": 0, "regroup": 0, "artifact": 0},
+		"narrative_motion_facts": {},
+		"gameplay_signal_snapshot": {},
+		"branch_summary": {},
+		"expedition_constitution_summary": {
+			"experiment_families": ["Custody Foundation"],
+			"experiment_surface_lines": ["Older custody habits are quietly shaping what the route calls important."]
+		},
+		"outcome_summary": {
+			"summary_text": "Recovered cleanly",
+			"artifact_result_text": "Authentic artifact extracted",
+			"artifact_result": "authentic",
+			"expedition_success": true,
+			"sabotage_success": false
+		}
+	}
+	var first_apply := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, run_record, catalog)
+	var first_profile: Dictionary = Dictionary(first_apply.get("profile", {}))
+	var first_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(first_profile.get("delvemind_experiment_state", {})))
+	var first_experiment: Dictionary = Dictionary(Dictionary(first_state.get("experiments", {})).get("exp_custody_foundation", {})).duplicate(true)
+	if int(first_experiment.get("manifest_count", 0)) != int(before_experiment.get("manifest_count", 0)) + 1:
+		failures.append("Phase 6 persistence continuity should increment experiment manifest_count when a family manifests")
+	if int(first_experiment.get("last_manifested_seed", 0)) != 515151:
+		failures.append("Phase 6 persistence continuity should preserve last_manifested_seed")
+	if str(first_experiment.get("last_manifested_role", "")).strip_edges() != "Archivist":
+		failures.append("Phase 6 persistence continuity should preserve last_manifested_role")
+	if _string_array_for_test(Array(first_state.get("history_lines", []))).is_empty():
+		failures.append("Phase 6 persistence continuity should record a public-safe experiment history line")
+	if int(Dictionary(Dictionary(first_state.get("hypotheses", {})).get("hyp_custody_foundation", {})).get("confidence", -1)) != int(before_hypothesis.get("confidence", -2)):
+		failures.append("Phase 6 persistence continuity should not mutate hypothesis confidence")
+	if JSON.stringify(Dictionary(first_experiment.get("fairness_bounds", {}))) != JSON.stringify(Dictionary(before_experiment.get("fairness_bounds", {}))):
+		failures.append("Phase 6 persistence continuity should not mutate experiment fairness bounds")
+	var second_apply := PROFILE_SERVICE_SCRIPT.apply_run_record(first_profile, run_record, catalog)
+	var second_profile: Dictionary = Dictionary(second_apply.get("profile", {}))
+	var second_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(second_profile.get("delvemind_experiment_state", {})))
+	var second_experiment: Dictionary = Dictionary(Dictionary(second_state.get("experiments", {})).get("exp_custody_foundation", {})).duplicate(true)
+	if int(second_experiment.get("manifest_count", 0)) != int(first_experiment.get("manifest_count", 0)) + 1:
+		failures.append("Phase 6 persistence continuity should evolve across runs instead of remaining static storage")
+
+func _test_phase6_shell_proof_fast_path(failures: Array[String]) -> void:
+	var lobby_file := FileAccess.open("res://src/ui/lobby_controller.gd", FileAccess.READ)
+	if lobby_file == null:
+		failures.append("Phase 6 proof shell fast path should remain readable in lobby_controller")
+	else:
+		var lobby_source := lobby_file.get_as_text()
+		for required_snippet in [
+			"var headless_cli_shell_latched: bool = false",
+			"headless_cli_shell_latched = headless_cli_shell_mode_for_test(DisplayServer.get_name(), cli_mode, cli_auto_ready, cli_auto_start)",
+			"static func headless_cli_shell_mode_for_test(display_name: String, mode: String, auto_ready: bool, auto_start: bool) -> bool:",
+			"return normalized_display.find(\"headless\") != -1 and (not mode.is_empty() or auto_ready or auto_start)"
+		]:
+			if lobby_source.find(required_snippet) == -1:
+				failures.append("Phase 6 proof shell fast path should preserve lobby_controller snippet %s" % required_snippet)
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	var emitted_offers: Array[Dictionary] = []
+	manager.reconnect_offer_changed.connect(func(offer: Dictionary) -> void:
+		emitted_offers.append(offer.duplicate(true))
+	)
+	var reconnect_offer := manager.build_reconnect_offer_for_test("client", "127.0.0.1", 2456, "proof audit", true)
+	manager._set_reconnect_offer(reconnect_offer)
+	manager._set_reconnect_offer(reconnect_offer)
+	manager.clear_reconnect_offer()
+	manager.clear_reconnect_offer()
+	if emitted_offers.size() != 2:
+		failures.append("Phase 6 proof reconnect fix should only emit when the reconnect offer actually changes")
+	elif bool(Dictionary(emitted_offers[0]).get("available", false)) != true or not Dictionary(emitted_offers[1]).is_empty():
+		failures.append("Phase 6 proof reconnect fix should emit one concrete offer and one clear event")
 
 func _test_expedition_constitution_schema_and_hash(failures: Array[String]) -> void:
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())

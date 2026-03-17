@@ -60,7 +60,6 @@
               "Old wonder is still clinging to the cases people thought were settled."
             ]
           },
-          "wonder_allocation": 2,
           "compile_targets": ["archive_framing_bias", "public_activation"]
         },
         "lineage_parent_id": "exp_taxonomy_dormant",
@@ -152,9 +151,6 @@
               "Older custody habits are quietly shaping what the route calls important."
             ]
           },
-          "legitimacy_stress": 1,
-          "rumor_volatility": 0,
-          "wonder_allocation": 0,
           "compile_targets": [
             "constitution_weighting",
             "ontology_weighting",
@@ -245,7 +241,6 @@
               "Split readings keep returning before the public answer can settle."
             ]
           },
-          "rumor_volatility": 2,
           "compile_targets": [
             "constitution_weighting",
             "pressure_input_bias",
@@ -331,7 +326,6 @@
               "Older rites are starting to look useful again instead of merely old."
             ]
           },
-          "wonder_allocation": 1,
           "compile_targets": [
             "constitution_weighting",
             "ontology_weighting",
@@ -419,7 +413,6 @@
               "Stewardship claims are starting to travel faster than extraction talk."
             ]
           },
-          "legitimacy_stress": 1,
           "compile_targets": [
             "constitution_weighting",
             "pressure_input_bias",

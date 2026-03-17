@@ -474,6 +474,7 @@ static func _default_experimental_ontology_state() -> Dictionary:
 		"live_hypotheses": [],
 		"live_experiments": [],
 		"dominant_families": [],
+		"lineage_index": {},
 		"grammar_manifest": [],
 		"compile_outputs": {},
 		"public_surface": {
@@ -490,24 +491,62 @@ static func _normalize_experimental_ontology_state(raw: Dictionary) -> Dictionar
 	var normalized := _default_experimental_ontology_state()
 	for key in raw.keys():
 		normalized[key] = raw[key]
-	normalized["hypothesis_registry"] = Array(normalized.get("hypothesis_registry", [])).duplicate(true)
-	normalized["experiment_registry"] = Array(normalized.get("experiment_registry", [])).duplicate(true)
-	normalized["live_hypothesis_ids"] = Array(normalized.get("live_hypothesis_ids", [])).duplicate(true)
-	normalized["live_experiment_ids"] = Array(normalized.get("live_experiment_ids", [])).duplicate(true)
-	normalized["live_hypotheses"] = Array(normalized.get("live_hypotheses", [])).duplicate(true)
-	normalized["live_experiments"] = Array(normalized.get("live_experiments", [])).duplicate(true)
-	normalized["dominant_families"] = Array(normalized.get("dominant_families", [])).duplicate(true)
+	var rebuilt_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({
+		"hypotheses": _registry_map(Array(normalized.get("hypothesis_registry", [])), "hypothesis_id"),
+		"experiments": _registry_map(Array(normalized.get("experiment_registry", [])), "experiment_id")
+	})
+	normalized["hypothesis_registry"] = _sorted_registry_array(Dictionary(rebuilt_state.get("hypotheses", {})), "hypothesis_id")
+	normalized["experiment_registry"] = _sorted_registry_array(Dictionary(rebuilt_state.get("experiments", {})), "experiment_id")
+	normalized["live_hypothesis_ids"] = _unique_string_array(Array(normalized.get("live_hypothesis_ids", [])))
+	normalized["live_experiment_ids"] = _unique_string_array(Array(normalized.get("live_experiment_ids", [])))
+	normalized["live_hypotheses"] = _sorted_registry_array(_registry_map(Array(normalized.get("live_hypotheses", [])), "hypothesis_id"), "hypothesis_id")
+	normalized["live_experiments"] = _sorted_registry_array(_registry_map(Array(normalized.get("live_experiments", [])), "experiment_id"), "experiment_id")
+	normalized["dominant_families"] = _unique_string_array(Array(normalized.get("dominant_families", [])))
+	normalized["lineage_index"] = Dictionary(rebuilt_state.get("lineage_index", {})).duplicate(true)
 	normalized["grammar_manifest"] = Array(normalized.get("grammar_manifest", [])).duplicate(true)
 	normalized["compile_outputs"] = Dictionary(normalized.get("compile_outputs", {})).duplicate(true)
 	var public_surface: Dictionary = Dictionary(normalized.get("public_surface", {})).duplicate(true)
-	public_surface["lines"] = Array(public_surface.get("lines", [])).duplicate(true)
-	public_surface["family_labels"] = Array(public_surface.get("family_labels", [])).duplicate(true)
-	public_surface["expression_modes"] = Array(public_surface.get("expression_modes", [])).duplicate(true)
-	public_surface["horizons"] = Array(public_surface.get("horizons", [])).duplicate(true)
+	public_surface["lines"] = _unique_string_array(Array(public_surface.get("lines", [])))
+	public_surface["family_labels"] = _unique_string_array(Array(public_surface.get("family_labels", [])))
+	public_surface["expression_modes"] = _unique_string_array(Array(public_surface.get("expression_modes", [])))
+	public_surface["horizons"] = _unique_string_array(Array(public_surface.get("horizons", [])))
 	normalized["public_surface"] = public_surface
 	normalized["compiler_trace"] = Dictionary(normalized.get("compiler_trace", {})).duplicate(true)
 	normalized["validation_failures"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.validate_compile_state(normalized)
 	return normalized
+
+static func _registry_map(values: Array, key_field: String) -> Dictionary:
+	var mapped := {}
+	for value in values:
+		if not (value is Dictionary):
+			continue
+		var entry: Dictionary = Dictionary(value).duplicate(true)
+		var key := str(entry.get(key_field, "")).strip_edges()
+		if key.is_empty():
+			continue
+		mapped[key] = entry
+	return mapped
+
+static func _sorted_registry_array(values: Dictionary, key_field: String) -> Array:
+	var entries: Array = []
+	var keys: Array[String] = []
+	for key in values.keys():
+		keys.append(str(key))
+	keys.sort()
+	for key in keys:
+		var entry: Dictionary = Dictionary(values.get(key, {})).duplicate(true)
+		if str(entry.get(key_field, "")).strip_edges().is_empty():
+			entry[key_field] = key
+		entries.append(entry)
+	return entries
+
+static func _unique_string_array(values: Array) -> Array:
+	var result: Array = []
+	for value in values:
+		var text := str(value).strip_edges()
+		if not text.is_empty() and not result.has(text):
+			result.append(text)
+	return result
 
 static func _apply_narrative_pressure_summary(summary: Dictionary, pressure_state: Dictionary) -> Dictionary:
 	var next := summary.duplicate(true)

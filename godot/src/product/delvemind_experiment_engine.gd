@@ -61,10 +61,31 @@ static func normalize(state: Dictionary) -> Dictionary:
 
 static func validate_state(state: Dictionary) -> Array[String]:
 	var failures: Array[String] = []
-	for hypothesis_raw in Dictionary(state.get("hypotheses", {})).values():
+	var hypotheses := Dictionary(state.get("hypotheses", {}))
+	var experiments := Dictionary(state.get("experiments", {}))
+	for hypothesis_raw in hypotheses.values():
 		failures.append_array(validate_hypothesis(Dictionary(hypothesis_raw)))
-	for experiment_raw in Dictionary(state.get("experiments", {})).values():
+	for experiment_raw in experiments.values():
 		failures.append_array(validate_experiment(Dictionary(experiment_raw)))
+	for hypothesis_raw in hypotheses.values():
+		var hypothesis: Dictionary = Dictionary(hypothesis_raw)
+		for branch_id in _string_array(hypothesis.get("open_branches", [])):
+			if not _experiment_exists(experiments, branch_id):
+				failures.append("hypothesis open_branches references missing experiment %s" % branch_id)
+	for experiment_raw in experiments.values():
+		var experiment: Dictionary = Dictionary(experiment_raw)
+		var hypothesis_id := str(experiment.get("hypothesis_id", "")).strip_edges()
+		if not _hypothesis_exists(hypotheses, hypothesis_id):
+			failures.append("experiment %s references missing hypothesis %s" % [str(experiment.get("experiment_id", "")), hypothesis_id])
+		var parent_id := str(experiment.get("lineage_parent_id", "")).strip_edges()
+		if not parent_id.is_empty() and not _experiment_exists(experiments, parent_id):
+			failures.append("experiment %s lineage_parent_id %s is missing" % [str(experiment.get("experiment_id", "")), parent_id])
+		for branch_id in _string_array(experiment.get("branch_ids", [])):
+			if not _experiment_exists(experiments, branch_id):
+				failures.append("experiment %s branch_id %s is missing" % [str(experiment.get("experiment_id", "")), branch_id])
+		for source_id in _string_array(experiment.get("synthesis_sources", [])):
+			if not _experiment_exists(experiments, source_id):
+				failures.append("experiment %s synthesis_source %s is missing" % [str(experiment.get("experiment_id", "")), source_id])
 	return _sorted_strings(failures)
 
 static func validate_hypothesis(hypothesis: Dictionary) -> Array[String]:
@@ -117,6 +138,12 @@ static func validate_experiment(experiment: Dictionary) -> Array[String]:
 	for compile_target in _string_array(Dictionary(experiment.get("compile_outputs", {})).get("compile_targets", [])):
 		if not _string_array(schema.get("allowed_compile_targets", [])).has(compile_target):
 			failures.append("experiment compile target %s is not allowed" % compile_target)
+	for compile_key in Dictionary(experiment.get("compile_outputs", {})).keys():
+		var section := str(compile_key).strip_edges()
+		if section == "compile_targets":
+			continue
+		if not _string_array(schema.get("supported_compile_output_sections", [])).has(section):
+			failures.append("experiment compile output section %s is not supported" % section)
 	failures.append_array(_validate_grammar_slots(experiment, schema))
 	var fairness_bounds: Dictionary = Dictionary(experiment.get("fairness_bounds", {}))
 	for fairness_key in [
@@ -168,6 +195,7 @@ static func compile_state(
 	var public_lines: Array[String] = []
 	var grammar_manifest: Array[Dictionary] = []
 	var compile_outputs := _default_compile_outputs()
+	var lineage_index: Dictionary = Dictionary(current.get("lineage_index", {})).duplicate(true)
 	for experiment in selected_experiments:
 		var experiment_id := str(experiment.get("experiment_id", "")).strip_edges()
 		if not experiment_id.is_empty():
@@ -202,6 +230,7 @@ static func compile_state(
 		"live_hypotheses": _sorted_dict_array(selected_hypotheses, "hypothesis_id"),
 		"live_experiments": _sorted_dict_array(selected_experiments, "experiment_id"),
 		"dominant_families": _sorted_strings(dominant_families),
+		"lineage_index": lineage_index.duplicate(true),
 		"grammar_manifest": _sorted_dict_array(grammar_manifest, "experiment_id"),
 		"compile_outputs": compile_outputs,
 		"public_surface": {
@@ -234,6 +263,7 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 		"hypotheses": _map_from_registry(_dict_array(compiled.get("hypothesis_registry", [])), "hypothesis_id"),
 		"experiments": _map_from_registry(_dict_array(compiled.get("experiment_registry", [])), "experiment_id")
 	})
+	var schema := SCHEMA_REGISTRY_SCRIPT.experiment_schema()
 	for field in [
 		"hypothesis_registry",
 		"experiment_registry",
@@ -242,6 +272,7 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 		"live_hypotheses",
 		"live_experiments",
 		"dominant_families",
+		"lineage_index",
 		"grammar_manifest",
 		"compile_outputs",
 		"public_surface",
@@ -259,8 +290,18 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 			failures.append("live experiment id %s is missing from experiment_registry" % experiment_id)
 	var compile_outputs: Dictionary = Dictionary(compiled.get("compile_outputs", {}))
 	for target in _string_array(compile_outputs.get("compile_targets", [])):
-		if not _string_array(SCHEMA_REGISTRY_SCRIPT.experiment_schema().get("allowed_compile_targets", [])).has(target):
+		if not _string_array(schema.get("allowed_compile_targets", [])).has(target):
 			failures.append("experimental ontology compile target %s is not allowed" % target)
+	for section_key in compile_outputs.keys():
+		var section := str(section_key).strip_edges()
+		if section == "compile_targets":
+			continue
+		if not _string_array(schema.get("supported_compile_output_sections", [])).has(section):
+			failures.append("experimental ontology compile output section %s is not supported" % section)
+	var lineage_index: Dictionary = Dictionary(compiled.get("lineage_index", {}))
+	for field in ["parent_to_branches", "synthesis_to_children", "state_bands", "recurrence_weights", "rediscovery_hooks"]:
+		if not lineage_index.has(field):
+			failures.append("experimental ontology lineage_index missing %s" % field)
 	if _contains_runtime_key(compile_outputs) or _contains_runtime_key(Dictionary(compiled.get("compiler_trace", {}))):
 		failures.append("experimental ontology compile outputs must not expose runtime-only fields")
 	return _sorted_strings(failures)
@@ -268,11 +309,16 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 static func build_world_lines(state: Dictionary) -> Array[String]:
 	var current := normalize(state)
 	var lines: Array[String] = []
+	var history_lines := _string_array(current.get("history_lines", []))
+	if not history_lines.is_empty():
+		lines.append(history_lines[0])
 	for experiment_raw in _sorted_dict_array_from_map(Dictionary(current.get("experiments", {})), "experiment_id"):
 		var experiment: Dictionary = Dictionary(experiment_raw)
 		var public_lines := _string_array(experiment.get("public_lines", []))
 		if not public_lines.is_empty():
-			lines.append(public_lines[0])
+			var text := public_lines[0]
+			if not lines.has(text):
+				lines.append(text)
 		if lines.size() >= 2:
 			break
 	return lines
@@ -334,7 +380,10 @@ static func _build_family_experiment(family: Dictionary, hypothesis_id: String) 
 		"branch_ids": _string_array(experiment.get("branch_ids", [])),
 		"synthesis_sources": _string_array(experiment.get("synthesis_sources", [])),
 		"recurrence_weight": clampi(int(experiment.get("recurrence_weight", family.get("recurrence_weight", 1))), 0, 4),
-		"public_lines": _string_array(experiment.get("public_lines", family.get("public_lines", [])))
+		"public_lines": _string_array(experiment.get("public_lines", family.get("public_lines", []))),
+		"manifest_count": clampi(int(experiment.get("manifest_count", 0)), 0, 9999),
+		"last_manifested_seed": int(experiment.get("last_manifested_seed", 0)),
+		"last_manifested_role": str(experiment.get("last_manifested_role", "")).strip_edges()
 	}
 
 static func _normalize_hypothesis(raw: Dictionary) -> Dictionary:
@@ -382,7 +431,10 @@ static func _normalize_experiment(raw: Dictionary) -> Dictionary:
 		"branch_ids": _string_array(raw.get("branch_ids", [])),
 		"synthesis_sources": _string_array(raw.get("synthesis_sources", [])),
 		"recurrence_weight": clampi(int(raw.get("recurrence_weight", 1)), 0, 4),
-		"public_lines": _string_array(raw.get("public_lines", []))
+		"public_lines": _string_array(raw.get("public_lines", [])),
+		"manifest_count": clampi(int(raw.get("manifest_count", 0)), 0, 9999),
+		"last_manifested_seed": int(raw.get("last_manifested_seed", 0)),
+		"last_manifested_role": str(raw.get("last_manifested_role", "")).strip_edges()
 	}
 	if current["state"] == "foundational":
 		current["recurrence_weight"] = maxi(current["recurrence_weight"], 2)
@@ -400,8 +452,12 @@ static func _normalize_fairness_bounds(raw: Dictionary) -> Dictionary:
 
 static func _normalize_compile_outputs(raw: Dictionary) -> Dictionary:
 	var current := _default_compile_outputs()
+	var schema := SCHEMA_REGISTRY_SCRIPT.experiment_schema()
+	var supported_sections := _string_array(schema.get("supported_compile_output_sections", []))
 	for key in raw.keys():
-		current[key] = raw[key]
+		var section := str(key).strip_edges()
+		if section == "compile_targets" or supported_sections.has(section):
+			current[section] = raw[key]
 	var constitution_weighting: Dictionary = Dictionary(current.get("constitution_weighting", {})).duplicate(true)
 	constitution_weighting["pressure_verbs"] = _string_array(constitution_weighting.get("pressure_verbs", []))
 	constitution_weighting["symbolic_motifs"] = _string_array(constitution_weighting.get("symbolic_motifs", []))
@@ -429,9 +485,6 @@ static func _normalize_compile_outputs(raw: Dictionary) -> Dictionary:
 	var public_activation: Dictionary = Dictionary(current.get("public_activation", {})).duplicate(true)
 	public_activation["surface_lines"] = _string_array(public_activation.get("surface_lines", []))
 	current["public_activation"] = public_activation
-	current["legitimacy_stress"] = clampi(int(current.get("legitimacy_stress", 0)), 0, 2)
-	current["rumor_volatility"] = clampi(int(current.get("rumor_volatility", 0)), 0, 2)
-	current["wonder_allocation"] = clampi(int(current.get("wonder_allocation", 0)), 0, 2)
 	current["compile_targets"] = _string_array(current.get("compile_targets", []))
 	return current
 
@@ -443,12 +496,15 @@ static func _validate_grammar_slots(experiment: Dictionary, _schema: Dictionary)
 	var stressor := str(experiment.get("stressor", "")).strip_edges()
 	var topology := str(experiment.get("topology_type", "")).strip_edges()
 	var horizon := str(experiment.get("time_horizon", "")).strip_edges()
+	var observation_contract := str(experiment.get("observation_contract", "")).strip_edges()
 	if not _allowed_media_for_target(target).has(medium):
 		failures.append("experiment cultural_medium %s is incompatible with target %s" % [medium, target])
 	if not _allowed_stressors_for_axis(axis).has(stressor):
 		failures.append("experiment stressor %s is incompatible with axis %s" % [stressor, axis])
 	if not _allowed_horizons_for_topology(topology).has(horizon):
 		failures.append("experiment time_horizon %s is incompatible with topology_type %s" % [horizon, topology])
+	if not _allowed_observation_contracts_for_target(target).has(observation_contract):
+		failures.append("experiment observation_contract %s is incompatible with target %s" % [observation_contract, target])
 	return failures
 
 static func _is_live_experiment(experiment: Dictionary, score: int, world_model: Dictionary, ontology_snapshot: Dictionary) -> bool:
@@ -505,6 +561,12 @@ static func _axis_signal_score(axis: String, world_model: Dictionary) -> int:
 	var cultural: Dictionary = Dictionary(world_model.get("cultural_model", {}))
 	var social: Dictionary = Dictionary(world_model.get("social_model", {}))
 	match axis:
+		"trust":
+			return _band(int(cultural.get("legitimacy_pressure", 0)) + int(social.get("alliance_stability", 0)) + int(cultural.get("custody_pressure", 0)))
+		"authority_dependence":
+			return _band(int(cultural.get("orthodoxy_strength", 0)) + int(cultural.get("legitimacy_pressure", 0)) + int(cultural.get("institutional_campaigns", 0)))
+		"ambiguity_tolerance":
+			return _band(int(cultural.get("semantic_drift", 0)) + int(cultural.get("false_canon_pressure", 0)) + int(cultural.get("counterfactual_heat", 0)))
 		"stability":
 			return _band(int(cultural.get("legitimacy_pressure", 0)) + int(social.get("alliance_stability", 0)))
 		"disruption":
@@ -517,6 +579,8 @@ static func _axis_signal_score(axis: String, world_model: Dictionary) -> int:
 			return _band(int(cultural.get("paranoia_heat", 0)) + int(cultural.get("taboo_heat", 0)))
 		"curiosity":
 			return _band(int(cultural.get("counterfactual_heat", 0)) + int(cultural.get("hope_heat", 0)))
+		"ritual_reliance":
+			return _band(int(cultural.get("sacred_pressure", 0)) + int(cultural.get("ritual_spread", 0)) + int(cultural.get("burial_pressure", 0)))
 		"certainty":
 			return _band(int(cultural.get("orthodoxy_strength", 0)) + int(cultural.get("witness_network_pressure", 0)))
 		"ambiguity":
@@ -525,6 +589,16 @@ static func _axis_signal_score(axis: String, world_model: Dictionary) -> int:
 			return _band(int(cultural.get("sacred_pressure", 0)) + int(cultural.get("ritual_spread", 0)))
 		"innovation":
 			return _band(int(cultural.get("counterfactual_heat", 0)) + int(cultural.get("revision_pressure", 0)))
+		"greed":
+			return _band(int(cultural.get("practical_pressure", 0)) + int(Dictionary(world_model.get("route_model", {})).get("route_control", 0)) + int(cultural.get("spread_heat", 0)))
+		"legitimacy_formation":
+			return _band(int(cultural.get("legitimacy_pressure", 0)) + int(cultural.get("institutional_campaigns", 0)) + int(cultural.get("spread_heat", 0)))
+		"classification_hunger":
+			return _band(int(cultural.get("semantic_drift", 0)) + int(cultural.get("revision_pressure", 0)) + int(world_model.get("archive_legends", 0)))
+		"wonder_receptivity":
+			return _band(int(cultural.get("hope_heat", 0)) + int(cultural.get("counterfactual_heat", 0)) + int(world_model.get("archive_legends", 0)))
+		"memory_fidelity":
+			return _band(int(cultural.get("custody_pressure", 0)) + int(cultural.get("burial_pressure", 0)) + int(world_model.get("archive_legends", 0)))
 		"extraction":
 			return _band(int(cultural.get("practical_pressure", 0)) + int(Dictionary(world_model.get("route_model", {})).get("route_control", 0)))
 		"stewardship":
@@ -538,6 +612,28 @@ static func _stressor_signal_score(stressor: String, world_model: Dictionary) ->
 	match stressor:
 		"contradiction":
 			return _band(int(cultural.get("contradiction_heat", 0)) + int(cultural.get("false_canon_pressure", 0)))
+		"scarcity":
+			return _band(int(cultural.get("practical_pressure", 0)) + int(route.get("relay_stress", 0)))
+		"lesion_surfacing":
+			return _band(int(cultural.get("contradiction_heat", 0)) + int(cultural.get("taboo_heat", 0)))
+		"counterfeit_pressure":
+			return _band(int(cultural.get("forgery_pressure", 0)) + int(cultural.get("false_canon_pressure", 0)) + int(cultural.get("contradiction_heat", 0)))
+		"taxonomy_split":
+			return _band(int(cultural.get("semantic_drift", 0)) + int(cultural.get("revision_pressure", 0)))
+		"rediscovery":
+			return _band(int(cultural.get("counterfactual_heat", 0)) + int(world_model.get("archive_legends", 0)))
+		"hybridization":
+			return _band(int(cultural.get("counterfactual_heat", 0)) + int(cultural.get("hope_heat", 0)))
+		"prestige_shock":
+			return _band(int(cultural.get("legitimacy_pressure", 0)) + int(cultural.get("spread_heat", 0)))
+		"rumor_acceleration":
+			return _band(int(cultural.get("spread_heat", 0)) + int(cultural.get("rumor_shock_pressure", 0)) + int(cultural.get("institutional_campaigns", 0)))
+		"fossil_activation":
+			return _band(int(world_model.get("archive_legends", 0)) + int(cultural.get("myth_gravity", 0)))
+		"anomaly_cluster":
+			return _band(int(cultural.get("counterfactual_heat", 0)) + int(cultural.get("contradiction_heat", 0)))
+		"public_schism":
+			return _band(int(cultural.get("spread_heat", 0)) + int(cultural.get("contradiction_heat", 0)))
 		"classification_drift":
 			return _band(int(cultural.get("semantic_drift", 0)) + int(cultural.get("revision_pressure", 0)))
 		"public_attention":
@@ -553,14 +649,24 @@ static func _stressor_signal_score(stressor: String, world_model: Dictionary) ->
 
 static func _ontology_condition_score(condition: String, ontology_snapshot: Dictionary, ontology_routing: Dictionary) -> int:
 	match condition:
+		"stable_categories":
+			return 2 if int(Dictionary(ontology_snapshot.get("hybridization", {})).get("hybrid_count", 0)) == 0 and _string_array(ontology_snapshot.get("absences", [])).is_empty() else 0
+		"contested_categories":
+			return 2 if _string_array(ontology_snapshot.get("dominant_domains", [])).has("verification_classes") and int(Dictionary(ontology_snapshot.get("hybridization", {})).get("hybrid_count", 0)) >= 1 else 1 if _string_array(ontology_snapshot.get("public_lines", [])).size() >= 2 else 0
 		"missing_verification_classes":
 			return 2 if _absence_present(ontology_snapshot, condition) or _string_array(ontology_routing.get("item_bias_tags", [])).has("verification_dispute") else 0
 		"taboo_category_activation":
 			return 2 if _absence_present(ontology_snapshot, condition) or _string_array(ontology_routing.get("route_bias_tags", [])).has("taboo_threshold") else 0
+		"category_split":
+			return 2 if _string_array(ontology_routing.get("item_bias_tags", [])).has("verification_dispute") or _string_array(ontology_routing.get("route_bias_tags", [])).has("taboo_threshold") else 1 if int(Dictionary(ontology_snapshot.get("hybridization", {})).get("hybrid_count", 0)) >= 1 else 0
+		"niche_overcrowding":
+			return 2 if _string_array(ontology_snapshot.get("dominant_domains", [])).size() >= 3 else 1 if _string_array(ontology_snapshot.get("public_lines", [])).size() >= 2 else 0
 		"rediscovered_extinct_categories":
 			return 2 if _absence_present(ontology_snapshot, condition) or not _string_array(ontology_snapshot.get("rediscovery_candidates", [])).is_empty() else 0
 		"hybrid_lineage_emergence":
 			return clampi(int(Dictionary(ontology_routing.get("hybridization", {})).get("hybridization_bias", 0)), 0, 2)
+		"fossil_density_increase":
+			return 2 if _string_array(ontology_snapshot.get("dominant_domains", [])).has("residue_classes") else 1 if _string_array(ontology_snapshot.get("public_lines", [])).size() >= 2 else 0
 		"residue_density_spike":
 			return 2 if _string_array(ontology_snapshot.get("dominant_domains", [])).has("residue_classes") else 1 if not _string_array(ontology_snapshot.get("public_lines", [])).is_empty() else 0
 		"ritual_fragment_return":
@@ -603,9 +709,6 @@ static func _merge_compile_outputs(base_outputs: Dictionary, addition_outputs: D
 	merged["pressure_input_bias"] = pressure_input_bias
 	merged["archive_framing_bias"] = archive_bias
 	merged["public_activation"] = public_activation
-	merged["legitimacy_stress"] = clampi(int(base.get("legitimacy_stress", 0)) + int(addition.get("legitimacy_stress", 0)), 0, 2)
-	merged["rumor_volatility"] = clampi(int(base.get("rumor_volatility", 0)) + int(addition.get("rumor_volatility", 0)), 0, 2)
-	merged["wonder_allocation"] = clampi(int(base.get("wonder_allocation", 0)) + int(addition.get("wonder_allocation", 0)), 0, 2)
 	merged["compile_targets"] = _merge_string_arrays(_string_array(base.get("compile_targets", [])), _string_array(addition.get("compile_targets", [])))
 	return merged
 
@@ -647,9 +750,6 @@ static func _default_compile_outputs() -> Dictionary:
 		"public_activation": {
 			"surface_lines": []
 		},
-		"legitimacy_stress": 0,
-		"rumor_volatility": 0,
-		"wonder_allocation": 0,
 		"compile_targets": []
 	}
 
@@ -670,6 +770,22 @@ static func _grammar_manifest_entry(experiment: Dictionary) -> Dictionary:
 
 static func _allowed_media_for_target(target: String) -> Array[String]:
 	match target:
+		"operators":
+			return ["chamber_reputation_drift", "civic_response", "market_reaction"]
+		"institutions":
+			return ["civic_response", "codex_conflict", "archive_framing"]
+		"publics":
+			return ["public_naming", "rumor_ecology", "legend_pressure"]
+		"archive_systems":
+			return ["archive_framing", "legend_pressure", "codex_conflict"]
+		"taxonomy_systems":
+			return ["codex_conflict", "archive_framing", "civic_response"]
+		"artifact_careers":
+			return ["market_reaction", "legend_pressure", "chamber_reputation_drift"]
+		"ontology_itself":
+			return ["archive_framing", "codex_conflict", "legend_pressure"]
+		"mixed_civilizational_layers":
+			return ["civic_response", "rumor_ecology", "public_naming"]
 		"constitution":
 			return ["institutional_memo", "archive_case", "legend_cluster"]
 		"ontology":
@@ -687,14 +803,32 @@ static func _allowed_media_for_target(target: String) -> Array[String]:
 
 static func _allowed_stressors_for_axis(axis: String) -> Array[String]:
 	match axis:
+		"trust":
+			return ["contradiction", "counterfeit_pressure", "public_schism"]
+		"authority_dependence":
+			return ["counterfeit_pressure", "prestige_shock", "rumor_acceleration"]
+		"ambiguity_tolerance":
+			return ["contradiction", "taxonomy_split", "rediscovery"]
 		"stability", "authority", "certainty":
 			return ["classification_drift", "public_attention", "ritual_load"]
 		"disruption", "skepticism", "ambiguity":
 			return ["contradiction", "classification_drift", "archive_echo"]
 		"fear", "curiosity":
 			return ["archive_echo", "public_attention", "contradiction"]
+		"ritual_reliance":
+			return ["prestige_shock", "fossil_activation", "scarcity"]
 		"ritual", "innovation":
 			return ["ritual_load", "archive_echo", "classification_drift"]
+		"greed":
+			return ["scarcity", "prestige_shock", "public_schism"]
+		"legitimacy_formation":
+			return ["contradiction", "rumor_acceleration", "prestige_shock"]
+		"classification_hunger":
+			return ["taxonomy_split", "rediscovery", "hybridization"]
+		"wonder_receptivity":
+			return ["fossil_activation", "anomaly_cluster", "rediscovery"]
+		"memory_fidelity":
+			return ["lesion_surfacing", "fossil_activation", "contradiction"]
 		"extraction", "stewardship":
 			return ["public_attention", "stewardship_debt", "archive_echo"]
 		_:
@@ -703,15 +837,54 @@ static func _allowed_stressors_for_axis(axis: String) -> Array[String]:
 static func _allowed_horizons_for_topology(topology: String) -> Array[String]:
 	match topology:
 		"linear":
-			return ["immediate", "short_cycle", "seasonal", "long_arc"]
+			return ["expedition", "run_cluster", "season", "era", "immediate", "short_cycle", "seasonal", "long_arc"]
 		"branching":
-			return ["short_cycle", "seasonal", "long_arc"]
+			return ["run_cluster", "season", "era", "short_cycle", "seasonal", "long_arc"]
+		"nested":
+			return ["expedition", "run_cluster", "season"]
+		"recursive":
+			return ["season", "era"]
+		"convergent":
+			return ["season", "era"]
+		"oscillatory":
+			return ["run_cluster", "season", "era"]
 		"recurring":
 			return ["seasonal", "long_arc"]
 		"synthesis":
 			return ["seasonal", "long_arc"]
 		_:
 			return _string_array(SCHEMA_REGISTRY_SCRIPT.experiment_schema().get("allowed_time_horizons", []))
+
+static func _allowed_observation_contracts_for_target(target: String) -> Array[String]:
+	match target:
+		"operators":
+			return ["extraction_behavior", "verification_use", "public_divergence"]
+		"institutions":
+			return ["legitimacy_movement", "archive_relabeling", "category_adoption", "constitution_trace"]
+		"publics":
+			return ["rumor_uptake", "public_divergence", "wonder_retention", "public_safe_summary"]
+		"archive_systems":
+			return ["archive_relabeling", "wonder_retention", "traceable_archive_only"]
+		"taxonomy_systems":
+			return ["category_adoption", "verification_use", "constitution_trace"]
+		"artifact_careers":
+			return ["extraction_behavior", "archive_relabeling", "wonder_retention"]
+		"ontology_itself":
+			return ["category_adoption", "verification_use", "constitution_trace"]
+		"mixed_civilizational_layers":
+			return ["public_divergence", "rumor_uptake", "canonized_failure_formation", "pressure_trace"]
+		"constitution":
+			return ["constitution_trace", "traceable_archive_only"]
+		"ontology":
+			return ["constitution_trace", "pressure_trace"]
+		"archive":
+			return ["traceable_archive_only", "public_safe_summary"]
+		"pressure_ecology", "framing":
+			return ["pressure_trace", "public_safe_summary"]
+		"continuity":
+			return ["traceable_archive_only", "constitution_trace", "public_safe_summary"]
+		_:
+			return _string_array(SCHEMA_REGISTRY_SCRIPT.experiment_schema().get("allowed_observation_contracts", []))
 
 static func _family_labels(family_ids: Array[String]) -> Array[String]:
 	var result: Array[String] = []
@@ -746,6 +919,7 @@ static func _build_lineage_index(experiment_registry: Dictionary) -> Dictionary:
 	var synthesis_to_children: Dictionary = {}
 	var state_bands: Dictionary = {}
 	var recurrence_weights: Dictionary = {}
+	var rediscovery_hooks: Dictionary = {}
 	for experiment_id in _sorted_strings(experiment_registry.keys()):
 		var experiment: Dictionary = Dictionary(experiment_registry.get(experiment_id, {}))
 		var canonical_id := str(experiment.get("experiment_id", experiment_id)).strip_edges()
@@ -763,12 +937,103 @@ static func _build_lineage_index(experiment_registry: Dictionary) -> Dictionary:
 		bucket = _merge_string_arrays(bucket, [canonical_id])
 		state_bands[state] = bucket
 		recurrence_weights[canonical_id] = int(experiment.get("recurrence_weight", 0))
+		if state in ["dormant", "archival"]:
+			var hook_key := str(experiment.get("ontology_condition", "rediscovery")).strip_edges()
+			var hooks := _string_array(rediscovery_hooks.get(hook_key, []))
+			hooks = _merge_string_arrays(hooks, [canonical_id])
+			rediscovery_hooks[hook_key] = hooks
 	return {
 		"parent_to_branches": parent_to_branches,
 		"synthesis_to_children": synthesis_to_children,
 		"state_bands": state_bands,
-		"recurrence_weights": recurrence_weights
+		"recurrence_weights": recurrence_weights,
+		"rediscovery_hooks": rediscovery_hooks
 	}
+
+static func advance_persistence(state: Dictionary, run_record: Dictionary, diagnostics: Dictionary = {}, frame: Dictionary = {}) -> Dictionary:
+	var current := normalize(state)
+	var experiments := Dictionary(current.get("experiments", {})).duplicate(true)
+	var family_labels := _string_array(
+		Dictionary(run_record.get("expedition_constitution_summary", {})).get("experiment_families", diagnostics.get("experiment_families", []))
+	)
+	var manifested_ids := _experiment_ids_for_family_labels(experiments, family_labels)
+	var seed := int(run_record.get("seed", 0))
+	var local_role := str(run_record.get("local_role", "")).strip_edges()
+	for experiment_id in manifested_ids:
+		var experiment: Dictionary = Dictionary(experiments.get(experiment_id, {})).duplicate(true)
+		experiment["manifest_count"] = clampi(int(experiment.get("manifest_count", 0)) + 1, 0, 9999)
+		experiment["last_manifested_seed"] = seed
+		experiment["last_manifested_role"] = local_role
+		experiments[experiment_id] = _normalize_experiment(experiment)
+	current["experiments"] = experiments
+	current["foundational_ids"] = _sorted_strings(_foundational_ids(experiments))
+	current["archival_ids"] = _sorted_strings(_archival_ids(experiments))
+	current["lineage_index"] = _build_lineage_index(experiments)
+	var history_lines := _string_array(current.get("history_lines", []))
+	var outcome_summary: Dictionary = Dictionary(run_record.get("outcome_summary", {}))
+	var experiment_surface_lines := _string_array(
+		Dictionary(run_record.get("expedition_constitution_summary", {})).get("experiment_surface_lines", diagnostics.get("experiment_surface_lines", []))
+	)
+	var history_line := _build_history_line(family_labels, experiment_surface_lines, seed, local_role, str(outcome_summary.get("summary_text", frame.get("finish_identity", ""))))
+	if not history_line.is_empty():
+		history_lines = _push_front_limited(history_lines, history_line, 8)
+	current["history_lines"] = history_lines
+	current["validation_failures"] = validate_state(current)
+	return current
+
+static func _build_history_line(family_labels: Array[String], surface_lines: Array[String], seed: int, local_role: String, outcome_text: String) -> String:
+	var headline := ""
+	if not family_labels.is_empty():
+		headline = family_labels[0]
+	elif not surface_lines.is_empty():
+		headline = surface_lines[0]
+	if headline.is_empty():
+		return ""
+	var suffix := []
+	if seed > 0:
+		suffix.append("seed %d" % seed)
+	if not local_role.is_empty():
+		suffix.append(local_role)
+	var outcome := outcome_text.strip_edges()
+	if not outcome.is_empty():
+		suffix.append(outcome)
+	return "%s [%s]" % [headline, ", ".join(suffix)] if not suffix.is_empty() else headline
+
+static func _experiment_ids_for_family_labels(experiments: Dictionary, labels: Array[String]) -> Array[String]:
+	var ids: Array[String] = []
+	for experiment_id in _sorted_strings(experiments.keys()):
+		var experiment: Dictionary = Dictionary(experiments.get(experiment_id, {}))
+		var label := str(experiment.get("family_label", experiment.get("family_id", ""))).strip_edges()
+		if labels.has(label):
+			ids.append(str(experiment.get("experiment_id", experiment_id)).strip_edges())
+	return ids
+
+static func _hypothesis_exists(hypotheses: Dictionary, hypothesis_id: String) -> bool:
+	if hypothesis_id.is_empty():
+		return false
+	for hypothesis_key in hypotheses.keys():
+		var hypothesis: Dictionary = Dictionary(hypotheses.get(hypothesis_key, {}))
+		if str(hypothesis.get("hypothesis_id", hypothesis_key)).strip_edges() == hypothesis_id:
+			return true
+	return false
+
+static func _experiment_exists(experiments: Dictionary, experiment_id: String) -> bool:
+	if experiment_id.is_empty():
+		return false
+	for experiment_key in experiments.keys():
+		var experiment: Dictionary = Dictionary(experiments.get(experiment_key, {}))
+		if str(experiment.get("experiment_id", experiment_key)).strip_edges() == experiment_id:
+			return true
+	return false
+
+static func _push_front_limited(existing: Array[String], value: String, limit: int) -> Array[String]:
+	var next := existing.duplicate()
+	var text := value.strip_edges()
+	if text.is_empty():
+		return next
+	next.erase(text)
+	next.push_front(text)
+	return next.slice(0, limit)
 
 static func _merge_dicts(base: Dictionary, addition: Dictionary) -> Dictionary:
 	var merged := base.duplicate(true)

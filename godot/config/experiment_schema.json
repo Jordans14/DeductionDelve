@@ -47,6 +47,15 @@
     "fairness_bounds"
   ],
   "allowed_domains": [
+    "authority",
+    "trust",
+    "ritual",
+    "counterfeit",
+    "taxonomy",
+    "memory",
+    "wonder",
+    "public_fracture",
+    "negative_space",
     "artifact_custody",
     "stewardship",
     "public_argument",
@@ -63,6 +72,14 @@
     "continuity"
   ],
   "allowed_targets": [
+    "operators",
+    "institutions",
+    "publics",
+    "archive_systems",
+    "taxonomy_systems",
+    "artifact_careers",
+    "ontology_itself",
+    "mixed_civilizational_layers",
     "constitution",
     "ontology",
     "archive",
@@ -71,15 +88,36 @@
     "continuity"
   ],
   "allowed_axes": [
+    "trust",
+    "authority_dependence",
+    "ambiguity_tolerance",
     "stability",
     "skepticism",
     "stewardship",
     "ritual",
     "ambiguity",
-    "curiosity"
+    "curiosity",
+    "fear",
+    "ritual_reliance",
+    "greed",
+    "legitimacy_formation",
+    "classification_hunger",
+    "wonder_receptivity",
+    "memory_fidelity"
   ],
   "allowed_stressors": [
     "contradiction",
+    "scarcity",
+    "lesion_surfacing",
+    "counterfeit_pressure",
+    "taxonomy_split",
+    "rediscovery",
+    "hybridization",
+    "prestige_shock",
+    "rumor_acceleration",
+    "fossil_activation",
+    "anomaly_cluster",
+    "public_schism",
     "classification_drift",
     "public_attention",
     "ritual_load",
@@ -87,14 +125,27 @@
     "stewardship_debt"
   ],
   "allowed_ontology_conditions": [
+    "stable_categories",
+    "contested_categories",
     "missing_verification_classes",
     "taboo_category_activation",
+    "category_split",
+    "niche_overcrowding",
     "rediscovered_extinct_categories",
     "hybrid_lineage_emergence",
+    "fossil_density_increase",
     "residue_density_spike",
     "ritual_fragment_return"
   ],
   "allowed_cultural_media": [
+    "archive_framing",
+    "rumor_ecology",
+    "civic_response",
+    "public_naming",
+    "legend_pressure",
+    "market_reaction",
+    "codex_conflict",
+    "chamber_reputation_drift",
     "archive_case",
     "legend_cluster",
     "rumor_field",
@@ -103,12 +154,25 @@
     "ritual_annotation"
   ],
   "allowed_time_horizons": [
+    "expedition",
+    "run_cluster",
+    "season",
+    "era",
     "immediate",
     "short_cycle",
     "seasonal",
     "long_arc"
   ],
   "allowed_observation_contracts": [
+    "extraction_behavior",
+    "verification_use",
+    "legitimacy_movement",
+    "archive_relabeling",
+    "rumor_uptake",
+    "public_divergence",
+    "category_adoption",
+    "canonized_failure_formation",
+    "wonder_retention",
     "traceable_archive_only",
     "public_safe_summary",
     "constitution_trace",
@@ -117,11 +181,20 @@
   "allowed_topology_types": [
     "linear",
     "branching",
+    "nested",
+    "recursive",
+    "convergent",
+    "oscillatory",
     "recurring",
     "synthesis"
   ],
   "allowed_expression_modes": [
     "whisper_mode",
+    "fracture_mode",
+    "crisis_mode",
+    "renaissance_mode",
+    "fossil_mode",
+    "mirror_mode",
     "public_surface",
     "archive_bias",
     "constitution_bias"
@@ -135,6 +208,18 @@
     "foundational"
   ],
   "allowed_compile_targets": [
+    "constitution_weighting",
+    "ontology_weighting",
+    "artifact_career_pressure",
+    "pressure_ecosystem_bias",
+    "pressure_input_bias",
+    "archive_framing_bias",
+    "public_activation",
+    "legitimacy_stress",
+    "rumor_volatility",
+    "wonder_allocation"
+  ],
+  "supported_compile_output_sections": [
     "constitution_weighting",
     "ontology_weighting",
     "pressure_input_bias",

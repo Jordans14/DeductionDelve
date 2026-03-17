@@ -114,7 +114,9 @@ static func compile(
 		"experimental_ontology": {
 			"dominant_families": _string_array(experimental_ontology_state.get("dominant_families", [])),
 			"live_experiment_ids": _string_array(experimental_ontology_state.get("live_experiment_ids", [])),
-			"expression_modes": _string_array(Dictionary(experimental_ontology_state.get("public_surface", {})).get("expression_modes", []))
+			"expression_modes": _string_array(Dictionary(experimental_ontology_state.get("public_surface", {})).get("expression_modes", [])),
+			"compile_targets": _string_array(Dictionary(experimental_ontology_state.get("compile_outputs", {})).get("compile_targets", [])),
+			"lineage_state_bands": Dictionary(Dictionary(experimental_ontology_state.get("lineage_index", {})).get("state_bands", {})).duplicate(true)
 		}
 	}
 	var compile_metadata := {
@@ -135,6 +137,7 @@ static func compile(
 		"narrative_pressure_allowed_outputs": _string_array(narrative_pressure_state.get("allowed_outputs", [])),
 		"experiment_families": _string_array(experimental_ontology_state.get("dominant_families", [])),
 		"experiment_expression_modes": _string_array(Dictionary(experimental_ontology_state.get("public_surface", {})).get("expression_modes", [])),
+		"experiment_compile_targets": _string_array(Dictionary(experimental_ontology_state.get("compile_outputs", {})).get("compile_targets", [])),
 		"dominant_lineages": Array(ontology_routing.get("dominant_lineages", [])).duplicate(true),
 		"required_generation_surface_keys": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_generation_surface_keys", [])).duplicate(true),
 		"required_symbolic_fields": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_symbolic_fields", [])).duplicate(true),
