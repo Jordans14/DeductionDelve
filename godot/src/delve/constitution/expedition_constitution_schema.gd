@@ -497,6 +497,48 @@ static func _normalize_experimental_ontology_state(raw: Dictionary) -> Dictionar
 	var normalized := _default_experimental_ontology_state()
 	for key in raw.keys():
 		normalized[key] = raw[key]
+	var raw_hypothesis_registry := Array(raw.get("hypothesis_registry", []))
+	var raw_experiment_registry := Array(raw.get("experiment_registry", []))
+	var has_registry_payload := not raw_hypothesis_registry.is_empty() or not raw_experiment_registry.is_empty()
+	if not has_registry_payload:
+		normalized["hypothesis_registry"] = _sorted_registry_array(_registry_map(Array(normalized.get("hypothesis_registry", [])), "hypothesis_id"), "hypothesis_id")
+		normalized["experiment_registry"] = _sorted_registry_array(_registry_map(Array(normalized.get("experiment_registry", [])), "experiment_id"), "experiment_id")
+		normalized["live_hypothesis_ids"] = _unique_string_array(Array(normalized.get("live_hypothesis_ids", [])))
+		normalized["live_experiment_ids"] = _unique_string_array(Array(normalized.get("live_experiment_ids", [])))
+		if Array(normalized.get("live_hypothesis_ids", [])).is_empty():
+			var derived_live_hypothesis_ids: Array = []
+			for entry_raw in _sorted_registry_array(_registry_map(Array(normalized.get("live_hypotheses", [])), "hypothesis_id"), "hypothesis_id"):
+				var entry: Dictionary = Dictionary(entry_raw)
+				var hypothesis_id := str(entry.get("hypothesis_id", "")).strip_edges()
+				if not hypothesis_id.is_empty():
+					derived_live_hypothesis_ids.append(hypothesis_id)
+			normalized["live_hypothesis_ids"] = _unique_string_array(derived_live_hypothesis_ids)
+		if Array(normalized.get("live_experiment_ids", [])).is_empty():
+			var derived_live_experiment_ids: Array = []
+			for entry_raw in _sorted_registry_array(_registry_map(Array(normalized.get("live_experiments", [])), "experiment_id"), "experiment_id"):
+				var entry: Dictionary = Dictionary(entry_raw)
+				var experiment_id := str(entry.get("experiment_id", "")).strip_edges()
+				if not experiment_id.is_empty():
+					derived_live_experiment_ids.append(experiment_id)
+			normalized["live_experiment_ids"] = _unique_string_array(derived_live_experiment_ids)
+		normalized["live_hypotheses"] = _sorted_registry_array(_registry_map(Array(normalized.get("live_hypotheses", [])), "hypothesis_id"), "hypothesis_id")
+		normalized["live_experiments"] = _sorted_registry_array(_registry_map(Array(normalized.get("live_experiments", [])), "experiment_id"), "experiment_id")
+		normalized["dominant_families"] = _unique_string_array(Array(normalized.get("dominant_families", [])))
+		normalized["lineage_index"] = Dictionary(normalized.get("lineage_index", {})).duplicate(true)
+		normalized["grammar_manifest"] = Array(normalized.get("grammar_manifest", [])).duplicate(true)
+		normalized["learning_guidance"] = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_compiler_guidance(
+			Dictionary(normalized.get("learning_guidance", {}))
+		)
+		normalized["compile_outputs"] = Dictionary(normalized.get("compile_outputs", {})).duplicate(true)
+		var shell_public_surface: Dictionary = Dictionary(normalized.get("public_surface", {})).duplicate(true)
+		shell_public_surface["lines"] = _unique_string_array(Array(shell_public_surface.get("lines", [])))
+		shell_public_surface["family_labels"] = _unique_string_array(Array(shell_public_surface.get("family_labels", [])))
+		shell_public_surface["expression_modes"] = _unique_string_array(Array(shell_public_surface.get("expression_modes", [])))
+		shell_public_surface["horizons"] = _unique_string_array(Array(shell_public_surface.get("horizons", [])))
+		normalized["public_surface"] = shell_public_surface
+		normalized["compiler_trace"] = Dictionary(normalized.get("compiler_trace", {})).duplicate(true)
+		normalized["validation_failures"] = _unique_string_array(Array(normalized.get("validation_failures", [])))
+		return normalized
 	var rebuilt_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({
 		"hypotheses": _registry_map(Array(normalized.get("hypothesis_registry", [])), "hypothesis_id"),
 		"experiments": _registry_map(Array(normalized.get("experiment_registry", [])), "experiment_id")

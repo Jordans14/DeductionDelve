@@ -5428,3 +5428,43 @@ All doctrine domains that were still PARTIAL at the start of this pass received 
   - no learning-driven runtime legality mutation
   - no new experiment substrate or parallel continuity owner
   - no gameplay redesign outside the audited Phase 7 cleanup seams
+
+## 2026-03-17 Phase 7 Cleanup / Hardening - Execution Trail
+
+- Exact hostile-audit defects corrected in this pass:
+  - strengthened the final hostile-audit seams that were still weak after the initial Phase 7 landing:
+    - evaluation-record validation now rejects raw runtime-only leakage before normalization can erase it
+    - learning-state validation now cross-checks canonical evaluation ids against meta-learning, compiler guidance, and public/operator separation
+    - repeated ingestion of the same manifested experiment now collapses on a canonical manifestation key, so evaluation history, meta-learning, and compiler guidance stay aligned
+    - summary-only constitution normalization no longer forces full experimental compile validation into runtime compatibility paths when no compiled experiment registry is present
+  - preserved the already-landed canonical-id run-record path, compile guidance trace visibility, and public/meta experiment-surface separation
+
+- Exact files changed in this cleanup pass:
+  - `godot/src/product/delvemind_learning_loop.gd`
+  - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+  - `godot/src/tests/test_runner.gd`
+  - `progress.md`
+
+- Exact tests added or tightened:
+  - `godot/src/tests/test_runner.gd`
+    - tightened `_test_phase7_compiler_guidance_and_public_traces`
+      - now proves the learned-bias trace exposes numeric totals and applied-token arrays per experiment
+    - tightened `_test_phase7_malformed_persisted_learning_state_cleanup`
+      - now proves malformed guidance ids, evaluation-count drift, and public/operator overlap are rejected
+    - added `_test_phase7_summary_only_constitution_normalization_stays_light`
+      - proves summary-only constitution normalization does not inject bogus experiment validation failures into runtime compatibility paths
+
+- Validation results:
+  - `./scripts/run_tests.ps1` -> passed on `2026-03-17`
+  - `./scripts/run_headless_proof.ps1` -> passed on `2026-03-17`
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Remaining non-blocking debt after this cleanup:
+  - the unit lane still emits the existing emergency room-chain fallback warning plus Godot shutdown leak/resource warnings; they did not block validation and were not part of the Phase 7 hostile-audit defect list
+  - no remaining Phase 7 debt in the hostile-audit cleanup list blocks the next doctrine phase
+
+- Closing truth note:
+  - Phase 7 is now canonically attributable, validation-first, duplicate-stable, cleaner in public/meta separation, more deeply cross-validated, and more explicit in compiler-bias traceability
+  - the repo is now a materially cleaner substrate for the next doctrine phase without touching runtime authority

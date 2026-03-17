@@ -30,6 +30,7 @@ const DOCTRINE_ENGINE_SCRIPT = preload("res://src/delve/doctrine_engine.gd")
 const HORIZON_PLANNER_SCRIPT = preload("res://src/delve/horizon_planner.gd")
 const META_RESISTANCE_SCRIPT = preload("res://src/delve/meta_resistance_engine.gd")
 const DELVE_DIRECTIVE_INSPECTOR_SCRIPT = preload("res://src/delve/delve_directive_inspector.gd")
+const EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT = preload("res://src/delve/constitution/expedition_constitution_schema.gd")
 const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const MULTIMODAL_CONTRACT_SERVICE_SCRIPT = preload("res://src/product/multimodal_contract_service.gd")
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
@@ -144,6 +145,7 @@ func _init() -> void:
 	_test_phase7_manifestation_identity_and_collision_handling(failures)
 	_test_phase7_malformed_persisted_learning_state_cleanup(failures)
 	_test_phase7_branch_synthesis_persistence_honesty(failures)
+	_test_phase7_summary_only_constitution_normalization_stays_light(failures)
 	_test_expedition_constitution_schema_and_hash(failures)
 	_test_delve_live_handoff_and_summary(failures)
 	_test_runstate_constitution_handoff(failures)
@@ -7581,6 +7583,12 @@ func _test_phase7_compiler_guidance_and_public_traces(failures: Array[String]) -
 	var bias_trace: Dictionary = Dictionary(Dictionary(compiler_trace.get("experimental_ontology", {})).get("learning_guidance_bias_trace", {}))
 	if bias_trace.is_empty():
 		failures.append("Phase 7 compiler trace should expose explicit learning_guidance_bias_trace")
+	else:
+		var stewardship_trace: Dictionary = Dictionary(bias_trace.get("exp_stewardship_campaign", {}))
+		if typeof(stewardship_trace.get("total_bias", null)) not in [TYPE_INT, TYPE_FLOAT]:
+			failures.append("Phase 7 compiler trace should expose numeric learned-bias totals per experiment")
+		if not (stewardship_trace.get("applied_tokens", []) is Array):
+			failures.append("Phase 7 compiler trace should expose applied guidance-bias tokens per experiment")
 	if JSON.stringify(experimental_state).find("\"runtime_state\"") != -1:
 		failures.append("Phase 7 compiler-facing state must not expose runtime-only fields")
 	var overview_lines := PROFILE_SERVICE_SCRIPT.build_home_overview_lines(updated_profile, session_context, catalog)
@@ -7704,8 +7712,8 @@ func _test_phase7_malformed_persisted_learning_state_cleanup(failures: Array[Str
 			"public_lines": [],
 			"operator_lines": []
 		},
-		"public_lines": [],
-		"operator_lines": []
+		"public_lines": ["Shared line"],
+		"operator_lines": ["Shared line"]
 	}
 	var malformed_failures := "; ".join(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(
 		malformed_learning_state,
@@ -7717,7 +7725,10 @@ func _test_phase7_malformed_persisted_learning_state_cleanup(failures: Array[Str
 		"evaluation outcome not_allowed is not allowed",
 		"state_transition must include non-empty from/to",
 		"branch_open_id exp_missing is missing",
-		"bias_basis topology_averages linear must remain numeric"
+		"bias_basis topology_averages linear must remain numeric",
+		"compiler_guidance references unknown evaluation_id eval_dup",
+		"evaluation_count must match canonical evaluation_records",
+		"public_lines must remain distinct from operator_lines"
 	]:
 		if malformed_failures.find(required_snippet) == -1:
 			failures.append("Phase 7 malformed-state validation should surface %s" % required_snippet)
@@ -7796,6 +7807,30 @@ func _test_phase7_branch_synthesis_persistence_honesty(failures: Array[String]) 
 		failures.append("Phase 7 branch guidance should expose explicit branch_signal_counts")
 	if int(Dictionary(guidance.get("synthesis_signal_counts", {})).get("exp_stewardship_campaign", 0)) != 1:
 		failures.append("Phase 7 synthesis guidance should expose explicit synthesis_signal_counts")
+
+func _test_phase7_summary_only_constitution_normalization_stays_light(failures: Array[String]) -> void:
+	var normalized := EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.normalize({
+		"seed": 919191,
+		"room_count": 10,
+		"control_surfaces": {
+			"ecology": {
+				"inhabitant_pressure": 2,
+				"stalking_bias": 1,
+				"anomaly_contamination": 1
+			}
+		},
+		"constitution_summary": {},
+		"public_summary": {},
+		"generation_surface": {},
+		"generation_contract": {}
+	})
+	var experimental_state: Dictionary = Dictionary(normalized.get("experimental_ontology_state", {}))
+	if not Array(experimental_state.get("validation_failures", [])).is_empty():
+		failures.append("Phase 7 summary-only constitution normalization should not force full experiment compile validation failures into runtime compatibility paths")
+	if not _string_array_for_test(Array(Dictionary(normalized.get("constitution_summary", {})).get("live_experiment_ids", []))).is_empty():
+		failures.append("Phase 7 summary-only constitution normalization should keep live_experiment_ids empty when no compiled experiment state is present")
+	if not _string_array_for_test(Array(Dictionary(normalized.get("public_summary", {})).get("experiment_surface_lines", []))).is_empty():
+		failures.append("Phase 7 summary-only constitution normalization should not invent public experiment texture for empty experiment state")
 
 func _test_expedition_constitution_schema_and_hash(failures: Array[String]) -> void:
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())

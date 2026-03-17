@@ -102,16 +102,56 @@ static func validate_learning_state(learning_state: Dictionary, hypotheses: Dict
 	for key in ["evaluation_records", "meta_learning", "compiler_guidance", "public_lines", "operator_lines"]:
 		if not learning_state.has(key):
 			failures.append("DelveMindLearningState missing %s" % key)
+	var evaluation_record_ids: Array[String] = []
+	var seen_evaluation_ids: Dictionary = {}
+	for record_raw in Array(learning_state.get("evaluation_records", [])):
+		if not (record_raw is Dictionary):
+			failures.append("DelveMindLearningState evaluation_records must remain dictionaries")
+			continue
+		var canonical_record := _normalize_evaluation_record(Dictionary(record_raw))
+		var evaluation_id := str(canonical_record.get("evaluation_id", "")).strip_edges()
+		if evaluation_id.is_empty():
+			failures.append("DelveMindLearningState evaluation_records must carry canonical evaluation_id values")
+		elif seen_evaluation_ids.has(evaluation_id):
+			failures.append("DelveMindLearningState evaluation_records must not repeat canonical evaluation_id %s" % evaluation_id)
+		else:
+			seen_evaluation_ids[evaluation_id] = true
+			evaluation_record_ids.append(evaluation_id)
+		failures.append_array(validate_evaluation_record(Dictionary(record_raw), hypotheses, experiments))
 	var meta_learning: Dictionary = Dictionary(learning_state.get("meta_learning", {}))
 	for key in _string_array(schema.get("meta_learning_required_fields", [])):
 		if not meta_learning.has(key):
 			failures.append("DelveMindLearningState meta_learning missing %s" % key)
 	failures.append_array(_validate_meta_learning(meta_learning))
-	var guidance_failures := validate_compiler_guidance(Dictionary(learning_state.get("compiler_guidance", {})))
+	var guidance: Dictionary = Dictionary(learning_state.get("compiler_guidance", {}))
+	var guidance_failures := validate_compiler_guidance(guidance)
 	if not guidance_failures.is_empty():
 		failures.append_array(guidance_failures)
-	for record_raw in Array(learning_state.get("evaluation_records", [])):
-		failures.append_array(validate_evaluation_record(Dictionary(record_raw), hypotheses, experiments))
+	var meta_evaluation_ids := _string_array(meta_learning.get("accepted_evaluation_ids", []))
+	for evaluation_id in meta_evaluation_ids:
+		if not evaluation_record_ids.has(evaluation_id):
+			failures.append("DelveMindLearningState meta_learning references unknown evaluation_id %s" % evaluation_id)
+	var guidance_evaluation_ids := _string_array(guidance.get("accepted_evaluation_ids", []))
+	for evaluation_id in guidance_evaluation_ids:
+		if not evaluation_record_ids.has(evaluation_id):
+			failures.append("DelveMindLearningState compiler_guidance references unknown evaluation_id %s" % evaluation_id)
+	if JSON.stringify(meta_evaluation_ids) != JSON.stringify(guidance_evaluation_ids):
+		failures.append("DelveMindLearningState compiler_guidance accepted_evaluation_ids must mirror meta_learning")
+	if int(guidance.get("evaluation_count", 0)) != evaluation_record_ids.size():
+		failures.append("DelveMindLearningState compiler_guidance evaluation_count must match canonical evaluation_records")
+	for pair in [
+		["branch_pressure_families", "branch_signal_counts"],
+		["synthesis_candidates", "synthesis_signal_counts"],
+		["revive_candidates", "revive_signal_counts"]
+	]:
+		var tokens := _string_array(guidance.get(str(pair[0]), []))
+		var counts: Dictionary = Dictionary(guidance.get(str(pair[1]), {}))
+		for token in tokens:
+			if int(counts.get(token, 0)) <= 0:
+				failures.append("DelveMindLearningState compiler_guidance %s token %s must have supporting count data" % [str(pair[0]), token])
+	for public_line in _string_array(learning_state.get("public_lines", [])):
+		if _string_array(learning_state.get("operator_lines", [])).has(public_line):
+			failures.append("DelveMindLearningState public_lines must remain distinct from operator_lines")
 	if _contains_runtime_key(learning_state):
 		failures.append("DelveMindLearningState must not expose runtime-only fields")
 	return _sorted_strings(failures)
@@ -228,7 +268,7 @@ static func validate_evaluation_record(record: Dictionary, hypotheses: Dictionar
 			failures.append("evaluation record observation_signature %s must remain non-negative" % key)
 	if typeof(observation_signature.get("interrupted", false)) != TYPE_BOOL:
 		failures.append("evaluation record observation_signature interrupted must be boolean")
-	if _contains_runtime_key(normalized_record):
+	if _contains_runtime_key(record) or _contains_runtime_key(normalized_record):
 		failures.append("evaluation record must not expose runtime-only fields")
 	return _sorted_strings(failures)
 
@@ -386,33 +426,46 @@ static func _build_evaluation_record(
 
 static func _normalize_evaluation_records(values: Array) -> Array:
 	var deduped: Array[Dictionary] = []
-	var seen: Dictionary = {}
+	var seen_ids: Dictionary = {}
+	var seen_manifestations: Dictionary = {}
 	for value in values:
 		if not (value is Dictionary):
 			continue
 		var record := _normalize_evaluation_record(Dictionary(value))
 		var evaluation_id := str(record.get("evaluation_id", "")).strip_edges()
-		if evaluation_id.is_empty() or seen.has(evaluation_id):
+		var manifestation_key := _evaluation_manifestation_key(record)
+		if evaluation_id.is_empty() or manifestation_key.is_empty():
 			continue
-		seen[evaluation_id] = true
+		if seen_ids.has(evaluation_id) or seen_manifestations.has(manifestation_key):
+			continue
+		seen_ids[evaluation_id] = true
+		seen_manifestations[manifestation_key] = true
 		deduped.append(record)
 	return deduped.slice(0, MAX_EVALUATION_RECORDS)
 
 static func _merge_evaluation_records(existing_values: Array, recent_values: Array) -> Dictionary:
 	var existing_records := _normalize_evaluation_records(existing_values)
-	var seen: Dictionary = {}
+	var seen_ids: Dictionary = {}
+	var seen_manifestations: Dictionary = {}
 	for record_raw in existing_records:
 		var existing_record: Dictionary = Dictionary(record_raw)
 		var evaluation_id := str(existing_record.get("evaluation_id", "")).strip_edges()
+		var manifestation_key := _evaluation_manifestation_key(existing_record)
 		if not evaluation_id.is_empty():
-			seen[evaluation_id] = true
+			seen_ids[evaluation_id] = true
+		if not manifestation_key.is_empty():
+			seen_manifestations[manifestation_key] = true
 	var accepted_records: Array[Dictionary] = []
 	for record_raw in recent_values:
 		var record := _normalize_evaluation_record(Dictionary(record_raw))
 		var evaluation_id := str(record.get("evaluation_id", "")).strip_edges()
-		if evaluation_id.is_empty() or seen.has(evaluation_id):
+		var manifestation_key := _evaluation_manifestation_key(record)
+		if evaluation_id.is_empty() or manifestation_key.is_empty():
 			continue
-		seen[evaluation_id] = true
+		if seen_ids.has(evaluation_id) or seen_manifestations.has(manifestation_key):
+			continue
+		seen_ids[evaluation_id] = true
+		seen_manifestations[manifestation_key] = true
 		accepted_records.append(record)
 	var merged: Array[Dictionary] = []
 	merged.append_array(accepted_records)
@@ -1190,6 +1243,16 @@ static func _evaluation_id(record: Dictionary) -> String:
 		"observation_signature": Dictionary(record.get("observation_signature", {})).duplicate(true)
 	}
 	return "eval_%s" % JSON.stringify(canonical).md5_text().substr(0, 16)
+
+static func _evaluation_manifestation_key(record: Dictionary) -> String:
+	var canonical := {
+		"run_seed": int(record.get("run_seed", 0)),
+		"hypothesis_id": str(record.get("hypothesis_id", "")).strip_edges(),
+		"experiment_id": str(record.get("experiment_id", "")).strip_edges(),
+		"family_id": str(record.get("family_id", "")).strip_edges(),
+		"observation_signature": Dictionary(record.get("observation_signature", {})).duplicate(true)
+	}
+	return "manifest_%s" % JSON.stringify(canonical).md5_text().substr(0, 16)
 
 static func _filter_to_existing_experiments(ids: Array[String], experiments: Dictionary) -> Array[String]:
 	var result: Array[String] = []
