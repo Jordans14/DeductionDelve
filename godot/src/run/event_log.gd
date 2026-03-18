@@ -76,6 +76,33 @@ func get_recent_private_for(peer_id: int, limit: int = 8) -> Array:
 		return private_events
 	return private_events.slice(private_events.size() - limit, private_events.size())
 
+func canonical_events(visibility_filter: String = "") -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for event_raw in events:
+		var event := Dictionary(event_raw).duplicate(true)
+		if not visibility_filter.strip_edges().is_empty() and str(event.get("visibility", "")).strip_edges() != visibility_filter:
+			continue
+		result.append(event)
+	result.sort_custom(Callable(self, "_event_less"))
+	return result
+
+func event_id_range(visibility_filter: String = "") -> Dictionary:
+	var ordered := canonical_events(visibility_filter)
+	if ordered.is_empty():
+		return {
+			"min_event_id": -1,
+			"max_event_id": -1,
+			"event_count": 0
+		}
+	return {
+		"min_event_id": int(Dictionary(ordered[0]).get("event_id", -1)),
+		"max_event_id": int(Dictionary(ordered[ordered.size() - 1]).get("event_id", -1)),
+		"event_count": ordered.size()
+	}
+
+func timeline_digest(visibility_filter: String = "") -> String:
+	return _canonical_string(canonical_events(visibility_filter)).md5_text()
+
 func _event_less(a: Dictionary, b: Dictionary) -> bool:
 	var a_tick := int(a.get("tick", -1))
 	var b_tick := int(b.get("tick", -1))
@@ -84,3 +111,28 @@ func _event_less(a: Dictionary, b: Dictionary) -> bool:
 	var a_id := int(a.get("event_id", -1))
 	var b_id := int(b.get("event_id", -1))
 	return a_id < b_id
+
+func _canonical_string(value: Variant) -> String:
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var dict: Dictionary = value
+			var key_texts: Array[String] = []
+			var key_lookup: Dictionary = {}
+			for key in dict.keys():
+				var text := str(key)
+				key_texts.append(text)
+				key_lookup[text] = key
+			key_texts.sort()
+			var segments: Array[String] = []
+			for key_text in key_texts:
+				segments.append("%s:%s" % [key_text, _canonical_string(dict.get(key_lookup[key_text]))])
+			return "{%s}" % ",".join(segments)
+		TYPE_ARRAY:
+			var segments: Array[String] = []
+			for item in value:
+				segments.append(_canonical_string(item))
+			return "[%s]" % ",".join(segments)
+		TYPE_STRING:
+			return JSON.stringify(value)
+		_:
+			return str(value)

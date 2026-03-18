@@ -1006,8 +1006,11 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 	var cognitive_field_summary_lines := _string_array(diagnostics.get("cognitive_field_summary_lines", []))
 	var activation_lines := _string_array(diagnostics.get("activation_lines", []))
 	var safe_mode_lines := _string_array(diagnostics.get("safe_mode_lines", []))
+	var signal_budget_lines := _string_array(diagnostics.get("signal_budget_lines", []))
 	var review_surface_lines := _string_array(diagnostics.get("review_surface_lines", []))
 	var explanation_packet_lines := _string_array(diagnostics.get("explanation_packet_lines", []))
+	var explanation_immediate_lines := _string_array(diagnostics.get("explanation_immediate_lines", []))
+	var explanation_run_lines := _string_array(diagnostics.get("explanation_run_lines", []))
 	var surface_line := _first_string(surface_summary, "")
 	var pressure_line := _first_string(narrative_pressure_lines, "")
 	var experiment_line := _first_string(experiment_surface_lines, "")
@@ -1016,8 +1019,11 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 	var field_line := _first_string(cognitive_field_summary_lines, "")
 	var activation_line := _first_string(activation_lines, "")
 	var safe_mode_line := _first_string(safe_mode_lines, "")
+	var signal_budget_line := _first_string(signal_budget_lines, "")
 	var review_line := _first_string(review_surface_lines, "")
 	var explanation_line := _first_string(explanation_packet_lines, "")
+	var explanation_immediate_line := _first_string(explanation_immediate_lines, "")
+	var explanation_run_line := _first_string(explanation_run_lines, "")
 	var motif_line := _first_string(motifs, "")
 	var mutation_line := _first_string(mutation_surface_lines, "")
 	var archive_tone := str(diagnostics.get("run_identity_archive_tone", "")).strip_edges()
@@ -1040,10 +1046,16 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 			governance_bits.append("Activation: %s" % activation_line)
 		if not safe_mode_line.is_empty():
 			governance_bits.append("Safe mode: %s" % safe_mode_line)
+		if not signal_budget_line.is_empty():
+			governance_bits.append("Signal budget: %s" % signal_budget_line)
 		if not review_line.is_empty():
 			governance_bits.append("Review: %s" % review_line)
 		if governance_bits.is_empty() and not field_line.is_empty():
 			governance_bits.append("Field: %s" % field_line)
+		if governance_bits.is_empty() and not explanation_immediate_line.is_empty():
+			governance_bits.append("Immediate: %s" % explanation_immediate_line)
+		if governance_bits.is_empty() and not explanation_run_line.is_empty():
+			governance_bits.append("Run: %s" % explanation_run_line)
 		if governance_bits.is_empty() and not explanation_line.is_empty():
 			governance_bits.append("Why: %s" % explanation_line)
 		if governance_bits.is_empty() and not motif_line.is_empty():
@@ -1082,6 +1094,8 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 			pressure_bits.append("World: %s" % civilization_line)
 		if not safe_mode_line.is_empty():
 			pressure_bits.append("Safe mode: %s" % safe_mode_line)
+		if not signal_budget_line.is_empty():
+			pressure_bits.append("Signal budget: %s" % signal_budget_line)
 		if not convergence_axis.is_empty():
 			pressure_bits.append("Axis: %s" % convergence_axis)
 		return _compact_shell_clause(pressure_line, pressure_bits)

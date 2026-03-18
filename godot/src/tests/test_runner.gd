@@ -138,6 +138,8 @@ func _init() -> void:
 	_test_wave1_constitution_v2_dormant_sections_hash_stability(failures)
 	_test_wave1_governance_state_default_visibility(failures)
 	_test_wave1_explanation_packet_presence_without_expression(failures)
+	_test_phase1_explanation_packet_v2_contract(failures)
+	_test_phase1_forensic_bundle_contract(failures)
 	_test_wave1_inactive_is_not_optional_defaults(failures)
 	_test_generation_contract_narrowing(failures)
 	_test_ontology_engine_and_compiler_bridge(failures)
@@ -169,6 +171,7 @@ func _init() -> void:
 	_test_shell_explainability_tightening(failures)
 	_test_delve_kernel_stabilization_and_trace(failures)
 	_test_visual_doctrine_refactor(failures)
+	_test_phase1_visual_signal_compression_contract(failures)
 	_test_lobby_shell_scene_contract(failures)
 
 	_pending_failures = failures.duplicate()
@@ -6480,6 +6483,88 @@ func _test_wave1_explanation_packet_presence_without_expression(failures: Array[
 	if review_surface.is_empty():
 		failures.append("Wave 1 runtime constitutions should retain review_surface even while higher layers stay dormant")
 
+func _test_phase1_explanation_packet_v2_contract(failures: Array[String]) -> void:
+	var runtime_constitution := EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.build_runtime_summary({
+		"protocol_state": "Fracture Protocol",
+		"doctrine_family": "measured_pressure",
+		"doctrine_label": "Measured Pressure",
+		"pressure_line": "Hold the route together.",
+		"world_goal": "Return with the answer.",
+		"surface_summary": {"lines": ["Public surface remains narrow."]}
+	}, "phase1_packet_hash")
+	var explanation_packet: Dictionary = Dictionary(runtime_constitution.get("explanation_packet", {}))
+	if int(explanation_packet.get("packet_schema_version", 0)) < 2:
+		failures.append("Phase 1 explanation packets should expose packet_schema_version 2")
+	if str(explanation_packet.get("packet_digest", "")).strip_edges().is_empty():
+		failures.append("Phase 1 explanation packets should expose packet_digest")
+	if Dictionary(explanation_packet.get("compression_profile", {})).is_empty():
+		failures.append("Phase 1 explanation packets should expose compression_profile")
+	for lane_key in ["immediate", "run", "meta"]:
+		if not explanation_packet.has(lane_key):
+			failures.append("Phase 1 explanation packets should expose %s lane entries" % lane_key)
+	var public_summary: Dictionary = EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.public_summary(runtime_constitution)
+	for field in ["packet_schema_version", "explanation_packet_digest", "explanation_immediate_lines", "explanation_run_lines", "explanation_meta_lines", "signal_budget_lines"]:
+		if not public_summary.has(field):
+			failures.append("Phase 1 public summaries should expose %s structurally" % field)
+
+func _test_phase1_forensic_bundle_contract(failures: Array[String]) -> void:
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 4,
+		"event_id": 11,
+		"event_type": "run_started",
+		"room_slot": 0,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	event_log.add_event({
+		"tick": 9,
+		"event_id": 14,
+		"event_type": "artifact_picked",
+		"room_slot": 3,
+		"actor_peer_id": 2,
+		"visibility": "public",
+		"meta": {"artifact_id": 1}
+	})
+	event_log.add_event({
+		"tick": 12,
+		"event_id": 19,
+		"event_type": "notebook_note",
+		"room_slot": 3,
+		"actor_peer_id": 2,
+		"target_peer_id": 2,
+		"visibility": "private"
+	})
+	var controller = GAME_CONTROLLER_SCRIPT.new()
+	var bundle := controller.build_forensic_bundle_for_test(5150, "phase1_constitution_hash", {
+		"constitution_id": "expedition_constitution_phase1",
+		"activation_epoch": "fully_active",
+		"activation_active_channels": ["constitution", "archive"],
+		"activation_dormant_channels": ["safe_mode"],
+		"safe_mode_active": false,
+		"safe_mode_lines": [],
+		"explanation_packet_lines": ["Return with the answer."],
+		"review_surface_lines": ["Review remains stable."]
+	}, event_log, [])
+	if int(bundle.get("bundle_schema_version", 0)) != 1:
+		failures.append("Phase 1 forensic bundles should expose bundle_schema_version 1")
+	for key in ["replay_id", "constitution_version_hash", "packet_schema_version", "product_catalog_version", "event_id_range", "timeline_digest", "governance_hook_set", "bundle_digest"]:
+		if not bundle.has(key):
+			failures.append("Phase 1 forensic bundles should expose %s" % key)
+	var event_id_range: Dictionary = Dictionary(bundle.get("event_id_range", {}))
+	if int(event_id_range.get("min_event_id", -1)) != 11 or int(event_id_range.get("max_event_id", -1)) != 19:
+		failures.append("Phase 1 forensic bundles should preserve deterministic event id ranges")
+	var hook_set: Dictionary = Dictionary(bundle.get("governance_hook_set", {}))
+	var available_actions: Array = Array(hook_set.get("available_actions", []))
+	var expected_actions: Array = ["observe", "normalize", "throttle", "quarantine", "rollback", "veto"]
+	if JSON.stringify(available_actions) != JSON.stringify(expected_actions):
+		failures.append("Phase 1 forensic bundles should expose the full governance action ladder including throttle")
+	var replay_identity := controller._build_replay_identity(5150, "phase1_constitution_hash", "", event_log)
+	if str(replay_identity.get("replay_id", "")).strip_edges().is_empty():
+		failures.append("Phase 1 replay identities should expose replay_id")
+	controller.free()
+	event_log.free()
+
 func _test_wave1_inactive_is_not_optional_defaults(failures: Array[String]) -> void:
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())
 	var experiment_state: Dictionary = Dictionary(profile.get("delvemind_experiment_state", {}))
@@ -9164,6 +9249,37 @@ func _test_visual_doctrine_refactor(failures: Array[String]) -> void:
 			failures.append("Lobby scene should retain doctrine styling for shell tab emphasis")
 		if lobby_text.find("HeaderRule") == -1 or lobby_text.find("ShellRule") == -1:
 			failures.append("Lobby scene should preserve authored shell separators for hierarchy framing")
+
+func _test_phase1_visual_signal_compression_contract(failures: Array[String]) -> void:
+	var governance = VISUAL_GOVERNANCE_SCRIPT.new()
+	var room := {
+		"slot": 4,
+		"type": "hazard",
+		"hazard": "collapse",
+		"branch_family_id": "watcher_steps",
+		"protocol_state": "Fracture Protocol",
+		"branch_context": {
+			"id": "watcher_steps",
+			"run_identity_summary": {
+				"pacing_profile": "volatile",
+				"pressure_grammar": ["Exposure", "Fragmentation"],
+				"symbolic_motifs": ["Threshold Marks", "Split Echoes"],
+				"convergence_axis": "fragmentation"
+			},
+			"pressure_profile": ["escort_duty", "return_pressure", "relay_overload"]
+		}
+	}
+	var packet := governance.room_visual_packet(room)
+	if int(packet.get("packet_schema_version", 0)) < 2:
+		failures.append("Phase 1 room visual packets should expose packet_schema_version 2")
+	if Dictionary(packet.get("signal_compression_profile", {})).is_empty():
+		failures.append("Phase 1 room visual packets should expose signal_compression_profile")
+	if _string_array_for_test(Array(packet.get("telegraph_channels", []))).is_empty():
+		failures.append("Phase 1 room visual packets should expose telegraph_channels")
+	if Array(packet.get("residue_layers", [])).is_empty():
+		failures.append("Phase 1 room visual packets should expose residue_layers")
+	if not governance.validate_room_packet(packet).is_empty():
+		failures.append("Phase 1 room visual packets should remain inside visual doctrine budgets")
 
 func _test_lobby_shell_scene_contract(failures: Array[String]) -> void:
 	var file := FileAccess.open("res://scenes/Lobby.tscn", FileAccess.READ)

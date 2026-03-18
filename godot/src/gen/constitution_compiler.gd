@@ -117,7 +117,41 @@ static func compile(
 			_first_string(Array(Dictionary(contradiction_packet.get("meta_reflection_report", {})).get("summary_lines", [])), "")
 		],
 		Array(review_surface.get("lines", [])),
-		["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
+		["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"],
+		{
+			"immediate": [{
+				"trigger": str(compiler_public_summary.get("pressure_line", compiler_public_summary.get("world_goal", ""))).strip_edges(),
+				"escalation": _first_string(Array(narrative_pressure_state.get("lines", [])), ""),
+				"consequence": _first_string(Array(review_surface.get("lines", [])), ""),
+				"interpretation": str(compiler_public_summary.get("world_goal", "")).strip_edges(),
+				"priority": 3,
+				"public_safe": true
+			}],
+			"run": [{
+				"trigger": _first_string(Array(theory_surface.get("lines", [])), ""),
+				"escalation": _first_string(Array(civilization_surface.get("lines", [])), ""),
+				"consequence": _first_string(Array(Dictionary(contradiction_packet.get("anti_bottleneck_report", {})).get("summary_lines", [])), ""),
+				"interpretation": _first_string(Array(review_surface.get("lines", [])), ""),
+				"priority": 2,
+				"public_safe": true
+			}],
+			"meta": [{
+				"trigger": _first_string(Array(activation_state.get("activation_lines", [])), ""),
+				"escalation": _first_string(Array(Dictionary(activation_state.get("safe_mode_state", {})).get("summary_lines", [])), ""),
+				"consequence": _first_string(Array(Dictionary(contradiction_packet.get("meta_reflection_report", {})).get("summary_lines", [])), ""),
+				"interpretation": _first_string(Array(review_surface.get("lines", [])), ""),
+				"priority": 1,
+				"public_safe": true
+			}]
+		},
+		{
+			"priority_channels": ["immediate", "run", "meta"],
+			"fairness_flags": ["runtime_non_mutation_required", "no_hidden_targeting_required"],
+			"max_visible_channels": 3,
+			"max_lines_per_layer": 2,
+			"max_total_lines": 6,
+			"residue_budget": 2
+		}
 	)
 	var lineage_registry := _build_compile_lineage_registry(experimental_ontology_state, theory_surface)
 	var doctrine_variant_id := _build_doctrine_variant_id(compiled_doctrine, compiled_generation_surface)

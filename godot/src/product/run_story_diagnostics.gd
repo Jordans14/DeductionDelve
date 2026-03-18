@@ -55,9 +55,17 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var activation_lines := _take_unique(_string_array(expedition_constitution_summary.get("activation_lines", [])), 3)
 	var safe_mode_active := bool(expedition_constitution_summary.get("safe_mode_active", false))
 	var safe_mode_lines := _take_unique(_string_array(expedition_constitution_summary.get("safe_mode_lines", [])), 3)
+	var packet_schema_version := int(expedition_constitution_summary.get("packet_schema_version", 0))
+	var explanation_packet_digest := str(expedition_constitution_summary.get("explanation_packet_digest", "")).strip_edges()
 	var explanation_packet_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_packet_lines", [])), 3)
+	var explanation_immediate_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_immediate_lines", [])), 3)
+	var explanation_run_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_run_lines", [])), 3)
+	var explanation_meta_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_meta_lines", [])), 3)
 	var review_surface_lines := _take_unique(_string_array(expedition_constitution_summary.get("review_surface_lines", [])), 3)
+	var signal_budget_lines := _take_unique(_string_array(expedition_constitution_summary.get("signal_budget_lines", [])), 3)
 	var mutation_surface_lines := _mutation_surface_lines(Dictionary(run_record.get("mutation_public_summary", {})))
+	var replay_id := str(Dictionary(run_record.get("replay_identity", {})).get("replay_id", Dictionary(run_record.get("forensic_bundle", {})).get("replay_id", ""))).strip_edges()
+	var forensic_bundle_digest := str(Dictionary(run_record.get("forensic_bundle", {})).get("bundle_digest", "")).strip_edges()
 	var gameplay_model := _local_gameplay_model(run_record, gameplay_snapshot)
 	var group_gameplay_model := _group_gameplay_model(gameplay_snapshot)
 	var branch_summary: Dictionary = _branch_summary(run_record)
@@ -286,8 +294,16 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"activation_lines": activation_lines,
 		"safe_mode_active": safe_mode_active,
 		"safe_mode_lines": safe_mode_lines,
+		"packet_schema_version": packet_schema_version,
+		"explanation_packet_digest": explanation_packet_digest,
 		"explanation_packet_lines": explanation_packet_lines,
+		"explanation_immediate_lines": explanation_immediate_lines,
+		"explanation_run_lines": explanation_run_lines,
+		"explanation_meta_lines": explanation_meta_lines,
 		"review_surface_lines": review_surface_lines,
+		"signal_budget_lines": signal_budget_lines,
+		"replay_id": replay_id,
+		"forensic_bundle_digest": forensic_bundle_digest,
 		"build_identity": build_identity,
 		"build_stability": build_stability,
 		"risk_profile": risk_profile,
@@ -381,8 +397,14 @@ static func _public_safe_constitution_summary(raw: Dictionary) -> Dictionary:
 		"activation_lines": _string_array(public_summary.get("activation_lines", raw.get("activation_lines", []))),
 		"safe_mode_active": bool(public_summary.get("safe_mode_active", raw.get("safe_mode_active", false))),
 		"safe_mode_lines": _string_array(public_summary.get("safe_mode_lines", raw.get("safe_mode_lines", []))),
+		"packet_schema_version": int(public_summary.get("packet_schema_version", raw.get("packet_schema_version", 0))),
+		"explanation_packet_digest": str(public_summary.get("explanation_packet_digest", raw.get("explanation_packet_digest", ""))).strip_edges(),
 		"explanation_packet_lines": _string_array(public_summary.get("explanation_packet_lines", raw.get("explanation_packet_lines", []))),
+		"explanation_immediate_lines": _string_array(public_summary.get("explanation_immediate_lines", raw.get("explanation_immediate_lines", []))),
+		"explanation_run_lines": _string_array(public_summary.get("explanation_run_lines", raw.get("explanation_run_lines", []))),
+		"explanation_meta_lines": _string_array(public_summary.get("explanation_meta_lines", raw.get("explanation_meta_lines", []))),
 		"review_surface_lines": _string_array(public_summary.get("review_surface_lines", raw.get("review_surface_lines", []))),
+		"signal_budget_lines": _string_array(public_summary.get("signal_budget_lines", raw.get("signal_budget_lines", []))),
 		"surface_summary": {
 			"lines": _string_array(surface_summary.get("lines", []))
 		}

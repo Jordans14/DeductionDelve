@@ -22,6 +22,7 @@ const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_muta
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
 const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
 const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
+const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
 const VISUAL_GOVERNANCE_SCRIPT = preload("res://src/visual/visual_governance.gd")
 const ITEM_PICKUP_SCENE = preload("res://scenes/Item.tscn")
 
@@ -2128,8 +2129,56 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 	expedition_constitution_summary["live_experiment_ids"] = live_experiment_ids.duplicate()
 	expedition_constitution_summary["live_hypothesis_ids"] = live_hypothesis_ids.duplicate()
 	var mutation_replay_signature := EXPEDITION_MUTATION_ENGINE_SCRIPT.replay_signature(mutation_history)
+	var expedition_constitution: Dictionary = Dictionary(RunState.expedition_constitution).duplicate(true) if RunState != null else {}
+	var activation_state: Dictionary = Dictionary(expedition_constitution.get("activation_state", {})).duplicate(true)
+	var explanation_packet: Dictionary = Dictionary(expedition_constitution.get("explanation_packet", {})).duplicate(true)
+	if explanation_packet.is_empty():
+		explanation_packet = GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
+			{
+				"artifact_type": "expedition_constitution",
+				"constitution_hash": constitution_hash
+			},
+			Array(expedition_constitution_summary.get("explanation_packet_lines", [])),
+			Array(expedition_constitution_summary.get("review_surface_lines", [])),
+			["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
+		)
+	var governance_hook_set := GOVERNANCE_SERVICE_SCRIPT.build_governance_hook_set(
+		{
+			"activation_state": activation_state,
+			"safe_mode_state": Dictionary(activation_state.get("safe_mode_state", {})).duplicate(true)
+		},
+		expedition_constitution_summary,
+		explanation_packet
+	)
+	var run_seed := int(end_payload.get("seed", RunState.run_seed))
+	var replay_identity := _build_replay_identity(run_seed, constitution_hash, mutation_replay_signature)
+	var telemetry_summary := _build_telemetry_summary(
+		timeline_public_events,
+		timeline_private_events,
+		explanation_packet,
+		governance_hook_set,
+		replay_identity
+	)
+	var forensic_bundle := _build_forensic_bundle(
+		run_seed,
+		constitution_hash,
+		expedition_constitution_summary,
+		explanation_packet,
+		governance_hook_set,
+		mutation_replay_signature
+	)
+	if RunState != null:
+		RunState.replay_identity = replay_identity.duplicate(true)
+		RunState.governance_hook_set = governance_hook_set.duplicate(true)
+		RunState.telemetry_summary = telemetry_summary.duplicate(true)
+		RunState.forensic_bundle_header = {
+			"bundle_id": str(forensic_bundle.get("bundle_id", "")),
+			"bundle_digest": str(forensic_bundle.get("bundle_digest", "")),
+			"bundle_schema_version": int(forensic_bundle.get("bundle_schema_version", 0)),
+			"replay_id": str(forensic_bundle.get("replay_id", ""))
+		}
 	return {
-		"seed": int(end_payload.get("seed", RunState.run_seed)),
+		"seed": run_seed,
 		"end_reason": str(end_payload.get("reason", "session_interrupted" if interrupted else "unknown")),
 		"local_peer_id": local_id,
 		"local_role": local_role,
@@ -2154,6 +2203,9 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"narrative_motion_facts": motion_facts,
 		"gameplay_signal_snapshot": gameplay_signal_snapshot,
 		"constitution_hash": constitution_hash,
+		"replay_identity": replay_identity.duplicate(true),
+		"telemetry_summary": telemetry_summary.duplicate(true),
+		"forensic_bundle": forensic_bundle.duplicate(true),
 		"manifested_experiment_ids": live_experiment_ids.duplicate(),
 		"live_experiment_ids": live_experiment_ids.duplicate(),
 		"live_hypothesis_ids": live_hypothesis_ids.duplicate(),
@@ -2168,6 +2220,154 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"session_wait_for_lobby": bool(reconnect_offer.get("wait_for_lobby", false)),
 		"session_reconnect_ready": bool(reconnect_offer.get("available", false))
 	}
+
+func build_forensic_bundle_for_test(seed_value: int, constitution_hash: String, constitution_summary: Dictionary, event_log: Node, mutation_history: Array, normalization_mode: String = "default") -> Dictionary:
+	var explanation_packet: Dictionary = GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
+		{
+			"artifact_type": "expedition_constitution",
+			"constitution_hash": constitution_hash
+		},
+		Array(constitution_summary.get("explanation_packet_lines", [])),
+		Array(constitution_summary.get("review_surface_lines", [])),
+		["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
+	)
+	var governance_hook_set := GOVERNANCE_SERVICE_SCRIPT.build_governance_hook_set(
+		{
+			"activation_state": {
+				"epoch": str(constitution_summary.get("activation_epoch", "inactive")),
+				"active_channels": Array(constitution_summary.get("activation_active_channels", [])).duplicate(true),
+				"dormant_channels": Array(constitution_summary.get("activation_dormant_channels", [])).duplicate(true),
+				"safe_mode_active": bool(constitution_summary.get("safe_mode_active", false)),
+				"quarantine_ids": []
+			},
+			"safe_mode_state": {
+				"enabled": bool(constitution_summary.get("safe_mode_active", false)),
+				"summary_lines": Array(constitution_summary.get("safe_mode_lines", [])).duplicate(true)
+			}
+		},
+		constitution_summary,
+		explanation_packet
+	)
+	var mutation_replay_signature := EXPEDITION_MUTATION_ENGINE_SCRIPT.replay_signature(mutation_history)
+	return _build_forensic_bundle(
+		seed_value,
+		constitution_hash,
+		constitution_summary,
+		explanation_packet,
+		governance_hook_set,
+		mutation_replay_signature,
+		event_log,
+		normalization_mode
+	)
+
+func _build_replay_identity(run_seed: int, constitution_hash: String, mutation_replay_signature: String, event_log: Node = null) -> Dictionary:
+	if event_log == null:
+		event_log = EventLog
+	var timeline_digest: String = event_log.timeline_digest() if event_log != null and event_log.has_method("timeline_digest") else ""
+	var replay_seed := "%d|%s|%s|%s" % [run_seed, constitution_hash, mutation_replay_signature, timeline_digest]
+	return {
+		"schema_name": "ReplayIdentity",
+		"schema_version": 1,
+		"replay_id": "replay_%s" % replay_seed.md5_text().substr(0, 16),
+		"run_seed": run_seed,
+		"constitution_hash": constitution_hash,
+		"mutation_replay_signature": mutation_replay_signature,
+		"timeline_digest": timeline_digest
+	}
+
+func _build_telemetry_summary(
+	timeline_public_events: Array,
+	timeline_private_events: Array,
+	explanation_packet: Dictionary,
+	governance_hook_set: Dictionary,
+	replay_identity: Dictionary
+) -> Dictionary:
+	return {
+		"schema_name": "TelemetrySummary",
+		"schema_version": 1,
+		"replay_id": str(replay_identity.get("replay_id", "")).strip_edges(),
+		"public_event_count": timeline_public_events.size(),
+		"private_event_count": timeline_private_events.size(),
+		"total_event_count": timeline_public_events.size() + timeline_private_events.size(),
+		"packet_digest": str(explanation_packet.get("packet_digest", "")).strip_edges(),
+		"packet_schema_version": int(explanation_packet.get("packet_schema_version", 0)),
+		"timeline_digest": str(replay_identity.get("timeline_digest", "")).strip_edges(),
+		"safe_mode_active": bool(governance_hook_set.get("safe_mode_active", false)),
+		"active_channel_count": Array(governance_hook_set.get("active_channels", [])).size(),
+		"drop_counts": Dictionary(Dictionary(explanation_packet.get("compression_profile", {})).get("drop_counts", {})).duplicate(true)
+	}
+
+func _build_forensic_bundle(
+	run_seed: int,
+	constitution_hash: String,
+	constitution_summary: Dictionary,
+	explanation_packet: Dictionary,
+	governance_hook_set: Dictionary,
+	mutation_replay_signature: String,
+	event_log: Node = null,
+	normalization_mode: String = "default"
+) -> Dictionary:
+	if event_log == null:
+		event_log = EventLog
+	var event_id_range: Dictionary = event_log.event_id_range() if event_log != null and event_log.has_method("event_id_range") else {
+		"min_event_id": -1,
+		"max_event_id": -1,
+		"event_count": 0
+	}
+	var replay_identity := _build_replay_identity(run_seed, constitution_hash, mutation_replay_signature, event_log)
+	var product_catalog_version := int(Dictionary(PRODUCT_CATALOG_SCRIPT.load_catalog()).get("schema_version", 1))
+	var constitution_version_hash_seed := "%s|%s" % [
+		constitution_hash,
+		str(constitution_summary.get("constitution_version", constitution_summary.get("schema_version", ""))).strip_edges()
+	]
+	var bundle := {
+		"schema_name": "ForensicBundleV1",
+		"bundle_schema_version": 1,
+		"bundle_id": "forensic_%s" % str(replay_identity.get("replay_id", "")).trim_prefix("replay_"),
+		"constitution_version_hash": constitution_version_hash_seed.md5_text(),
+		"packet_schema_version": int(explanation_packet.get("packet_schema_version", 0)),
+		"product_catalog_version": product_catalog_version,
+		"replay_id": str(replay_identity.get("replay_id", "")).strip_edges(),
+		"run_seed": run_seed,
+		"constitution_hash": constitution_hash,
+		"constitution_id": str(constitution_summary.get("constitution_id", "")).strip_edges(),
+		"event_id_range": event_id_range,
+		"timeline_digest": str(replay_identity.get("timeline_digest", "")).strip_edges(),
+		"mutation_replay_signature": mutation_replay_signature,
+		"normalization_mode": normalization_mode,
+		"governance_hook_set": governance_hook_set.duplicate(true),
+		"explanation_packet_digest": str(explanation_packet.get("packet_digest", "")).strip_edges(),
+		"bundle_extensions": {}
+	}
+	var digest_source := bundle.duplicate(true)
+	digest_source.erase("bundle_digest")
+	bundle["bundle_digest"] = _canonical_bundle_string(digest_source).md5_text()
+	return bundle
+
+func _canonical_bundle_string(value: Variant) -> String:
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var dict: Dictionary = value
+			var key_texts: Array[String] = []
+			var key_lookup: Dictionary = {}
+			for key in dict.keys():
+				var text := str(key)
+				key_texts.append(text)
+				key_lookup[text] = key
+			key_texts.sort()
+			var segments: Array[String] = []
+			for key_text in key_texts:
+				segments.append("%s:%s" % [key_text, _canonical_bundle_string(dict.get(key_lookup[key_text]))])
+			return "{%s}" % ",".join(segments)
+		TYPE_ARRAY:
+			var segments: Array[String] = []
+			for item in value:
+				segments.append(_canonical_bundle_string(item))
+			return "[%s]" % ",".join(segments)
+		TYPE_STRING:
+			return JSON.stringify(value)
+		_:
+			return str(value)
 
 func _record_narrative_sample() -> void:
 	if tick_counter % NARRATIVE_SAMPLE_INTERVAL_TICKS != 0:

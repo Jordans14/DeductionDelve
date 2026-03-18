@@ -27,6 +27,10 @@ var mutation_budget_by_domain: Dictionary = {}
 var active_mutation_flags: Dictionary = {}
 var mutation_caps_state: Dictionary = {}
 var mutation_visibility_state: Dictionary = {}
+var replay_identity: Dictionary = {}
+var governance_hook_set: Dictionary = {}
+var telemetry_summary: Dictionary = {}
+var forensic_bundle_header: Dictionary = {}
 
 func set_run(seed_value: int, chain: Array, peers: Array[int], context: Dictionary = {}) -> void:
 	run_counter += 1
@@ -56,6 +60,10 @@ func set_run(seed_value: int, chain: Array, peers: Array[int], context: Dictiona
 	active_mutation_flags = Dictionary(context.get("active_mutation_flags", {})).duplicate(true)
 	mutation_caps_state = Dictionary(context.get("mutation_caps_state", {})).duplicate(true)
 	mutation_visibility_state = Dictionary(context.get("mutation_visibility_state", {})).duplicate(true)
+	replay_identity = Dictionary(context.get("replay_identity", {})).duplicate(true)
+	governance_hook_set = Dictionary(context.get("governance_hook_set", {})).duplicate(true)
+	telemetry_summary = Dictionary(context.get("telemetry_summary", {})).duplicate(true)
+	forensic_bundle_header = Dictionary(context.get("forensic_bundle_header", {})).duplicate(true)
 
 func clear() -> void:
 	run_seed = 0
@@ -84,6 +92,10 @@ func clear() -> void:
 	active_mutation_flags.clear()
 	mutation_caps_state.clear()
 	mutation_visibility_state.clear()
+	replay_identity.clear()
+	governance_hook_set.clear()
+	telemetry_summary.clear()
+	forensic_bundle_header.clear()
 
 func set_expedition_constitution(constitution: Dictionary) -> void:
 	expedition_constitution = constitution.duplicate(true)

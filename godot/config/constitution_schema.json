@@ -67,7 +67,13 @@
     "item_ecology_bias",
     "group_tension_bias",
     "archive_tone",
-    "convergence_axis"
+    "convergence_axis",
+    "packet_schema_version",
+    "explanation_packet_digest",
+    "explanation_immediate_lines",
+    "explanation_run_lines",
+    "explanation_meta_lines",
+    "signal_budget_lines"
   ],
   "required_symbolic_fields": [
     "constitution_id",

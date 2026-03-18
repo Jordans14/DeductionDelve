@@ -24,6 +24,8 @@ const VISUAL_BUDGET_LIMITS := {
 	"landmark_scale": 1.65,
 	"cosmetic_brightness": 0.78
 }
+const ROOM_PACKET_SCHEMA_VERSION := 2
+const SIGNAL_COMPRESSION_SCHEMA_VERSION := 1
 const EXPEDITION_MUTATION_STACK_SLOTS: Array[String] = [
 	"silhouette_layer",
 	"carrier_frame_layer",
@@ -381,7 +383,16 @@ func room_visual_packet(room: Dictionary) -> Dictionary:
 		"confrontation_triangle": hazard != "none" or normalize_protocol_state(protocol_state) == "fracture" or pressure_profile.has("regroup_strain") or pressure_profile.has("relay_bottleneck") or pressure_profile.has("cohort_split") or pressure_profile.has("canon_conflict") or pressure_profile.has("ontology_heat"),
 		"suspicious_distance": normalize_protocol_state(protocol_state) in ["fracture", "exposure"] or pressure_profile.has("witness_doubt") or pressure_profile.has("distributed_witness") or pressure_profile.has("rumor_heat") or pressure_profile.has("counter_reading") or pressure_profile.has("fragmentary_reading") or pressure_profile.has("holder_network") or pressure_profile.has("mourning_climate") or pressure_profile.has("ontology_heat")
 	}
+	var telegraph_channels := _telegraph_channels_for_room(room_type, hazard, stagecraft)
+	var residue_layers := _residue_layers_for_room(room_type, hazard, pressure_profile, symbols)
+	var signal_compression_profile := _signal_compression_profile_for_room(room_type, hazard, telegraph_channels, residue_layers)
+	var temporal_density_budget := {
+		"simultaneous_signals": int(signal_compression_profile.get("max_visible_channels", 3)),
+		"residue_layers": residue_layers.size(),
+		"hazard_window": 1 if hazard != "none" else 0
+	}
 	return {
+		"packet_schema_version": ROOM_PACKET_SCHEMA_VERSION,
 		"branch_family_id": branch_family_id,
 		"protocol_state": normalize_protocol_state(protocol_state),
 		"room_slot": int(room.get("slot", -1)),
@@ -394,6 +405,10 @@ func room_visual_packet(room: Dictionary) -> Dictionary:
 		"emissive_lighting": clampi(emissive_lighting, 2, int(VISUAL_BUDGET_LIMITS["emissive_lighting"])),
 		"landmark_scale": minf(landmark_scale, float(VISUAL_BUDGET_LIMITS["landmark_scale"])),
 		"cosmetic_brightness": float(visual_profile.get("cosmetic_brightness", 0.72)),
+		"telegraph_channels": telegraph_channels,
+		"residue_layers": residue_layers,
+		"signal_compression_profile": signal_compression_profile,
+		"temporal_density_budget": temporal_density_budget,
 		"openness": maxf(openness, 0.45),
 		"midground_density": maxf(midground_density, 0.7),
 		"background_honesty": {
@@ -403,8 +418,52 @@ func room_visual_packet(room: Dictionary) -> Dictionary:
 		}
 	}
 
+func _telegraph_channels_for_room(room_type: String, hazard: String, stagecraft: Dictionary) -> Array[String]:
+	var channels: Array[String] = ["route"]
+	if room_type == "evidence":
+		channels.append("evidence")
+	if room_type == "hazard" or hazard != "none":
+		channels.append("hazard")
+	if bool(stagecraft.get("escort_lane", false)):
+		channels.append("escort")
+	if bool(stagecraft.get("carrier_isolation", false)):
+		channels.append("burden")
+	if bool(stagecraft.get("suspicious_distance", false)):
+		channels.append("witness")
+	return _string_array(channels)
+
+func _residue_layers_for_room(room_type: String, hazard: String, pressure_profile: Array[String], symbols: Array) -> Array[String]:
+	var layers: Array[String] = ["route_residue"]
+	if room_type == "evidence":
+		layers.append("evidence_residue")
+	if hazard != "none":
+		layers.append("hazard_residue")
+	if pressure_profile.has("return_pressure") or pressure_profile.has("relay_overload"):
+		layers.append("escort_residue")
+	if Array(symbols).size() >= 3:
+		layers.append("symbolic_residue")
+	return _string_array(layers)
+
+func _signal_compression_profile_for_room(room_type: String, hazard: String, telegraph_channels: Array[String], residue_layers: Array[String]) -> Dictionary:
+	return {
+		"schema_name": "SignalCompressionProfile",
+		"schema_version": SIGNAL_COMPRESSION_SCHEMA_VERSION,
+		"max_visible_channels": 3 if room_type == "hazard" or hazard != "none" else 4,
+		"max_lines_per_layer": 2,
+		"max_total_lines": 6,
+		"drop_policy": "priority_then_truncate",
+		"residue_budget": mini(residue_layers.size(), 3),
+		"telegraph_priority": telegraph_channels.duplicate(),
+		"drop_counts": {
+			"telegraph": maxi(telegraph_channels.size() - (3 if room_type == "hazard" or hazard != "none" else 4), 0),
+			"residue": maxi(residue_layers.size() - 3, 0)
+		}
+	}
+
 func validate_room_packet(packet: Dictionary) -> Array[String]:
 	var failures: Array[String] = []
+	if int(packet.get("packet_schema_version", 0)) < ROOM_PACKET_SCHEMA_VERSION:
+		failures.append("room visual packet must expose packet_schema_version")
 	if int(packet.get("particle_density", 0)) > int(VISUAL_BUDGET_LIMITS["particle_density"]):
 		failures.append("particle density exceeds doctrine budget")
 	if int(packet.get("emissive_lighting", 0)) > int(VISUAL_BUDGET_LIMITS["emissive_lighting"]):
@@ -417,6 +476,18 @@ func validate_room_packet(packet: Dictionary) -> Array[String]:
 	for key in ["allow_reachable_paths", "allow_reachable_artifacts", "allow_interactable_silhouettes"]:
 		if bool(honesty.get(key, true)):
 			failures.append("background honesty violated: %s" % key)
+	var signal_compression_profile: Dictionary = Dictionary(packet.get("signal_compression_profile", {}))
+	if signal_compression_profile.is_empty():
+		failures.append("room visual packet must expose signal_compression_profile")
+	else:
+		if int(signal_compression_profile.get("max_visible_channels", 0)) > 4:
+			failures.append("room visual packet exceeds the simultaneous signal budget")
+		if int(signal_compression_profile.get("residue_budget", 0)) > 3:
+			failures.append("room visual packet exceeds the residue budget")
+	if _string_array(packet.get("telegraph_channels", [])).is_empty():
+		failures.append("room visual packet must expose telegraph_channels")
+	if Array(packet.get("residue_layers", [])).is_empty():
+		failures.append("room visual packet must expose residue_layers")
 	return failures
 
 func validate_visual_only_layer(layer: Node, layer_label: String = "visual-only layer", allow_labels: bool = false) -> Array[String]:

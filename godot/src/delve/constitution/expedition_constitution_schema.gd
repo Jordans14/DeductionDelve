@@ -381,8 +381,14 @@ static func build_public_summary(
 		"activation_lines": [],
 		"safe_mode_active": false,
 		"safe_mode_lines": [],
+		"packet_schema_version": GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION,
+		"explanation_packet_digest": "",
 		"explanation_packet_lines": [],
+		"explanation_immediate_lines": [],
+		"explanation_run_lines": [],
+		"explanation_meta_lines": [],
 		"review_surface_lines": [],
+		"signal_budget_lines": [],
 		"surface_summary": {
 			"lines": Array(surface_summary.get("lines", [])).duplicate(true)
 		}
@@ -441,8 +447,14 @@ static func build_runtime_summary(summary: Dictionary, constitution_hash: String
 		"activation_lines": Array(normalized_summary.get("activation_lines", [])).duplicate(true),
 		"safe_mode_active": bool(normalized_summary.get("safe_mode_active", false)),
 		"safe_mode_lines": Array(normalized_summary.get("safe_mode_lines", [])).duplicate(true),
+		"packet_schema_version": int(normalized_summary.get("packet_schema_version", GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION)),
+		"explanation_packet_digest": str(normalized_summary.get("explanation_packet_digest", "")),
 		"explanation_packet_lines": Array(normalized_summary.get("explanation_packet_lines", [])).duplicate(true),
+		"explanation_immediate_lines": Array(normalized_summary.get("explanation_immediate_lines", [])).duplicate(true),
+		"explanation_run_lines": Array(normalized_summary.get("explanation_run_lines", [])).duplicate(true),
+		"explanation_meta_lines": Array(normalized_summary.get("explanation_meta_lines", [])).duplicate(true),
 		"review_surface_lines": Array(normalized_summary.get("review_surface_lines", [])).duplicate(true),
+		"signal_budget_lines": Array(normalized_summary.get("signal_budget_lines", [])).duplicate(true),
 		"generation_surface": {},
 		"generation_contract": {},
 		"control_surfaces": {}
@@ -1027,8 +1039,14 @@ static func _apply_phase_v3_summary(
 	current["activation_lines"] = _string_array(activation_state.get("activation_lines", []))
 	current["safe_mode_active"] = bool(activation_state.get("safe_mode_active", false))
 	current["safe_mode_lines"] = _string_array(Dictionary(activation_state.get("safe_mode_state", {})).get("summary_lines", []))
+	current["packet_schema_version"] = int(explanation_packet.get("packet_schema_version", GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION))
+	current["explanation_packet_digest"] = str(explanation_packet.get("packet_digest", "")).strip_edges()
 	current["explanation_packet_lines"] = _string_array(explanation_packet.get("summary_lines", []))
+	current["explanation_immediate_lines"] = _lane_summary_lines(Array(explanation_packet.get("immediate", [])))
+	current["explanation_run_lines"] = _lane_summary_lines(Array(explanation_packet.get("run", [])))
+	current["explanation_meta_lines"] = _lane_summary_lines(Array(explanation_packet.get("meta", [])))
 	current["review_surface_lines"] = _string_array(review_surface.get("lines", []))
+	current["signal_budget_lines"] = _signal_budget_lines(Dictionary(explanation_packet.get("compression_profile", {})))
 	return current
 
 static func _normalize_civilization_surface(raw: Dictionary) -> Dictionary:
@@ -1102,9 +1120,20 @@ static func _normalize_explanation_packet(raw: Dictionary) -> Dictionary:
 	if current["packet_id"].is_empty():
 		current["packet_id"] = "packet_constitution"
 	current["artifact_type"] = str(current.get("artifact_type", "expedition_constitution")).strip_edges()
+	current["packet_schema_version"] = int(current.get("packet_schema_version", GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION))
 	current["summary_lines"] = _string_array(current.get("summary_lines", []))
 	current["operator_lines"] = _string_array(current.get("operator_lines", []))
 	current["play_routing_tags"] = _string_array(current.get("play_routing_tags", []))
+	current["play_routing_contract"] = Dictionary(current.get("play_routing_contract", {})).duplicate(true)
+	current["compression_profile"] = GOVERNANCE_SERVICE_SCRIPT.normalize_signal_compression_profile(
+		Dictionary(current.get("compression_profile", {}))
+	)
+	current["priority_channels"] = _string_array(current.get("priority_channels", []))
+	current["fairness_flags"] = _string_array(current.get("fairness_flags", []))
+	current["immediate"] = GOVERNANCE_SERVICE_SCRIPT._normalize_explanation_layer(Array(current.get("immediate", [])))
+	current["run"] = GOVERNANCE_SERVICE_SCRIPT._normalize_explanation_layer(Array(current.get("run", [])))
+	current["meta"] = GOVERNANCE_SERVICE_SCRIPT._normalize_explanation_layer(Array(current.get("meta", [])))
+	current["packet_digest"] = str(current.get("packet_digest", "")).strip_edges()
 	return current
 
 static func _normalize_review_surface(raw: Dictionary) -> Dictionary:
@@ -1119,6 +1148,33 @@ static func _normalize_review_surface(raw: Dictionary) -> Dictionary:
 	current["active_channels"] = _string_array(current.get("active_channels", []))
 	current["dormant_channels"] = _string_array(current.get("dormant_channels", []))
 	return current
+
+static func _lane_summary_lines(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for entry_raw in values:
+		var entry := Dictionary(entry_raw)
+		var line := _first_string([
+			str(entry.get("interpretation", "")).strip_edges(),
+			str(entry.get("trigger", "")).strip_edges(),
+			str(entry.get("consequence", "")).strip_edges()
+		], "")
+		if not line.is_empty() and not result.has(line):
+			result.append(line)
+	return result
+
+static func _signal_budget_lines(profile: Dictionary) -> Array[String]:
+	if profile.is_empty():
+		return []
+	var priority := _string_array(profile.get("telegraph_priority", []))
+	var lines: Array[String] = []
+	lines.append("Signal budget: %d channels, %d lines per layer" % [
+		int(profile.get("max_visible_channels", 0)),
+		int(profile.get("max_lines_per_layer", 0))
+	])
+	if not priority.is_empty():
+		lines.append("Priority: %s" % ", ".join(priority))
+	lines.append("Residue budget: %d" % int(profile.get("residue_budget", 0)))
+	return _string_array(lines)
 
 static func _string_array(values: Variant) -> Array[String]:
 	var result: Array[String] = []

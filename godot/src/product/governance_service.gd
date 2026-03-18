@@ -4,6 +4,9 @@ extends RefCounted
 const MAX_HISTORY := 24
 const MAX_REPORTS := 24
 const MAX_LINES := 6
+const PACKET_SCHEMA_VERSION := 2
+const SIGNAL_COMPRESSION_SCHEMA_VERSION := 1
+const GOVERNANCE_HOOK_SCHEMA_VERSION := 1
 const BASELINE_ROUTES := ["movement", "burden", "rescue", "witness", "route_choice", "artifact_custody", "hesitation", "extraction", "return"]
 const ALL_CHANNELS := ["constitution", "archive", "world_memory", "inquiry", "theory", "cognitive_field", "factions", "world_mutation", "cookbook", "contradiction", "safe_mode"]
 
@@ -20,7 +23,11 @@ static func default_state() -> Dictionary:
 		"play_routing_reports": [],
 		"court_decisions": [],
 		"meta_reflection_reports": [],
-		"contradiction_records": []
+		"contradiction_records": [],
+		"fairness_trigger_records": [],
+		"dignity_trigger_records": [],
+		"normalization_records": [],
+		"rollback_candidates": []
 	}
 
 static func normalize(state: Dictionary) -> Dictionary:
@@ -37,6 +44,10 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["court_decisions"] = _normalize_reports(Array(current.get("court_decisions", [])))
 	current["meta_reflection_reports"] = _normalize_reports(Array(current.get("meta_reflection_reports", [])))
 	current["contradiction_records"] = _normalize_reports(Array(current.get("contradiction_records", [])))
+	current["fairness_trigger_records"] = _normalize_reports(Array(current.get("fairness_trigger_records", [])))
+	current["dignity_trigger_records"] = _normalize_reports(Array(current.get("dignity_trigger_records", [])))
+	current["normalization_records"] = _normalize_reports(Array(current.get("normalization_records", [])))
+	current["rollback_candidates"] = _normalize_reports(Array(current.get("rollback_candidates", [])))
 	return current
 
 static func normalize_activation_state(raw: Dictionary) -> Dictionary:
@@ -157,7 +168,84 @@ static func evaluate_planning_state(governance_state: Dictionary, world_model: D
 	current["contradiction_records"] = _normalize_reports(contradiction_records)
 	return normalize(current)
 
-static func build_explanation_packet(source: Dictionary, summary_lines: Array = [], operator_lines: Array = [], play_routing_tags: Array = []) -> Dictionary:
+static func normalize_signal_compression_profile(raw: Dictionary) -> Dictionary:
+	var current := {
+		"schema_name": "SignalCompressionProfile",
+		"schema_version": SIGNAL_COMPRESSION_SCHEMA_VERSION,
+		"max_visible_channels": 3,
+		"max_lines_per_layer": 2,
+		"max_total_lines": MAX_LINES,
+		"drop_policy": "priority_then_truncate",
+		"residue_budget": 2,
+		"telegraph_priority": ["immediate", "run", "meta"],
+		"drop_counts": {
+			"immediate": 0,
+			"run": 0,
+			"meta": 0,
+			"summary": 0,
+			"operator": 0
+		}
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["max_visible_channels"] = clampi(int(current.get("max_visible_channels", 3)), 1, 6)
+	current["max_lines_per_layer"] = clampi(int(current.get("max_lines_per_layer", 2)), 1, MAX_LINES)
+	current["max_total_lines"] = clampi(int(current.get("max_total_lines", MAX_LINES)), 1, MAX_LINES)
+	current["drop_policy"] = str(current.get("drop_policy", "priority_then_truncate")).strip_edges()
+	if current["drop_policy"].is_empty():
+		current["drop_policy"] = "priority_then_truncate"
+	current["residue_budget"] = clampi(int(current.get("residue_budget", 2)), 0, 4)
+	current["telegraph_priority"] = _slice_strings(current.get("telegraph_priority", ["immediate", "run", "meta"]), 6)
+	var drop_counts: Dictionary = Dictionary(current.get("drop_counts", {})).duplicate(true)
+	var normalized_drop_counts := {}
+	for lane_id in ["immediate", "run", "meta", "summary", "operator"]:
+		normalized_drop_counts[lane_id] = maxi(int(drop_counts.get(lane_id, 0)), 0)
+	current["drop_counts"] = normalized_drop_counts
+	return current
+
+static func build_governance_hook_set(governance_state: Dictionary, constitution_summary: Dictionary = {}, explanation_packet: Dictionary = {}) -> Dictionary:
+	var current := normalize(governance_state)
+	var activation_state: Dictionary = normalize_activation_state(Dictionary(current.get("activation_state", {})))
+	var safe_mode_state: Dictionary = normalize_safe_mode_state(Dictionary(current.get("safe_mode_state", {})))
+	var packet := Dictionary(explanation_packet).duplicate(true)
+	packet["packet_schema_version"] = int(packet.get("packet_schema_version", PACKET_SCHEMA_VERSION))
+	packet["packet_digest"] = str(packet.get("packet_digest", "")).strip_edges()
+	return {
+		"schema_name": "GovernanceHookSet",
+		"schema_version": GOVERNANCE_HOOK_SCHEMA_VERSION,
+		"activation_epoch": str(activation_state.get("epoch", "inactive")).strip_edges(),
+		"active_channels": _slice_strings(activation_state.get("active_channels", []), 12),
+		"dormant_channels": _slice_strings(activation_state.get("dormant_channels", []), 12),
+		"safe_mode_active": bool(activation_state.get("safe_mode_active", false)),
+		"quarantine_ids": _slice_strings(activation_state.get("quarantine_ids", []), 12),
+		"safe_mode_reason": str(safe_mode_state.get("reason", "")).strip_edges(),
+		"packet_id": str(packet.get("packet_id", "")).strip_edges(),
+		"packet_schema_version": int(packet.get("packet_schema_version", PACKET_SCHEMA_VERSION)),
+		"packet_digest": str(packet.get("packet_digest", "")).strip_edges(),
+		"fairness_flags": _slice_strings(packet.get("fairness_flags", []), 8),
+		"priority_channels": _slice_strings(packet.get("priority_channels", []), 6),
+		"available_actions": ["observe", "normalize", "throttle", "quarantine", "rollback", "veto"],
+		"trigger_slots": {
+			"fairness": _report_ids(Array(current.get("fairness_trigger_records", []))),
+			"dignity": _report_ids(Array(current.get("dignity_trigger_records", []))),
+			"normalization": _report_ids(Array(current.get("normalization_records", []))),
+			"rollback": _report_ids(Array(current.get("rollback_candidates", [])))
+		},
+		"summary_lines": _slice_strings([
+			_first_non_empty([
+				_first_string(activation_state.get("activation_lines", []), ""),
+				_first_string(Dictionary(constitution_summary).get("activation_lines", []), ""),
+				_first_string(Dictionary(constitution_summary).get("review_surface_lines", []), "")
+			]),
+			_first_non_empty([
+				_first_string(safe_mode_state.get("summary_lines", []), ""),
+				_first_string(Dictionary(constitution_summary).get("safe_mode_lines", []), "")
+			]),
+			_first_string(packet.get("summary_lines", []), "")
+		], 3)
+	}
+
+static func build_explanation_packet(source: Dictionary, summary_lines: Array = [], operator_lines: Array = [], play_routing_tags: Array = [], lane_entries: Dictionary = {}, options: Dictionary = {}) -> Dictionary:
 	var artifact_type := str(source.get("artifact_type", "governance_packet")).strip_edges()
 	var packet_id_seed := "%s|%s|%s" % [
 		artifact_type,
@@ -166,13 +254,60 @@ static func build_explanation_packet(source: Dictionary, summary_lines: Array = 
 	]
 	if packet_id_seed.strip_edges().is_empty():
 		packet_id_seed = JSON.stringify(source)
-	return {
+	var immediate := _normalize_explanation_layer(Array(lane_entries.get("immediate", [])))
+	var run_lane := _normalize_explanation_layer(Array(lane_entries.get("run", [])))
+	var meta := _normalize_explanation_layer(Array(lane_entries.get("meta", [])))
+	if immediate.is_empty():
+		immediate = _derive_explanation_lane_entries(summary_lines, "immediate")
+	if run_lane.is_empty():
+		run_lane = _derive_explanation_lane_entries(summary_lines + play_routing_tags, "run")
+	if meta.is_empty():
+		meta = _derive_explanation_lane_entries(operator_lines, "meta")
+	var compression_profile := normalize_signal_compression_profile({
+		"max_visible_channels": int(options.get("max_visible_channels", 3)),
+		"max_lines_per_layer": int(options.get("max_lines_per_layer", 2)),
+		"max_total_lines": int(options.get("max_total_lines", MAX_LINES)),
+		"drop_policy": str(options.get("drop_policy", "priority_then_truncate")),
+		"residue_budget": int(options.get("residue_budget", 2)),
+		"telegraph_priority": options.get("priority_channels", ["immediate", "run", "meta"])
+	})
+	var packet_summary_lines := _slice_strings(
+		_string_array(summary_lines) if not _string_array(summary_lines).is_empty() else _derived_lane_lines(immediate, run_lane, meta),
+		int(compression_profile.get("max_total_lines", MAX_LINES))
+	)
+	var packet_operator_lines := _slice_strings(
+		_string_array(operator_lines) if not _string_array(operator_lines).is_empty() else _derived_operator_lines(meta, run_lane),
+		int(compression_profile.get("max_total_lines", MAX_LINES))
+	)
+	var drop_counts: Dictionary = Dictionary(compression_profile.get("drop_counts", {})).duplicate(true)
+	drop_counts["immediate"] = maxi(immediate.size() - int(compression_profile.get("max_lines_per_layer", 2)), 0)
+	drop_counts["run"] = maxi(run_lane.size() - int(compression_profile.get("max_lines_per_layer", 2)), 0)
+	drop_counts["meta"] = maxi(meta.size() - int(compression_profile.get("max_lines_per_layer", 2)), 0)
+	drop_counts["summary"] = maxi(_string_array(summary_lines).size() - packet_summary_lines.size(), 0)
+	drop_counts["operator"] = maxi(_string_array(operator_lines).size() - packet_operator_lines.size(), 0)
+	compression_profile["drop_counts"] = drop_counts
+	var packet := {
 		"packet_id": "packet_%s" % packet_id_seed.md5_text().substr(0, 12),
 		"artifact_type": artifact_type,
-		"summary_lines": _slice_strings(_string_array(summary_lines), MAX_LINES),
-		"operator_lines": _slice_strings(_string_array(operator_lines), MAX_LINES),
-		"play_routing_tags": _string_array(play_routing_tags)
+		"packet_schema_version": PACKET_SCHEMA_VERSION,
+		"summary_lines": packet_summary_lines,
+		"operator_lines": packet_operator_lines,
+		"play_routing_tags": _string_array(play_routing_tags),
+		"play_routing_contract": {
+			"baseline_routes": _string_array(play_routing_tags),
+			"artifact_type": artifact_type
+		},
+		"compression_profile": compression_profile,
+		"priority_channels": _slice_strings(options.get("priority_channels", ["immediate", "run", "meta"]), 6),
+		"fairness_flags": _slice_strings(options.get("fairness_flags", []), 8),
+		"immediate": immediate.slice(0, int(compression_profile.get("max_lines_per_layer", 2))),
+		"run": run_lane.slice(0, int(compression_profile.get("max_lines_per_layer", 2))),
+		"meta": meta.slice(0, int(compression_profile.get("max_lines_per_layer", 2)))
 	}
+	var digest_source := packet.duplicate(true)
+	digest_source.erase("packet_digest")
+	packet["packet_digest"] = _canonical_string(digest_source).md5_text()
+	return packet
 
 static func build_review_surface(governance_state: Dictionary) -> Dictionary:
 	var current := normalize(governance_state)
@@ -347,3 +482,108 @@ static func _first_non_empty(values: Array) -> String:
 		if not text.is_empty():
 			return text
 	return ""
+
+static func _normalize_explanation_layer(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var entry := Dictionary(value).duplicate(true)
+		entry["trigger"] = str(entry.get("trigger", "")).strip_edges()
+		entry["escalation"] = str(entry.get("escalation", "")).strip_edges()
+		entry["consequence"] = str(entry.get("consequence", "")).strip_edges()
+		entry["interpretation"] = str(entry.get("interpretation", "")).strip_edges()
+		entry["priority"] = clampi(int(entry.get("priority", 1)), 1, 5)
+		entry["public_safe"] = bool(entry.get("public_safe", true))
+		if _first_non_empty([entry["trigger"], entry["escalation"], entry["consequence"], entry["interpretation"]]).is_empty():
+			continue
+		result.append(entry)
+	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("priority", 0)) > int(b.get("priority", 0))
+	)
+	return result
+
+static func _derive_explanation_lane_entries(lines: Array, lane_id: String) -> Array[Dictionary]:
+	var values := _slice_strings(lines, 4)
+	if values.is_empty():
+		return []
+	var entry := {
+		"trigger": _first_string(values, ""),
+		"escalation": values[1] if values.size() > 1 else "",
+		"consequence": values[2] if values.size() > 2 else "",
+		"interpretation": values[3] if values.size() > 3 else _first_string(values, ""),
+		"priority": 3 if lane_id == "immediate" else 2 if lane_id == "run" else 1,
+		"public_safe": true
+	}
+	return _normalize_explanation_layer([entry])
+
+static func _derived_lane_lines(immediate: Array[Dictionary], run_lane: Array[Dictionary], meta: Array[Dictionary]) -> Array[String]:
+	return _slice_strings([
+		_lane_line(immediate),
+		_lane_line(run_lane),
+		_lane_line(meta)
+	], MAX_LINES)
+
+static func _derived_operator_lines(meta: Array[Dictionary], run_lane: Array[Dictionary]) -> Array[String]:
+	return _slice_strings([
+		_lane_operator_line(meta),
+		_lane_operator_line(run_lane)
+	], MAX_LINES)
+
+static func _lane_line(entries: Array[Dictionary]) -> String:
+	if entries.is_empty():
+		return ""
+	var entry: Dictionary = entries[0]
+	return _first_non_empty([
+		str(entry.get("interpretation", "")).strip_edges(),
+		str(entry.get("trigger", "")).strip_edges(),
+		str(entry.get("consequence", "")).strip_edges()
+	])
+
+static func _lane_operator_line(entries: Array[Dictionary]) -> String:
+	if entries.is_empty():
+		return ""
+	var entry: Dictionary = entries[0]
+	return _first_non_empty([
+		str(entry.get("escalation", "")).strip_edges(),
+		str(entry.get("consequence", "")).strip_edges(),
+		str(entry.get("interpretation", "")).strip_edges()
+	])
+
+static func _report_ids(entries: Array) -> Array[String]:
+	var result: Array[String] = []
+	for entry_raw in entries:
+		var entry := Dictionary(entry_raw)
+		var entry_id := _first_non_empty([
+			str(entry.get("report_id", "")).strip_edges(),
+			str(entry.get("decision_id", "")).strip_edges(),
+			str(entry.get("reflection_id", "")).strip_edges(),
+			str(entry.get("record_id", "")).strip_edges(),
+			str(entry.get("entry_id", "")).strip_edges()
+		])
+		if not entry_id.is_empty() and not result.has(entry_id):
+			result.append(entry_id)
+	return result
+
+static func _canonical_string(value: Variant) -> String:
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var dict: Dictionary = value
+			var key_texts: Array[String] = []
+			var key_lookup: Dictionary = {}
+			for key in dict.keys():
+				var text := str(key)
+				key_texts.append(text)
+				key_lookup[text] = key
+			key_texts.sort()
+			var segments: Array[String] = []
+			for key_text in key_texts:
+				segments.append("%s:%s" % [key_text, _canonical_string(dict.get(key_lookup[key_text]))])
+			return "{%s}" % ",".join(segments)
+		TYPE_ARRAY:
+			var segments: Array[String] = []
+			for item in value:
+				segments.append(_canonical_string(item))
+			return "[%s]" % ",".join(segments)
+		TYPE_STRING:
+			return JSON.stringify(value)
+		_:
+			return str(value)
