@@ -1,0 +1,97 @@
+{
+  "schema_name": "DelveMindInquiry",
+  "schema_version": 1,
+  "observation_store_required_fields": [
+    "schema_name",
+    "schema_version",
+    "records",
+    "behavior_field_snapshots",
+    "observable_ids"
+  ],
+  "procedure_store_required_fields": [
+    "schema_name",
+    "schema_version",
+    "procedures",
+    "proposal_ids"
+  ],
+  "theory_store_required_fields": [
+    "schema_name",
+    "schema_version",
+    "theories",
+    "schools",
+    "lineage_registry"
+  ],
+  "judgment_store_required_fields": [
+    "schema_name",
+    "schema_version",
+    "judgments",
+    "contradiction_ids"
+  ],
+  "observable_required_fields": [
+    "observable_id",
+    "label",
+    "category",
+    "capture_mode",
+    "play_routing_tags"
+  ],
+  "procedure_required_fields": [
+    "procedure_id",
+    "label",
+    "status",
+    "risk_class",
+    "play_routing_tags"
+  ],
+  "theory_required_fields": [
+    "theory_id",
+    "label",
+    "status",
+    "school_id",
+    "observable_ids",
+    "play_routing_tags"
+  ],
+  "theory_school_required_fields": [
+    "school_id",
+    "label",
+    "stance",
+    "visibility"
+  ],
+  "judgment_required_fields": [
+    "judgment_id",
+    "theory_id",
+    "outcome",
+    "confidence",
+    "play_routing_tags"
+  ],
+  "forecast_required_fields": [
+    "forecast_id",
+    "chamber_id",
+    "theory_id",
+    "prediction",
+    "confidence"
+  ],
+  "allowed_theory_states": [
+    "official",
+    "rival",
+    "failed_archival",
+    "suppressed_dangerous",
+    "folk",
+    "cookbook",
+    "anomaly_only",
+    "proto"
+  ],
+  "allowed_judgment_outcomes": [
+    "support",
+    "weaken",
+    "split",
+    "suspend",
+    "quarantine",
+    "abstain"
+  ],
+  "allowed_chamber_ids": [
+    "tactical",
+    "crawl",
+    "cultural",
+    "epoch",
+    "constitutional"
+  ]
+}

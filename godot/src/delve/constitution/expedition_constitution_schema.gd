@@ -1,9 +1,11 @@
 class_name ExpeditionConstitutionSchema
 extends RefCounted
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
 const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
+const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
+const CIVILIZATION_STATE_SERVICE_SCRIPT = preload("res://src/product/civilization_state_service.gd")
 
 static func build(
 	seed_value: int,
@@ -33,6 +35,32 @@ static func build(
 	var experimental_ontology_state := Dictionary(compile_outputs.get("experimental_ontology_state", _default_experimental_ontology_state())).duplicate(true)
 	public_summary = _apply_narrative_pressure_summary(public_summary, narrative_pressure_state)
 	public_summary = _apply_experimental_summary(public_summary, experimental_ontology_state)
+	var lineage_registry := Dictionary(compile_outputs.get("lineage_registry", {})).duplicate(true)
+	var civilization_surface := _normalize_civilization_surface(
+		Dictionary(
+			compile_outputs.get(
+				"civilization_surface",
+				CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(Dictionary(world_model.get("world_memory_snapshot", world_model.get("world_memory", {}))))
+			)
+		)
+	)
+	var cognitive_field_state := _normalize_cognitive_field_state(Dictionary(compile_outputs.get("cognitive_field_state", {})))
+	var mind_projections := _normalize_mind_projections(Array(compile_outputs.get("mind_projections", [])))
+	var theory_surface := _normalize_theory_surface(Dictionary(compile_outputs.get("theory_surface", {})))
+	var activation_state := GOVERNANCE_SERVICE_SCRIPT.normalize_activation_state(Dictionary(compile_outputs.get("activation_state", {})))
+	var explanation_packet := _normalize_explanation_packet(Dictionary(compile_outputs.get("explanation_packet", {})))
+	var review_surface := _normalize_review_surface(Dictionary(compile_outputs.get("review_surface", {})))
+	public_summary = _apply_phase_v3_summary(
+		public_summary,
+		lineage_registry,
+		civilization_surface,
+		cognitive_field_state,
+		mind_projections,
+		theory_surface,
+		activation_state,
+		explanation_packet,
+		review_surface
+	)
 	var constitution := {
 		"artifact_type": "expedition_constitution",
 		"schema_name": "ExpeditionConstitution",
@@ -72,6 +100,14 @@ static func build(
 		"mutation_permissions": Dictionary(compile_outputs.get("mutation_permissions", _default_mutation_permissions(policy))).duplicate(true),
 		"symbolic_motifs": Array(compile_outputs.get("symbolic_motifs", public_summary.get("symbolic_motifs", generation_surface.get("symbolic_motifs", [])))).duplicate(true),
 		"fairness_bounds": Dictionary(compile_outputs.get("fairness_bounds", _default_fairness_bounds())).duplicate(true),
+		"lineage_registry": lineage_registry.duplicate(true),
+		"civilization_surface": civilization_surface.duplicate(true),
+		"cognitive_field_state": cognitive_field_state.duplicate(true),
+		"mind_projections": mind_projections.duplicate(true),
+		"theory_surface": theory_surface.duplicate(true),
+		"activation_state": activation_state.duplicate(true),
+		"explanation_packet": explanation_packet.duplicate(true),
+		"review_surface": review_surface.duplicate(true),
 		"route_chamber_model": _build_route_chamber_model(generation_surface, room_count),
 		"role_surface_model": _build_role_surface_model(policy, public_summary),
 		"item_ecology": _build_item_ecology(public_summary, generation_surface),
@@ -115,9 +151,9 @@ static func normalize(raw: Dictionary) -> Dictionary:
 		normalized["artifact_type"] = "expedition_constitution"
 	if not normalized.has("schema_name"):
 		normalized["schema_name"] = "ExpeditionConstitution"
-	if not normalized.has("schema_version"):
+	if not normalized.has("schema_version") or int(normalized.get("schema_version", 0)) < SCHEMA_VERSION:
 		normalized["schema_version"] = SCHEMA_VERSION
-	if not normalized.has("constitution_version"):
+	if not normalized.has("constitution_version") or int(normalized.get("constitution_version", 0)) < SCHEMA_VERSION:
 		normalized["constitution_version"] = int(normalized.get("schema_version", SCHEMA_VERSION))
 	if not normalized.has("generation_surface"):
 		normalized["generation_surface"] = Dictionary(normalized.get("generation_contract", {})).duplicate(true)
@@ -212,6 +248,22 @@ static func normalize(raw: Dictionary) -> Dictionary:
 		normalized["mutation_permissions"] = _default_mutation_permissions(Dictionary(normalized.get("control_surfaces", {})))
 	if not normalized.has("fairness_bounds"):
 		normalized["fairness_bounds"] = _default_fairness_bounds()
+	if not normalized.has("lineage_registry"):
+		normalized["lineage_registry"] = {}
+	if not normalized.has("civilization_surface"):
+		normalized["civilization_surface"] = {}
+	if not normalized.has("cognitive_field_state"):
+		normalized["cognitive_field_state"] = {}
+	if not normalized.has("mind_projections"):
+		normalized["mind_projections"] = []
+	if not normalized.has("theory_surface"):
+		normalized["theory_surface"] = {}
+	if not normalized.has("activation_state"):
+		normalized["activation_state"] = {}
+	if not normalized.has("explanation_packet"):
+		normalized["explanation_packet"] = {}
+	if not normalized.has("review_surface"):
+		normalized["review_surface"] = {}
 	if not normalized.has("multimodal_contract"):
 		normalized["multimodal_contract"] = _default_multimodal_contract()
 	if not normalized.has("cosmetic_readability_law"):
@@ -226,6 +278,14 @@ static func normalize(raw: Dictionary) -> Dictionary:
 	normalized["experimental_ontology_state"] = _normalize_experimental_ontology_state(
 		Dictionary(normalized.get("experimental_ontology_state", {}))
 	)
+	normalized["lineage_registry"] = Dictionary(normalized.get("lineage_registry", {})).duplicate(true)
+	normalized["civilization_surface"] = _normalize_civilization_surface(Dictionary(normalized.get("civilization_surface", {})))
+	normalized["cognitive_field_state"] = _normalize_cognitive_field_state(Dictionary(normalized.get("cognitive_field_state", {})))
+	normalized["mind_projections"] = _normalize_mind_projections(Array(normalized.get("mind_projections", [])))
+	normalized["theory_surface"] = _normalize_theory_surface(Dictionary(normalized.get("theory_surface", {})))
+	normalized["activation_state"] = GOVERNANCE_SERVICE_SCRIPT.normalize_activation_state(Dictionary(normalized.get("activation_state", {})))
+	normalized["explanation_packet"] = _normalize_explanation_packet(Dictionary(normalized.get("explanation_packet", {})))
+	normalized["review_surface"] = _normalize_review_surface(Dictionary(normalized.get("review_surface", {})))
 	normalized["constitution_summary"] = _apply_narrative_pressure_summary(
 		Dictionary(normalized.get("constitution_summary", {})),
 		Dictionary(normalized.get("narrative_pressure_state", {}))
@@ -241,6 +301,28 @@ static func normalize(raw: Dictionary) -> Dictionary:
 	normalized["public_summary"] = _apply_experimental_summary(
 		Dictionary(normalized.get("public_summary", {})),
 		Dictionary(normalized.get("experimental_ontology_state", {}))
+	)
+	normalized["constitution_summary"] = _apply_phase_v3_summary(
+		Dictionary(normalized.get("constitution_summary", {})),
+		Dictionary(normalized.get("lineage_registry", {})),
+		Dictionary(normalized.get("civilization_surface", {})),
+		Dictionary(normalized.get("cognitive_field_state", {})),
+		Array(normalized.get("mind_projections", [])),
+		Dictionary(normalized.get("theory_surface", {})),
+		Dictionary(normalized.get("activation_state", {})),
+		Dictionary(normalized.get("explanation_packet", {})),
+		Dictionary(normalized.get("review_surface", {}))
+	)
+	normalized["public_summary"] = _apply_phase_v3_summary(
+		Dictionary(normalized.get("public_summary", {})),
+		Dictionary(normalized.get("lineage_registry", {})),
+		Dictionary(normalized.get("civilization_surface", {})),
+		Dictionary(normalized.get("cognitive_field_state", {})),
+		Array(normalized.get("mind_projections", [])),
+		Dictionary(normalized.get("theory_surface", {})),
+		Dictionary(normalized.get("activation_state", {})),
+		Dictionary(normalized.get("explanation_packet", {})),
+		Dictionary(normalized.get("review_surface", {}))
 	)
 	if not normalized.has("constitution_hash") or str(normalized.get("constitution_hash", "")).strip_edges().is_empty():
 		normalized["constitution_hash"] = build_hash(normalized)
@@ -281,6 +363,26 @@ static func build_public_summary(
 		"experiment_horizons": [],
 		"live_hypothesis_ids": [],
 		"live_experiment_ids": [],
+		"lineage_registry_ids": [],
+		"civilization_surface_lines": [],
+		"civilization_faction_ids": [],
+		"civilization_regime_ids": [],
+		"world_mutation_ids": [],
+		"cognitive_field_summary_lines": [],
+		"cognitive_field_dimensions": [],
+		"mind_projection_ids": [],
+		"theory_surface_lines": [],
+		"theory_ids": [],
+		"theory_school_ids": [],
+		"theory_statuses": [],
+		"activation_epoch": "structural_presence",
+		"activation_active_channels": [],
+		"activation_dormant_channels": [],
+		"activation_lines": [],
+		"safe_mode_active": false,
+		"safe_mode_lines": [],
+		"explanation_packet_lines": [],
+		"review_surface_lines": [],
 		"surface_summary": {
 			"lines": Array(surface_summary.get("lines", [])).duplicate(true)
 		}
@@ -321,6 +423,26 @@ static func build_runtime_summary(summary: Dictionary, constitution_hash: String
 		"experiment_horizons": Array(normalized_summary.get("experiment_horizons", [])).duplicate(true),
 		"live_hypothesis_ids": Array(normalized_summary.get("live_hypothesis_ids", [])).duplicate(true),
 		"live_experiment_ids": Array(normalized_summary.get("live_experiment_ids", [])).duplicate(true),
+		"lineage_registry_ids": Array(normalized_summary.get("lineage_registry_ids", [])).duplicate(true),
+		"civilization_surface_lines": Array(normalized_summary.get("civilization_surface_lines", [])).duplicate(true),
+		"civilization_faction_ids": Array(normalized_summary.get("civilization_faction_ids", [])).duplicate(true),
+		"civilization_regime_ids": Array(normalized_summary.get("civilization_regime_ids", [])).duplicate(true),
+		"world_mutation_ids": Array(normalized_summary.get("world_mutation_ids", [])).duplicate(true),
+		"cognitive_field_summary_lines": Array(normalized_summary.get("cognitive_field_summary_lines", [])).duplicate(true),
+		"cognitive_field_dimensions": Array(normalized_summary.get("cognitive_field_dimensions", [])).duplicate(true),
+		"mind_projection_ids": Array(normalized_summary.get("mind_projection_ids", [])).duplicate(true),
+		"theory_surface_lines": Array(normalized_summary.get("theory_surface_lines", [])).duplicate(true),
+		"theory_ids": Array(normalized_summary.get("theory_ids", [])).duplicate(true),
+		"theory_school_ids": Array(normalized_summary.get("theory_school_ids", [])).duplicate(true),
+		"theory_statuses": Array(normalized_summary.get("theory_statuses", [])).duplicate(true),
+		"activation_epoch": str(normalized_summary.get("activation_epoch", "structural_presence")),
+		"activation_active_channels": Array(normalized_summary.get("activation_active_channels", [])).duplicate(true),
+		"activation_dormant_channels": Array(normalized_summary.get("activation_dormant_channels", [])).duplicate(true),
+		"activation_lines": Array(normalized_summary.get("activation_lines", [])).duplicate(true),
+		"safe_mode_active": bool(normalized_summary.get("safe_mode_active", false)),
+		"safe_mode_lines": Array(normalized_summary.get("safe_mode_lines", [])).duplicate(true),
+		"explanation_packet_lines": Array(normalized_summary.get("explanation_packet_lines", [])).duplicate(true),
+		"review_surface_lines": Array(normalized_summary.get("review_surface_lines", [])).duplicate(true),
 		"generation_surface": {},
 		"generation_contract": {},
 		"control_surfaces": {}
@@ -338,6 +460,8 @@ static func public_summary(constitution: Dictionary) -> Dictionary:
 	var summary: Dictionary = Dictionary(normalized.get("constitution_summary", normalized.get("public_summary", {}))).duplicate(true)
 	if not str(normalized.get("constitution_hash", "")).strip_edges().is_empty():
 		summary["constitution_hash"] = str(normalized.get("constitution_hash", ""))
+	if not str(normalized.get("constitution_id", "")).strip_edges().is_empty():
+		summary["constitution_id"] = str(normalized.get("constitution_id", ""))
 	return summary
 
 static func generation_surface(constitution: Dictionary) -> Dictionary:
@@ -872,6 +996,151 @@ static func _build_safety_law(policy: Dictionary) -> Dictionary:
 		"allow_multimodal_authority": false,
 		"pressure_budget": Dictionary(policy.get("ecology", {})).duplicate(true)
 	}
+
+static func _apply_phase_v3_summary(
+	summary: Dictionary,
+	lineage_registry: Dictionary,
+	civilization_surface: Dictionary,
+	cognitive_field_state: Dictionary,
+	mind_projections: Array,
+	theory_surface: Dictionary,
+	activation_state: Dictionary,
+	explanation_packet: Dictionary,
+	review_surface: Dictionary
+) -> Dictionary:
+	var current := Dictionary(summary).duplicate(true)
+	current["lineage_registry_ids"] = _sorted_strings(lineage_registry.keys())
+	current["civilization_surface_lines"] = _string_array(civilization_surface.get("lines", []))
+	current["civilization_faction_ids"] = _string_array(civilization_surface.get("faction_ids", []))
+	current["civilization_regime_ids"] = _string_array(civilization_surface.get("regime_ids", []))
+	current["world_mutation_ids"] = _string_array(civilization_surface.get("world_mutation_ids", []))
+	current["cognitive_field_summary_lines"] = _string_array(cognitive_field_state.get("summary_lines", []))
+	current["cognitive_field_dimensions"] = _sorted_strings(Dictionary(cognitive_field_state.get("field_vectors", {})).keys())
+	current["mind_projection_ids"] = _mind_projection_ids(mind_projections)
+	current["theory_surface_lines"] = _string_array(theory_surface.get("lines", []))
+	current["theory_ids"] = _string_array(theory_surface.get("theory_ids", []))
+	current["theory_school_ids"] = _string_array(theory_surface.get("school_ids", []))
+	current["theory_statuses"] = _string_array(theory_surface.get("statuses", []))
+	current["activation_epoch"] = str(activation_state.get("epoch", "structural_presence")).strip_edges()
+	current["activation_active_channels"] = _string_array(activation_state.get("active_channels", []))
+	current["activation_dormant_channels"] = _string_array(activation_state.get("dormant_channels", []))
+	current["activation_lines"] = _string_array(activation_state.get("activation_lines", []))
+	current["safe_mode_active"] = bool(activation_state.get("safe_mode_active", false))
+	current["safe_mode_lines"] = _string_array(Dictionary(activation_state.get("safe_mode_state", {})).get("summary_lines", []))
+	current["explanation_packet_lines"] = _string_array(explanation_packet.get("summary_lines", []))
+	current["review_surface_lines"] = _string_array(review_surface.get("lines", []))
+	return current
+
+static func _normalize_civilization_surface(raw: Dictionary) -> Dictionary:
+	var current := {
+		"lines": [],
+		"faction_ids": [],
+		"regime_ids": [],
+		"region_ids": [],
+		"world_mutation_ids": [],
+		"literacy_track_ids": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["lines"] = _string_array(current.get("lines", []))
+	current["faction_ids"] = _string_array(current.get("faction_ids", []))
+	current["regime_ids"] = _string_array(current.get("regime_ids", []))
+	current["region_ids"] = _string_array(current.get("region_ids", []))
+	current["world_mutation_ids"] = _string_array(current.get("world_mutation_ids", []))
+	current["literacy_track_ids"] = _string_array(current.get("literacy_track_ids", []))
+	return current
+
+static func _normalize_cognitive_field_state(raw: Dictionary) -> Dictionary:
+	var current := {
+		"schema_name": "CognitiveFieldState",
+		"schema_version": 1,
+		"field_vectors": {},
+		"interaction_rules": [],
+		"derived_mind_ids": [],
+		"summary_lines": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["field_vectors"] = Dictionary(current.get("field_vectors", {})).duplicate(true)
+	current["interaction_rules"] = _string_array(current.get("interaction_rules", []))
+	current["derived_mind_ids"] = _string_array(current.get("derived_mind_ids", []))
+	current["summary_lines"] = _string_array(current.get("summary_lines", []))
+	return current
+
+static func _normalize_mind_projections(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var current := Dictionary(value).duplicate(true)
+		current["mind_id"] = str(current.get("mind_id", "")).strip_edges()
+		current["label"] = str(current.get("label", current.get("mind_id", ""))).strip_edges()
+		current["intensity"] = int(current.get("intensity", 0))
+		current["derived_from_dimensions"] = _string_array(current.get("derived_from_dimensions", []))
+		if not current["mind_id"].is_empty():
+			result.append(current)
+	return result
+
+static func _normalize_theory_surface(raw: Dictionary) -> Dictionary:
+	var current := {
+		"lines": [],
+		"theory_ids": [],
+		"school_ids": [],
+		"statuses": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["lines"] = _string_array(current.get("lines", []))
+	current["theory_ids"] = _string_array(current.get("theory_ids", []))
+	current["school_ids"] = _string_array(current.get("school_ids", []))
+	current["statuses"] = _string_array(current.get("statuses", []))
+	return current
+
+static func _normalize_explanation_packet(raw: Dictionary) -> Dictionary:
+	var current := GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet({}, [], [], [])
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["packet_id"] = str(current.get("packet_id", "packet_constitution")).strip_edges()
+	if current["packet_id"].is_empty():
+		current["packet_id"] = "packet_constitution"
+	current["artifact_type"] = str(current.get("artifact_type", "expedition_constitution")).strip_edges()
+	current["summary_lines"] = _string_array(current.get("summary_lines", []))
+	current["operator_lines"] = _string_array(current.get("operator_lines", []))
+	current["play_routing_tags"] = _string_array(current.get("play_routing_tags", []))
+	return current
+
+static func _normalize_review_surface(raw: Dictionary) -> Dictionary:
+	var current := {
+		"lines": [],
+		"active_channels": [],
+		"dormant_channels": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["lines"] = _string_array(current.get("lines", []))
+	current["active_channels"] = _string_array(current.get("active_channels", []))
+	current["dormant_channels"] = _string_array(current.get("dormant_channels", []))
+	return current
+
+static func _string_array(values: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if values is Array:
+		for value in values:
+			var text := str(value).strip_edges()
+			if not text.is_empty() and not result.has(text):
+				result.append(text)
+	return result
+
+static func _sorted_strings(values: Array) -> Array[String]:
+	var result := _string_array(values)
+	result.sort()
+	return result
+
+static func _mind_projection_ids(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		var mind_id := str(Dictionary(value).get("mind_id", "")).strip_edges()
+		if not mind_id.is_empty() and not result.has(mind_id):
+			result.append(mind_id)
+	return result
 
 static func _first_string(values: Array, fallback: String = "") -> String:
 	for value in values:

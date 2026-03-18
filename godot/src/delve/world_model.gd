@@ -2,6 +2,9 @@ class_name DelveWorldModel
 extends RefCounted
 
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
+const CIVILIZATION_STATE_SERVICE_SCRIPT = preload("res://src/product/civilization_state_service.gd")
+const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
+const THEORY_ENGINE_SCRIPT = preload("res://src/delve/theory_engine.gd")
 
 static func build_model(profile: Dictionary, session_context: Dictionary) -> Dictionary:
 	var run_history := Array(profile.get("run_history", []))
@@ -11,8 +14,12 @@ static func build_model(profile: Dictionary, session_context: Dictionary) -> Dic
 	var archive_state := Dictionary(profile.get("archive_state", {}))
 	var cookbook_state := Dictionary(profile.get("cookbook_state", {}))
 	var experiment_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(profile.get("delvemind_experiment_state", {})))
+	var governance_state := GOVERNANCE_SERVICE_SCRIPT.normalize(Dictionary(profile.get("governance_state", {})))
 	var recent_runs := _recent_runs(run_history, 8)
 	var gameplay_snapshot := Dictionary(session_context.get("gameplay_snapshot", {}))
+	var theory_surface := THEORY_ENGINE_SCRIPT.build_surface(experiment_state, {
+		"world_focus": str(Dictionary(world_memory.get("fascination", {})).get("current_focus", ""))
+	}, governance_state)
 	return {
 		"social_model": _social_model(profile, recent_runs, active_crawl, gameplay_snapshot),
 		"route_model": _route_model(recent_runs, active_crawl, gameplay_snapshot),
@@ -23,9 +30,14 @@ static func build_model(profile: Dictionary, session_context: Dictionary) -> Dic
 		"doctrine_model": _doctrine_model(recent_runs, archive_state, world_memory),
 		"session_model": _session_model(session_context, gameplay_snapshot),
 		"experiment_state": experiment_state,
+		"governance_state": governance_state,
+		"theory_surface": theory_surface,
 		"experiment_lines": DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.build_world_lines(experiment_state),
 		"recent_runs": recent_runs,
 		"active_crawl": active_crawl.duplicate(true),
+		"world_memory_snapshot": world_memory.duplicate(true),
+		"archive_state_snapshot": archive_state.duplicate(true),
+		"cookbook_state_snapshot": cookbook_state.duplicate(true),
 		"world_focus": str(Dictionary(world_memory.get("fascination", {})).get("current_focus", "")),
 		"world_phase": str(Dictionary(world_memory.get("fascination", {})).get("phase", "")),
 		"archive_legends": Array(archive_state.get("legends", [])).size()
@@ -179,6 +191,8 @@ static func _cultural_model(world_memory: Dictionary, archive_state: Dictionary,
 	var silence_doctrine: Dictionary = Dictionary(world_memory.get("silence_doctrine", {}))
 	var cookbook_shadow: Dictionary = Dictionary(world_memory.get("cookbook_shadow", {}))
 	var crawl_network_state: Dictionary = Dictionary(world_memory.get("crawl_network_state", {}))
+	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(world_memory)
+	var field_climate: Dictionary = Dictionary(world_memory.get("cognitive_field_climate", {}))
 	return {
 		"myth_gravity": int(gravity.get("top_gravity", 0)),
 		"overfit_risk": int(fascination.get("streak", 0)) + int(fascination.get("fatigue", 0)),
@@ -259,6 +273,12 @@ static func _cultural_model(world_memory: Dictionary, archive_state: Dictionary,
 		"cookbook_shadow_lines": _string_array(cookbook_shadow.get("lines", [])),
 		"cookbook_rumor_lines": _string_array(cookbook_shadow.get("rumor_lines", [])),
 		"cookbook_redirection_lines": _string_array(cookbook_shadow.get("redirection_lines", [])),
+		"faction_count": Array(civilization_surface.get("faction_ids", [])).size(),
+		"regime_count": Array(civilization_surface.get("regime_ids", [])).size(),
+		"world_mutation_count": Array(civilization_surface.get("world_mutation_ids", [])).size(),
+		"literacy_depth": Array(civilization_surface.get("literacy_track_ids", [])).size(),
+		"civilization_lines": _string_array(civilization_surface.get("lines", [])),
+		"cognitive_field_lines": _string_array(field_climate.get("summary_lines", [])),
 		"relay_memory_pressure": int(crawl_network_state.get("relay_stress", 0)),
 		"witness_network_pressure": int(crawl_network_state.get("witness_pressure", 0)),
 		"relay_bottleneck_pressure": int(crawl_network_state.get("bottleneck_pressure", 0)),

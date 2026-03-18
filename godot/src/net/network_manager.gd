@@ -1220,6 +1220,12 @@ func can_local_use_sabotage(_room_slot: int) -> bool:
 		local_tick = current_server_tick
 	return local_tick >= local_sabotage_cooldown_until_tick
 
+func get_local_authoritative_room_slot() -> int:
+	var mp := _mp()
+	if mp == null or mp.multiplayer_peer == null:
+		return -1
+	return int(player_room_by_peer.get(mp.get_unique_id(), -1))
+
 func get_local_sabotage_cooldown_remaining() -> int:
 	var local_tick := latest_tick
 	if is_host:

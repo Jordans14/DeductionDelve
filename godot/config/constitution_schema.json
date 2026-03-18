@@ -1,6 +1,6 @@
 {
   "schema_name": "ExpeditionConstitution",
-  "schema_version": 1,
+  "schema_version": 2,
   "artifact_type": "expedition_constitution",
   "required_sections": [
     "identity",
@@ -12,6 +12,14 @@
     "compile_metadata",
     "narrative_pressure_state",
     "experimental_ontology_state",
+    "lineage_registry",
+    "civilization_surface",
+    "cognitive_field_state",
+    "mind_projections",
+    "theory_surface",
+    "activation_state",
+    "explanation_packet",
+    "review_surface",
     "route_chamber_model",
     "role_surface_model",
     "item_ecology",
@@ -80,12 +88,22 @@
     "continuity_hooks",
     "symbolic_motifs",
     "fairness_bounds",
-    "compile_metadata"
+    "compile_metadata",
+    "lineage_registry",
+    "civilization_surface",
+    "cognitive_field_state",
+    "mind_projections",
+    "theory_surface",
+    "activation_state",
+    "explanation_packet",
+    "review_surface"
   ],
   "forbidden_runtime_authority_fields": [
     "runtime_ai_arbitration",
     "hidden_truth_resolution",
     "culture_runtime_override",
-    "experiment_runtime_override"
+    "experiment_runtime_override",
+    "theory_runtime_override",
+    "world_runtime_override"
   ]
 }

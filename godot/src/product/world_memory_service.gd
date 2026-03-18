@@ -1,6 +1,8 @@
 class_name WorldMemoryService
 extends RefCounted
 
+const CIVILIZATION_STATE_SERVICE_SCRIPT = preload("res://src/product/civilization_state_service.gd")
+
 const MYTH_BUCKETS: Array[String] = [
 	"branch",
 	"item",
@@ -18,7 +20,7 @@ static func default_state() -> Dictionary:
 	var myths := {}
 	for bucket in MYTH_BUCKETS:
 		myths[bucket] = {}
-	return {
+	var current := {
 		"run_index": 0,
 		"myths": myths,
 		"fascination": {
@@ -164,6 +166,9 @@ static func default_state() -> Dictionary:
 			"lines": []
 		}
 	}
+	for key in CIVILIZATION_STATE_SERVICE_SCRIPT.default_extensions().keys():
+		current[key] = CIVILIZATION_STATE_SERVICE_SCRIPT.default_extensions()[key]
+	return current
 
 static func normalize(state: Dictionary) -> Dictionary:
 	var current := default_state()
@@ -212,7 +217,7 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["epoch_state"] = _normalize_epoch_state(Dictionary(current.get("epoch_state", {})))
 	current["legend_log"] = Array(current.get("legend_log", [])).slice(0, 40)
 	current["run_index"] = int(current.get("run_index", 0))
-	return current
+	return CIVILIZATION_STATE_SERVICE_SCRIPT.normalize_world_memory_extensions(current)
 
 static func epoch_state_for_test(world_memory: Dictionary) -> Dictionary:
 	var current := normalize(world_memory)
@@ -241,7 +246,7 @@ static func apply_run(world_memory: Dictionary, run_context: Dictionary) -> Dict
 	_update_cookbook_shadow(current, run_context)
 	_update_crawl_network_state(current, run_context)
 	_update_epoch_state(current, run_context)
-	return current
+	return CIVILIZATION_STATE_SERVICE_SCRIPT.apply_post_run_extensions(current, run_context)
 
 static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	var current := normalize(world_memory)
@@ -252,6 +257,7 @@ static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	var lines: Array[String] = []
 	var top_branch_entries := top_bucket_entries(current, "branch", 1)
 	var top_item_entries := top_bucket_entries(current, "item", 1)
+	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(current)
 	if focus.is_empty():
 		lines.append("World attention: roaming")
 	else:
@@ -290,6 +296,9 @@ static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	var resurgence_lines := _string_array(Dictionary(current.get("myth_resurgence", {})).get("lines", []))
 	if not resurgence_lines.is_empty():
 		lines.append("Return: %s" % resurgence_lines[0])
+	var civilization_lines := _string_array(Dictionary(civilization_surface).get("lines", []))
+	if not civilization_lines.is_empty():
+		lines.append("Civilization: %s" % civilization_lines[0])
 	var institutional_order := Dictionary(current.get("institutional_order", {}))
 	var institutional_lines := _string_array(institutional_order.get("lines", []))
 	if not institutional_lines.is_empty():

@@ -1,0 +1,37 @@
+{
+  "schema_name": "Lineage",
+  "schema_version": 1,
+  "required_fields": [
+    "lineage_id",
+    "kind",
+    "label",
+    "source_ids",
+    "state",
+    "visibility",
+    "play_routing_tags"
+  ],
+  "allowed_kinds": [
+    "constitution",
+    "experiment",
+    "theory",
+    "faction",
+    "mutation",
+    "cookbook",
+    "judgment"
+  ],
+  "allowed_states": [
+    "active",
+    "dormant",
+    "archival",
+    "suppressed",
+    "quarantined",
+    "failed",
+    "fossilized"
+  ],
+  "allowed_visibility": [
+    "public",
+    "operator",
+    "archive",
+    "suppressed"
+  ]
+}

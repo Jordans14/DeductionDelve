@@ -37,6 +37,26 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var experiment_families := _take_unique(_string_array(expedition_constitution_summary.get("experiment_families", [])), 3)
 	var experiment_expression_modes := _take_unique(_string_array(expedition_constitution_summary.get("experiment_expression_modes", [])), 3)
 	var experiment_horizons := _take_unique(_string_array(expedition_constitution_summary.get("experiment_horizons", [])), 3)
+	var lineage_registry_ids := _take_unique(_string_array(expedition_constitution_summary.get("lineage_registry_ids", [])), 4)
+	var civilization_surface_lines := _take_unique(_string_array(expedition_constitution_summary.get("civilization_surface_lines", [])), 3)
+	var civilization_faction_ids := _take_unique(_string_array(expedition_constitution_summary.get("civilization_faction_ids", [])), 3)
+	var civilization_regime_ids := _take_unique(_string_array(expedition_constitution_summary.get("civilization_regime_ids", [])), 3)
+	var world_mutation_ids := _take_unique(_string_array(expedition_constitution_summary.get("world_mutation_ids", [])), 3)
+	var cognitive_field_summary_lines := _take_unique(_string_array(expedition_constitution_summary.get("cognitive_field_summary_lines", [])), 3)
+	var cognitive_field_dimensions := _take_unique(_string_array(expedition_constitution_summary.get("cognitive_field_dimensions", [])), 4)
+	var mind_projection_ids := _take_unique(_string_array(expedition_constitution_summary.get("mind_projection_ids", [])), 4)
+	var theory_surface_lines := _take_unique(_string_array(expedition_constitution_summary.get("theory_surface_lines", [])), 3)
+	var theory_ids := _take_unique(_string_array(expedition_constitution_summary.get("theory_ids", [])), 4)
+	var theory_school_ids := _take_unique(_string_array(expedition_constitution_summary.get("theory_school_ids", [])), 4)
+	var theory_statuses := _take_unique(_string_array(expedition_constitution_summary.get("theory_statuses", [])), 4)
+	var activation_epoch := str(expedition_constitution_summary.get("activation_epoch", "structural_presence")).strip_edges()
+	var activation_active_channels := _take_unique(_string_array(expedition_constitution_summary.get("activation_active_channels", [])), 6)
+	var activation_dormant_channels := _take_unique(_string_array(expedition_constitution_summary.get("activation_dormant_channels", [])), 8)
+	var activation_lines := _take_unique(_string_array(expedition_constitution_summary.get("activation_lines", [])), 3)
+	var safe_mode_active := bool(expedition_constitution_summary.get("safe_mode_active", false))
+	var safe_mode_lines := _take_unique(_string_array(expedition_constitution_summary.get("safe_mode_lines", [])), 3)
+	var explanation_packet_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_packet_lines", [])), 3)
+	var review_surface_lines := _take_unique(_string_array(expedition_constitution_summary.get("review_surface_lines", [])), 3)
 	var mutation_surface_lines := _mutation_surface_lines(Dictionary(run_record.get("mutation_public_summary", {})))
 	var gameplay_model := _local_gameplay_model(run_record, gameplay_snapshot)
 	var group_gameplay_model := _group_gameplay_model(gameplay_snapshot)
@@ -248,6 +268,26 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"experiment_families": experiment_families,
 		"experiment_expression_modes": experiment_expression_modes,
 		"experiment_horizons": experiment_horizons,
+		"lineage_registry_ids": lineage_registry_ids,
+		"civilization_surface_lines": civilization_surface_lines,
+		"civilization_faction_ids": civilization_faction_ids,
+		"civilization_regime_ids": civilization_regime_ids,
+		"world_mutation_ids": world_mutation_ids,
+		"cognitive_field_summary_lines": cognitive_field_summary_lines,
+		"cognitive_field_dimensions": cognitive_field_dimensions,
+		"mind_projection_ids": mind_projection_ids,
+		"theory_surface_lines": theory_surface_lines,
+		"theory_ids": theory_ids,
+		"theory_school_ids": theory_school_ids,
+		"theory_statuses": theory_statuses,
+		"activation_epoch": activation_epoch,
+		"activation_active_channels": activation_active_channels,
+		"activation_dormant_channels": activation_dormant_channels,
+		"activation_lines": activation_lines,
+		"safe_mode_active": safe_mode_active,
+		"safe_mode_lines": safe_mode_lines,
+		"explanation_packet_lines": explanation_packet_lines,
+		"review_surface_lines": review_surface_lines,
 		"build_identity": build_identity,
 		"build_stability": build_stability,
 		"risk_profile": risk_profile,
@@ -323,6 +363,26 @@ static func _public_safe_constitution_summary(raw: Dictionary) -> Dictionary:
 		"experiment_families": _string_array(public_summary.get("experiment_families", raw.get("experiment_families", []))),
 		"experiment_expression_modes": _string_array(public_summary.get("experiment_expression_modes", raw.get("experiment_expression_modes", []))),
 		"experiment_horizons": _string_array(public_summary.get("experiment_horizons", raw.get("experiment_horizons", []))),
+		"lineage_registry_ids": _string_array(public_summary.get("lineage_registry_ids", raw.get("lineage_registry_ids", []))),
+		"civilization_surface_lines": _string_array(public_summary.get("civilization_surface_lines", raw.get("civilization_surface_lines", []))),
+		"civilization_faction_ids": _string_array(public_summary.get("civilization_faction_ids", raw.get("civilization_faction_ids", []))),
+		"civilization_regime_ids": _string_array(public_summary.get("civilization_regime_ids", raw.get("civilization_regime_ids", []))),
+		"world_mutation_ids": _string_array(public_summary.get("world_mutation_ids", raw.get("world_mutation_ids", []))),
+		"cognitive_field_summary_lines": _string_array(public_summary.get("cognitive_field_summary_lines", raw.get("cognitive_field_summary_lines", []))),
+		"cognitive_field_dimensions": _string_array(public_summary.get("cognitive_field_dimensions", raw.get("cognitive_field_dimensions", []))),
+		"mind_projection_ids": _string_array(public_summary.get("mind_projection_ids", raw.get("mind_projection_ids", []))),
+		"theory_surface_lines": _string_array(public_summary.get("theory_surface_lines", raw.get("theory_surface_lines", []))),
+		"theory_ids": _string_array(public_summary.get("theory_ids", raw.get("theory_ids", []))),
+		"theory_school_ids": _string_array(public_summary.get("theory_school_ids", raw.get("theory_school_ids", []))),
+		"theory_statuses": _string_array(public_summary.get("theory_statuses", raw.get("theory_statuses", []))),
+		"activation_epoch": str(public_summary.get("activation_epoch", raw.get("activation_epoch", "structural_presence"))).strip_edges(),
+		"activation_active_channels": _string_array(public_summary.get("activation_active_channels", raw.get("activation_active_channels", []))),
+		"activation_dormant_channels": _string_array(public_summary.get("activation_dormant_channels", raw.get("activation_dormant_channels", []))),
+		"activation_lines": _string_array(public_summary.get("activation_lines", raw.get("activation_lines", []))),
+		"safe_mode_active": bool(public_summary.get("safe_mode_active", raw.get("safe_mode_active", false))),
+		"safe_mode_lines": _string_array(public_summary.get("safe_mode_lines", raw.get("safe_mode_lines", []))),
+		"explanation_packet_lines": _string_array(public_summary.get("explanation_packet_lines", raw.get("explanation_packet_lines", []))),
+		"review_surface_lines": _string_array(public_summary.get("review_surface_lines", raw.get("review_surface_lines", []))),
 		"surface_summary": {
 			"lines": _string_array(surface_summary.get("lines", []))
 		}

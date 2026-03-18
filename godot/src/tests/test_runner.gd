@@ -129,6 +129,12 @@ func _init() -> void:
 	_test_role_deception_and_artifact_custody_embodiment(failures)
 	_test_delve_intelligence_kernel_governance(failures)
 	_test_doctrine_schema_registry_and_phase_groundwork(failures)
+	_test_wave1_schema_registry_with_new_doctrine_contracts(failures)
+	_test_wave1_profile_v3_additive_migration(failures)
+	_test_wave1_constitution_v2_dormant_sections_hash_stability(failures)
+	_test_wave1_governance_state_default_visibility(failures)
+	_test_wave1_explanation_packet_presence_without_expression(failures)
+	_test_wave1_inactive_is_not_optional_defaults(failures)
 	_test_generation_contract_narrowing(failures)
 	_test_ontology_engine_and_compiler_bridge(failures)
 	_test_constitution_compiler_symbolic_profiles_and_bounds(failures)
@@ -6323,6 +6329,125 @@ func _test_doctrine_schema_registry_and_phase_groundwork(failures: Array[String]
 		failures.append("doctrine family catalog should expose doctrine niches for ontology routing")
 	if DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_families().size() < 6:
 		failures.append("phase groundwork should now ship the full Phase 6 experiment family catalog")
+
+func _test_wave1_schema_registry_with_new_doctrine_contracts(failures: Array[String]) -> void:
+	var registry_failures := DOCTRINE_SCHEMA_REGISTRY_SCRIPT.validate_registry()
+	if not registry_failures.is_empty():
+		failures.append("Wave 1 doctrine schema registry should validate all structural doctrine contracts: %s" % "; ".join(registry_failures))
+	var constitution_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.constitution_schema()
+	for field in ["lineage_registry", "civilization_surface", "cognitive_field_state", "mind_projections", "theory_surface", "activation_state", "explanation_packet", "review_surface"]:
+		if not _string_array_for_test(Array(constitution_schema.get("required_symbolic_fields", []))).has(field):
+			failures.append("Wave 1 constitution schema should require symbolic field %s" % field)
+	for schema in [
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.lineage_schema(),
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.inquiry_schema(),
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.cognitive_field_schema(),
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.civilization_schema(),
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.governance_schema(),
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.archive_schema(),
+		DOCTRINE_SCHEMA_REGISTRY_SCRIPT.cookbook_schema()
+	]:
+		if str(Dictionary(schema).get("schema_name", "")).strip_edges().is_empty():
+			failures.append("Wave 1 doctrine schemas should all expose schema_name")
+
+func _test_wave1_profile_v3_additive_migration(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var legacy_profile := {
+		"schema_version": 2,
+		"account": {
+			"display_name": "Legacy Delver",
+			"public_id": "legacy_delver"
+		},
+		"career_stats": {
+			"notes_written": 3
+		},
+		"world_memory": {},
+		"archive_state": {},
+		"cookbook_state": {},
+		"delvemind_experiment_state": {},
+		"last_run": {},
+		"run_history": []
+	}
+	var normalized := PROFILE_SERVICE_SCRIPT.normalize_profile(legacy_profile, catalog)
+	if int(normalized.get("schema_version", 0)) != 3:
+		failures.append("Wave 1 profile migration should bump schema_version to 3 additively")
+	if str(Dictionary(normalized.get("account", {})).get("display_name", "")).strip_edges() != "Legacy Delver":
+		failures.append("Wave 1 profile migration should preserve legacy account data")
+	if Dictionary(normalized.get("governance_state", {})).is_empty():
+		failures.append("Wave 1 profile migration should add governance_state without erasing prior data")
+	if Dictionary(normalized.get("world_memory", {})).is_empty():
+		failures.append("Wave 1 profile migration should still normalize world_memory")
+
+func _test_wave1_constitution_v2_dormant_sections_hash_stability(failures: Array[String]) -> void:
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())
+	var session_context := {
+		"player_count": 3,
+		"peer_ids": [2, 3, 4],
+		"protocol_state": "Fracture Protocol",
+		"public_cards": {
+			"2": {"public_id": "delver_A", "display_name": "Aster"},
+			"3": {"public_id": "delver_B", "display_name": "Bram"},
+			"4": {"public_id": "delver_C", "display_name": "Cleo"}
+		},
+		"ready_state": {2: true, 3: true, 4: true}
+	}
+	var constitution_a := DELVE_KERNEL_SCRIPT.plan_constitution(profile, session_context, 17731, 10)
+	var constitution_b := DELVE_KERNEL_SCRIPT.plan_constitution(profile, session_context, 17731, 10)
+	if int(constitution_a.get("schema_version", 0)) != 2:
+		failures.append("Wave 1 constitutions should normalize to schema_version 2")
+	if str(constitution_a.get("constitution_hash", "")).strip_edges() != str(constitution_b.get("constitution_hash", "")).strip_edges():
+		failures.append("Wave 1 dormant doctrine sections should preserve constitution hash stability")
+	for key in ["lineage_registry", "civilization_surface", "cognitive_field_state", "mind_projections", "theory_surface", "activation_state", "explanation_packet", "review_surface"]:
+		if not constitution_a.has(key):
+			failures.append("Wave 1 constitutions should carry %s structurally" % key)
+
+func _test_wave1_governance_state_default_visibility(failures: Array[String]) -> void:
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())
+	var governance_state: Dictionary = Dictionary(profile.get("governance_state", {}))
+	var activation_state: Dictionary = Dictionary(governance_state.get("activation_state", {}))
+	var safe_mode_state: Dictionary = Dictionary(governance_state.get("safe_mode_state", {}))
+	if _string_array_for_test(Array(activation_state.get("active_channels", []))).is_empty():
+		failures.append("Wave 1 governance defaults should expose active_channels")
+	if _string_array_for_test(Array(activation_state.get("dormant_channels", []))).is_empty():
+		failures.append("Wave 1 governance defaults should expose dormant_channels")
+	if safe_mode_state.is_empty():
+		failures.append("Wave 1 governance defaults should expose safe_mode_state even while inactive")
+
+func _test_wave1_explanation_packet_presence_without_expression(failures: Array[String]) -> void:
+	var runtime_constitution := EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.build_runtime_summary({
+		"protocol_state": "Fracture Protocol",
+		"doctrine_family": "measured_pressure",
+		"doctrine_label": "Measured Pressure",
+		"pressure_line": "Hold the route together.",
+		"world_goal": "Return with the answer.",
+		"surface_summary": {"lines": ["Public surface remains narrow."]}
+	}, "wave1_runtime_hash")
+	var explanation_packet: Dictionary = Dictionary(runtime_constitution.get("explanation_packet", {}))
+	var review_surface: Dictionary = Dictionary(runtime_constitution.get("review_surface", {}))
+	var public_summary: Dictionary = EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.public_summary(runtime_constitution)
+	if str(explanation_packet.get("packet_id", "")).strip_edges().is_empty():
+		failures.append("Wave 1 runtime constitutions should retain an explanation_packet even without high activation")
+	if not public_summary.has("explanation_packet_lines"):
+		failures.append("Wave 1 public summaries should expose explanation_packet_lines structurally")
+	if not public_summary.has("review_surface_lines"):
+		failures.append("Wave 1 public summaries should expose review_surface_lines structurally")
+	if review_surface.is_empty():
+		failures.append("Wave 1 runtime constitutions should retain review_surface even while higher layers stay dormant")
+
+func _test_wave1_inactive_is_not_optional_defaults(failures: Array[String]) -> void:
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())
+	var experiment_state: Dictionary = Dictionary(profile.get("delvemind_experiment_state", {}))
+	for key in ["observation_store", "procedure_store", "theory_store", "judgment_store", "simulation_chambers", "lineage_registry"]:
+		if not experiment_state.has(key):
+			failures.append("Wave 1 inactive doctrine carriers should still include %s" % key)
+	var world_memory: Dictionary = Dictionary(profile.get("world_memory", {}))
+	for key in ["factions", "interpretation_regimes", "regions", "world_mutations", "residue_records", "literacy_tracks", "strategy_clusters", "cognitive_field_climate"]:
+		if not world_memory.has(key):
+			failures.append("Wave 1 inactive civilization defaults should still include %s" % key)
+	var cookbook_state: Dictionary = Dictionary(profile.get("cookbook_state", {}))
+	for key in ["fragments", "escalation_stage", "contamination_state", "doctrine_stress_state", "unauthorized_theory_links"]:
+		if not cookbook_state.has(key):
+			failures.append("Wave 1 inactive cookbook defaults should still include %s" % key)
 
 func _test_ontology_engine_and_compiler_bridge(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()

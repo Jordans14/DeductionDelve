@@ -102,6 +102,10 @@ var cli_auto_pickup: bool = false
 var cli_auto_pickup_done: bool = false
 var cli_auto_role_action: bool = false
 var cli_auto_role_action_done: bool = false
+var cli_auto_role_action_requested: bool = false
+var cli_auto_role_action_request_tick: int = -1
+var cli_auto_role_action_last_room_slot: int = -1
+var cli_auto_role_action_logged_skip: bool = false
 var cli_auto_bomb: bool = false
 var cli_auto_bomb_done: bool = false
 var cli_auto_rope: bool = false
@@ -542,12 +546,7 @@ func _run_cli_automation(target_id: int) -> void:
 						else:
 							NetworkManager.request_pickup(pickup_id)
 
-	if cli_auto_role_action and not cli_auto_role_action_done and NetworkManager.is_run_active() and tick_counter > 60:
-		if target_id == _local_peer_id():
-			var room_slot := _room_slot_for_position(players[target_id].global_position)
-			if NetworkManager.can_local_use_sabotage(room_slot):
-				NetworkManager.request_sabotage(room_slot)
-				cli_auto_role_action_done = true
+	_run_cli_role_action(target_id)
 
 	if cli_auto_bomb and not cli_auto_bomb_done and NetworkManager.is_run_active() and tick_counter > 120:
 		if target_id == _local_peer_id():
@@ -587,6 +586,66 @@ func _find_nearest_carried_artifact_id_for(target_id: int) -> int:
 		if int(artifact.get("owner_peer_id", 0)) == target_id:
 			return artifact_id
 	return 0
+
+func _run_cli_role_action(target_id: int) -> void:
+	if not cli_auto_role_action or cli_auto_role_action_done or not NetworkManager.is_run_active() or tick_counter <= 60:
+		return
+	if target_id != _local_peer_id():
+		return
+	var role_name := str(RunState.local_role).strip_edges()
+	if role_name.is_empty() or role_name == "Unknown":
+		return
+	if role_name != ROLE_SERVICE_SCRIPT.ROLE_VEIL:
+		if not cli_auto_role_action_logged_skip:
+			print("CLI_AUTO_ROLE_ACTION_SKIPPED tick=%d role=%s reason=no_supported_cli_role_action" % [
+				tick_counter,
+				role_name
+			])
+			cli_auto_role_action_logged_skip = true
+		return
+	if _cli_has_private_event(target_id, "sabotage_private_confirm"):
+		cli_auto_role_action_done = true
+		cli_auto_role_action_requested = false
+		var confirmed_room_slot := cli_auto_role_action_last_room_slot
+		if confirmed_room_slot < 0:
+			confirmed_room_slot = _cli_role_action_room_slot(target_id)
+		print("CLI_AUTO_ROLE_ACTION_DONE tick=%d role=%s action=sabotage room_slot=%d" % [
+			tick_counter,
+			role_name,
+			confirmed_room_slot
+		])
+		return
+	var room_slot := _cli_role_action_room_slot(target_id)
+	if room_slot < 0:
+		return
+	if not NetworkManager.can_local_use_sabotage(room_slot):
+		return
+	if not cli_auto_role_action_requested or tick_counter - cli_auto_role_action_request_tick >= 30:
+		cli_auto_role_action_requested = true
+		cli_auto_role_action_request_tick = tick_counter
+		cli_auto_role_action_last_room_slot = room_slot
+		NetworkManager.request_sabotage(room_slot)
+		print("CLI_AUTO_ROLE_ACTION_REQUEST tick=%d role=%s action=sabotage room_slot=%d" % [
+			tick_counter,
+			role_name,
+			room_slot
+		])
+
+func _cli_role_action_room_slot(target_id: int) -> int:
+	if NetworkManager != null and NetworkManager.has_method("get_local_authoritative_room_slot"):
+		var authoritative_room_slot := int(NetworkManager.get_local_authoritative_room_slot())
+		if authoritative_room_slot >= 0:
+			return authoritative_room_slot
+	return _room_slot_for_local_peer(target_id)
+
+func _cli_has_private_event(target_peer_id: int, event_type: String) -> bool:
+	if EventLog == null or target_peer_id <= 0:
+		return false
+	for event_raw in EventLog.get_recent_private_for(target_peer_id, 128):
+		var event: Dictionary = event_raw
+		if str(event.get("event_type", "")) == event_type:
+			return true
+	return false
 
 func _find_nearest_ground_artifact_id(local_id: int) -> int:
 	if not players.has(local_id):

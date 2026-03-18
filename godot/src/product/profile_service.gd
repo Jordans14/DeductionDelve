@@ -17,6 +17,8 @@ const PROFILE_IDENTITY_STATE_SCRIPT = preload("res://src/product/profile_identit
 const MULTIMODAL_CONTRACT_SERVICE_SCRIPT = preload("res://src/product/multimodal_contract_service.gd")
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
 const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
+const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
+const COOKBOOK_FRAGMENT_SERVICE_SCRIPT = preload("res://src/product/cookbook_fragment_service.gd")
 
 const SAVE_PATH := "user://profile/player_profile.json"
 const HISTORY_LIMIT := 24
@@ -48,7 +50,7 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 	for role_name in ROLE_SERVICE_SCRIPT.new().all_role_names():
 		mastery_defaults[role_name] = {"xp": 0, "level": 1, "runs": 0, "wins": 0}
 	return {
-		"schema_version": 2,
+		"schema_version": 3,
 		"account": {
 			"display_name": "Delver",
 			"public_id": _default_public_id("Delver"),
@@ -104,6 +106,7 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 		"archive_state": ARCHIVE_SERVICE_SCRIPT.default_state(),
 		"world_memory": WORLD_MEMORY_SERVICE_SCRIPT.default_state(),
 		"cookbook_state": _normalize_cookbook_state({}),
+		"governance_state": GOVERNANCE_SERVICE_SCRIPT.default_state(),
 		"narrative_progress": {
 			"layer": "public",
 			"core_reached": false,
@@ -207,8 +210,9 @@ static func normalize_profile(profile: Dictionary, catalog: Dictionary = {}) -> 
 	normalized["archive_state"] = ARCHIVE_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("archive_state", {})))
 	normalized["world_memory"] = WORLD_MEMORY_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("world_memory", {})))
 	normalized["cookbook_state"] = _normalize_cookbook_state(Dictionary(normalized.get("cookbook_state", {})))
+	normalized["governance_state"] = GOVERNANCE_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("governance_state", {})))
 	CRAWL_SERVICE_SCRIPT.normalize_profile_fields(normalized)
-	normalized["schema_version"] = 2
+	normalized["schema_version"] = 3
 	normalized["first_run_pending"] = bool(normalized.get("first_run_pending", true))
 	_unlock_progression_cosmetics(normalized, current_catalog)
 	return normalized
@@ -341,6 +345,13 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		}
 	)
 	next_profile["archive_state"] = archive_state
+	next_profile["governance_state"] = GOVERNANCE_SERVICE_SCRIPT.apply_post_run(
+		Dictionary(next_profile.get("governance_state", {})),
+		run_record,
+		diagnostics,
+		frame,
+		Dictionary(run_record.get("expedition_constitution_summary", {}))
+	)
 	next_profile["narrative_progress"] = PROFILE_PROGRESSION_SCRIPT.advance_narrative_progress(
 		Dictionary(next_profile.get("narrative_progress", {})),
 		run_record,
@@ -2548,26 +2559,7 @@ static func _first_string(values: Array, fallback: String) -> String:
 	return fallback
 
 static func _normalize_cookbook_state(state: Dictionary) -> Dictionary:
-	var current := {
-		"fragment_count": 0,
-		"holder_depth": 0,
-		"network_pressure": 0,
-		"redirection_pressure": 0,
-		"holder_state": "none",
-		"fragment_lines": [],
-		"marginalia_lines": [],
-		"network_lines": []
-	}
-	for key in state.keys():
-		current[key] = state[key]
-	for key in ["fragment_count", "holder_depth", "network_pressure", "redirection_pressure"]:
-		current[key] = int(current.get(key, 0))
-	current["holder_state"] = str(current.get("holder_state", "none")).strip_edges()
-	if current["holder_state"].is_empty():
-		current["holder_state"] = "none"
-	for key in ["fragment_lines", "marginalia_lines", "network_lines"]:
-		current[key] = _to_string_array(current.get(key, []))
-	return current
+	return COOKBOOK_FRAGMENT_SERVICE_SCRIPT.normalize(state)
 
 static func _advance_cookbook_state(current_state: Dictionary, profile: Dictionary, run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary) -> Dictionary:
 	var next := _normalize_cookbook_state(current_state)
@@ -2641,7 +2633,7 @@ static func _advance_cookbook_state(current_state: Dictionary, profile: Dictiona
 		next["holder_state"] = "glimpsed"
 	else:
 		next["holder_state"] = "none"
-	return next
+	return COOKBOOK_FRAGMENT_SERVICE_SCRIPT.advance_state(next, run_record, frame)
 
 static func _merge_limited_strings(existing: Array, additions: Array, limit: int) -> Array[String]:
 	var result: Array[String] = _to_string_array(existing)

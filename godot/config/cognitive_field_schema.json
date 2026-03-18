@@ -1,0 +1,34 @@
+{
+  "schema_name": "CognitiveField",
+  "schema_version": 1,
+  "field_dimensions": [
+    "judgment",
+    "instability",
+    "memory",
+    "structure",
+    "containment",
+    "reconciliation",
+    "mourning",
+    "anticipation"
+  ],
+  "required_field_state_keys": [
+    "schema_name",
+    "schema_version",
+    "field_vectors",
+    "interaction_rules",
+    "derived_mind_ids",
+    "summary_lines"
+  ],
+  "required_projection_keys": [
+    "mind_id",
+    "label",
+    "intensity",
+    "derived_from_dimensions"
+  ],
+  "required_snapshot_keys": [
+    "snapshot_id",
+    "field_state_id",
+    "observed_at",
+    "dominant_dimensions"
+  ]
+}

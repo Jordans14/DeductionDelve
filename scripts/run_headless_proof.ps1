@@ -109,7 +109,34 @@ function Assert-EmptyFile {
     $text = Read-Text $Path
     if (-not [string]::IsNullOrWhiteSpace($text)) {
         throw "$Label expected empty stderr but found:`n$text"
+	}
+}
+
+function Get-ReportLocalRole {
+    param([string]$Path)
+    $text = Read-Text $Path
+    $match = [regex]::Match($text, '(?m)^Role:\s*(.+?)\s*$')
+    if (-not $match.Success) {
+        throw "Failed to parse local role from report: $Path"
     }
+    return $match.Groups[1].Value.Trim()
+}
+
+function Assert-RoleActionEvidence {
+    param(
+        [string]$RoleName,
+        [string]$ParticipantOut,
+        [string]$ParticipantLabel,
+        [string]$HostOut
+    )
+    $escapedRole = [regex]::Escape($RoleName)
+    if ($RoleName -eq "Veil") {
+        Assert-Contains -Path $ParticipantOut -Pattern "CLI_AUTO_ROLE_ACTION_DONE .*role=$escapedRole .*action=sabotage" -Label "$ParticipantLabel output"
+        Assert-Contains -Path $HostOut -Pattern "TIMELINE_EVENT .*type=sabotage_accident" -Label "host output"
+        Assert-Contains -Path $HostOut -Pattern "TIMELINE_EVENT .*type=sabotage_camera_jam" -Label "host output"
+        return
+    }
+    Assert-Contains -Path $ParticipantOut -Pattern "CLI_AUTO_ROLE_ACTION_SKIPPED .*role=$escapedRole .*reason=no_supported_cli_role_action" -Label "$ParticipantLabel output"
 }
 
 function Resolve-ReportFile {
@@ -234,7 +261,6 @@ function Invoke-ProofAttempt {
         Assert-Contains -Path $hostOut -Pattern "READY_RPC_ACCEPT" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "START_RUN_REQUEST" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=run_started" -Label "host output"
-        Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=sabotage_camera_jam" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=extraction_window_started" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=bomb_thrown" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=bomb_exploded" -Label "host output"
@@ -255,6 +281,11 @@ function Invoke-ProofAttempt {
         if (-not (Test-Path $clientReportFile)) {
             throw "Resolved client report file missing: $clientReportFile"
         }
+
+        $hostLocalRole = Get-ReportLocalRole -Path $hostReportFile
+        $clientLocalRole = Get-ReportLocalRole -Path $clientReportFile
+        Assert-RoleActionEvidence -RoleName $hostLocalRole -ParticipantOut $hostOut -ParticipantLabel "host" -HostOut $hostOut
+        Assert-RoleActionEvidence -RoleName $clientLocalRole -ParticipantOut $clientOut -ParticipantLabel "client" -HostOut $hostOut
 
         $diffScript = Join-Path $PSScriptRoot "diff_run_reports.ps1"
         $diffOutput = & $diffScript -HostReport $hostReportFile -ClientReport $clientReportFile

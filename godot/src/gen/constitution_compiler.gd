@@ -5,6 +5,10 @@ const SCHEMA_REGISTRY_SCRIPT = preload("res://src/gen/doctrine_schema_registry.g
 const ONTOLOGY_ENGINE_SCRIPT = preload("res://src/gen/ontology_engine.gd")
 const NARRATIVE_PRESSURE_ENGINE_SCRIPT = preload("res://src/gen/narrative_pressure_engine.gd")
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
+const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
+const CIVILIZATION_STATE_SERVICE_SCRIPT = preload("res://src/product/civilization_state_service.gd")
+const CONTRADICTION_ENGINE_SCRIPT = preload("res://src/product/contradiction_engine.gd")
+const THEORY_ENGINE_SCRIPT = preload("res://src/delve/theory_engine.gd")
 const FAIRNESS_CONSTITUTION_SCRIPT = preload("res://src/delve/constitution/fairness_constitution.gd")
 const LOGIC_CONSTITUTION_SCRIPT = preload("res://src/delve/constitution/logic_constitution.gd")
 const LEGIBILITY_CONSTITUTION_SCRIPT = preload("res://src/delve/constitution/legibility_constitution.gd")
@@ -70,6 +74,36 @@ static func compile(
 	)
 	compiled_generation_surface = _apply_narrative_pressure_generation_weighting(compiled_generation_surface, narrative_pressure_state)
 	compiler_public_summary = _apply_narrative_pressure_public_summary(compiler_public_summary, narrative_pressure_state)
+	var governance_state := GOVERNANCE_SERVICE_SCRIPT.normalize(Dictionary(world_model.get("governance_state", {})))
+	var theory_surface := THEORY_ENGINE_SCRIPT.build_surface(experimental_ontology_state, world_model, governance_state)
+	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(Dictionary(world_model.get("world_memory_snapshot", {})))
+	var cognitive_field_state := _build_cognitive_field_state(world_model, compiler_public_summary, theory_surface)
+	var mind_projections := _build_mind_projections(compiler_public_summary, cognitive_field_state)
+	var contradiction_packet := CONTRADICTION_ENGINE_SCRIPT.build_contradiction_records(
+		theory_surface,
+		Dictionary(world_model.get("cookbook_state_snapshot", {})),
+		Dictionary(world_model.get("world_memory_snapshot", {}))
+	)
+	var activation_state := GOVERNANCE_SERVICE_SCRIPT.normalize_activation_state(Dictionary(governance_state.get("activation_state", {})))
+	var review_surface := GOVERNANCE_SERVICE_SCRIPT.build_review_surface(governance_state)
+	review_surface["lines"] = _merge_arrays(
+		Array(review_surface.get("lines", [])),
+		Array(Dictionary(contradiction_packet.get("anti_bottleneck_report", {})).get("summary_lines", []))
+	).slice(0, 4)
+	var explanation_packet := GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
+		{
+			"artifact_type": "constitution_compile_metadata",
+			"constitution_id": "pending_%s" % str(seed_value)
+		},
+		[
+			str(compiler_public_summary.get("world_goal", "")).strip_edges(),
+			_first_string(Array(theory_surface.get("lines", [])), ""),
+			_first_string(Array(civilization_surface.get("lines", [])), "")
+		],
+		Array(review_surface.get("lines", [])),
+		["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
+	)
+	var lineage_registry := _build_compile_lineage_registry(experimental_ontology_state, theory_surface)
 	var doctrine_variant_id := _build_doctrine_variant_id(compiled_doctrine, compiled_generation_surface)
 	var compile_bound_failures := _compile_bound_failures(world_model, compiled_doctrine, compiled_policy, simulation, validation_violations, counter)
 	var topology_profile := _build_topology_profile(compiled_generation_surface, ontology_routing)
@@ -144,6 +178,16 @@ static func compile(
 		"experiment_schema_version": int(SCHEMA_REGISTRY_SCRIPT.experiment_schema().get("schema_version", 1)),
 		"evaluation_schema": str(SCHEMA_REGISTRY_SCRIPT.evaluation_schema().get("schema_name", "DelveMindEvaluation")),
 		"evaluation_schema_version": int(SCHEMA_REGISTRY_SCRIPT.evaluation_schema().get("schema_version", 1)),
+		"lineage_schema": str(SCHEMA_REGISTRY_SCRIPT.lineage_schema().get("schema_name", "Lineage")),
+		"lineage_schema_version": int(SCHEMA_REGISTRY_SCRIPT.lineage_schema().get("schema_version", 1)),
+		"inquiry_schema": str(SCHEMA_REGISTRY_SCRIPT.inquiry_schema().get("schema_name", "DelveMindInquiry")),
+		"inquiry_schema_version": int(SCHEMA_REGISTRY_SCRIPT.inquiry_schema().get("schema_version", 1)),
+		"cognitive_field_schema": str(SCHEMA_REGISTRY_SCRIPT.cognitive_field_schema().get("schema_name", "CognitiveField")),
+		"cognitive_field_schema_version": int(SCHEMA_REGISTRY_SCRIPT.cognitive_field_schema().get("schema_version", 1)),
+		"civilization_schema": str(SCHEMA_REGISTRY_SCRIPT.civilization_schema().get("schema_name", "CivilizationState")),
+		"civilization_schema_version": int(SCHEMA_REGISTRY_SCRIPT.civilization_schema().get("schema_version", 1)),
+		"governance_schema": str(SCHEMA_REGISTRY_SCRIPT.governance_schema().get("schema_name", "GovernanceState")),
+		"governance_schema_version": int(SCHEMA_REGISTRY_SCRIPT.governance_schema().get("schema_version", 1)),
 		"doctrine_family": str(compiled_doctrine.get("id", "")),
 		"doctrine_variant_id": doctrine_variant_id,
 		"lineage_id": str(compiled_doctrine.get("lineage_id", doctrine_family.get("lineage_id", ""))),
@@ -184,7 +228,15 @@ static func compile(
 		"custody_profile": custody_profile,
 		"mutation_permissions": mutation_permissions,
 		"symbolic_motifs": Array(compiled_generation_surface.get("symbolic_motifs", [])).duplicate(true),
-		"fairness_bounds": fairness_bounds
+		"fairness_bounds": fairness_bounds,
+		"lineage_registry": lineage_registry,
+		"civilization_surface": civilization_surface,
+		"cognitive_field_state": cognitive_field_state,
+		"mind_projections": mind_projections,
+		"theory_surface": theory_surface,
+		"activation_state": activation_state,
+		"explanation_packet": explanation_packet,
+		"review_surface": review_surface
 	}
 	var validation_failures := validate_compile_output(bundle)
 	compiler_trace["validation_failures"] = _merge_arrays(Array(compiler_trace.get("validation_failures", [])), validation_failures)
@@ -254,6 +306,65 @@ static func validate_compile_output(bundle: Dictionary) -> Array[String]:
 		if _contains_key(narrative_pressure_state, banned):
 			failures.append("narrative pressure state must not expose runtime-only field %s" % banned)
 	return failures
+
+static func _build_cognitive_field_state(world_model: Dictionary, public_summary: Dictionary, theory_surface: Dictionary) -> Dictionary:
+	var dominant_forces := _string_array(public_summary.get("dominant_forces", []))
+	var dominant_domains := _string_array(public_summary.get("dominant_domains", []))
+	var theory_ids := _string_array(theory_surface.get("theory_ids", []))
+	return {
+		"schema_name": "CognitiveFieldState",
+		"schema_version": 1,
+		"field_vectors": {
+			"judgment": theory_ids.size(),
+			"instability": Array(theory_surface.get("statuses", [])).size() - theory_ids.size(),
+			"memory": dominant_forces.size(),
+			"structure": dominant_domains.size(),
+			"containment": 1 if str(public_summary.get("archive_tone", "")).strip_edges() == "memory custody" else 0,
+			"reconciliation": 1 if str(public_summary.get("convergence_axis", "")).strip_edges().find("conver") != -1 else 0,
+			"mourning": 1 if str(public_summary.get("archive_tone", "")).strip_edges().find("mour") != -1 else 0,
+			"anticipation": 1 if not str(public_summary.get("world_goal", "")).strip_edges().is_empty() else 0
+		},
+		"interaction_rules": ["dominant theory surfaces remain routed through public-safe summaries"],
+		"derived_mind_ids": _string_array(public_summary.get("dominant_minds", [])),
+		"summary_lines": _string_array(Array(theory_surface.get("lines", [])) + ["field state remains structurally present"])
+	}
+
+static func _build_mind_projections(public_summary: Dictionary, cognitive_field_state: Dictionary) -> Array[Dictionary]:
+	var projections: Array[Dictionary] = []
+	var dominant_minds := _string_array(public_summary.get("dominant_minds", []))
+	var dimensions := Dictionary(cognitive_field_state.get("field_vectors", {}))
+	for mind_id in dominant_minds:
+		projections.append({
+			"mind_id": mind_id,
+			"label": mind_id.capitalize(),
+			"intensity": clampi(int(dimensions.get("judgment", 0)) + int(dimensions.get("memory", 0)), 0, 8),
+			"derived_from_dimensions": _string_array(dimensions.keys())
+		})
+	return projections
+
+static func _build_compile_lineage_registry(experimental_ontology_state: Dictionary, theory_surface: Dictionary) -> Dictionary:
+	var registry: Dictionary = {}
+	for experiment_id in _string_array(experimental_ontology_state.get("live_experiment_ids", [])):
+		registry[experiment_id] = {
+			"lineage_id": experiment_id,
+			"kind": "experiment",
+			"label": experiment_id,
+			"source_ids": [],
+			"state": "active",
+			"visibility": "operator",
+			"play_routing_tags": ["witness", "route_choice", "return"]
+		}
+	for theory_id in _string_array(theory_surface.get("theory_ids", [])):
+		registry[theory_id] = {
+			"lineage_id": theory_id,
+			"kind": "theory",
+			"label": theory_id,
+			"source_ids": [],
+			"state": "active",
+			"visibility": "operator",
+			"play_routing_tags": ["witness", "route_choice", "return"]
+		}
+	return registry
 
 static func _compile_bound_failures(
 	world_model: Dictionary,
@@ -547,3 +658,8 @@ static func _string_array(values: Variant) -> Array[String]:
 			if not text.is_empty() and not result.has(text):
 				result.append(text)
 	return result
+
+static func _first_string(values: Variant, fallback: String = "") -> String:
+	for value in _string_array(values):
+		return value
+	return fallback

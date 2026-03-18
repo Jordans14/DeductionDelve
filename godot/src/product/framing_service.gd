@@ -1001,9 +1001,23 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 	var mutation_surface_lines := _string_array(diagnostics.get("mutation_surface_lines", []))
 	var narrative_pressure_lines := _string_array(diagnostics.get("narrative_pressure_lines", []))
 	var experiment_surface_lines := _string_array(diagnostics.get("experiment_surface_lines", []))
+	var theory_surface_lines := _string_array(diagnostics.get("theory_surface_lines", []))
+	var civilization_surface_lines := _string_array(diagnostics.get("civilization_surface_lines", []))
+	var cognitive_field_summary_lines := _string_array(diagnostics.get("cognitive_field_summary_lines", []))
+	var activation_lines := _string_array(diagnostics.get("activation_lines", []))
+	var safe_mode_lines := _string_array(diagnostics.get("safe_mode_lines", []))
+	var review_surface_lines := _string_array(diagnostics.get("review_surface_lines", []))
+	var explanation_packet_lines := _string_array(diagnostics.get("explanation_packet_lines", []))
 	var surface_line := _first_string(surface_summary, "")
 	var pressure_line := _first_string(narrative_pressure_lines, "")
 	var experiment_line := _first_string(experiment_surface_lines, "")
+	var theory_line := _first_string(theory_surface_lines, "")
+	var civilization_line := _first_string(civilization_surface_lines, "")
+	var field_line := _first_string(cognitive_field_summary_lines, "")
+	var activation_line := _first_string(activation_lines, "")
+	var safe_mode_line := _first_string(safe_mode_lines, "")
+	var review_line := _first_string(review_surface_lines, "")
+	var explanation_line := _first_string(explanation_packet_lines, "")
 	var motif_line := _first_string(motifs, "")
 	var mutation_line := _first_string(mutation_surface_lines, "")
 	var archive_tone := str(diagnostics.get("run_identity_archive_tone", "")).strip_edges()
@@ -1016,8 +1030,22 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 			governance_bits.append("Pressure: %s" % pressure_line)
 		if not experiment_line.is_empty() and experiment_line != surface_line and experiment_line != pressure_line:
 			governance_bits.append("Current: %s" % experiment_line)
+		if not theory_line.is_empty() and theory_line != experiment_line:
+			governance_bits.append("Theory: %s" % theory_line)
+		if not civilization_line.is_empty() and civilization_line != theory_line:
+			governance_bits.append("World: %s" % civilization_line)
 		if not mutation_line.is_empty() and mutation_line != experiment_line:
 			governance_bits.append("Shift: %s" % mutation_line)
+		if not activation_line.is_empty():
+			governance_bits.append("Activation: %s" % activation_line)
+		if not safe_mode_line.is_empty():
+			governance_bits.append("Safe mode: %s" % safe_mode_line)
+		if not review_line.is_empty():
+			governance_bits.append("Review: %s" % review_line)
+		if governance_bits.is_empty() and not field_line.is_empty():
+			governance_bits.append("Field: %s" % field_line)
+		if governance_bits.is_empty() and not explanation_line.is_empty():
+			governance_bits.append("Why: %s" % explanation_line)
 		if governance_bits.is_empty() and not motif_line.is_empty():
 			governance_bits.append("Motif: %s" % motif_line)
 		if governance_bits.is_empty() and not archive_tone.is_empty():
@@ -1031,8 +1059,14 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 			surface_bits.append("Pressure: %s" % pressure_line)
 		if not experiment_line.is_empty() and experiment_line != surface_line and experiment_line != pressure_line:
 			surface_bits.append("Current: %s" % experiment_line)
+		if not theory_line.is_empty() and theory_line != experiment_line:
+			surface_bits.append("Theory: %s" % theory_line)
+		if not civilization_line.is_empty():
+			surface_bits.append("World: %s" % civilization_line)
 		if not mutation_line.is_empty():
 			surface_bits.append("Shift: %s" % mutation_line)
+		if not activation_line.is_empty():
+			surface_bits.append("Activation: %s" % activation_line)
 		if not convergence_axis.is_empty():
 			surface_bits.append("Axis: %s" % convergence_axis)
 		return _compact_shell_clause(surface_line, surface_bits)
@@ -1040,23 +1074,53 @@ static func _governance_line(diagnostics: Dictionary, profile: Dictionary) -> St
 		var pressure_bits: Array[String] = []
 		if not experiment_line.is_empty():
 			pressure_bits.append("Current: %s" % experiment_line)
+		if not theory_line.is_empty():
+			pressure_bits.append("Theory: %s" % theory_line)
 		if not mutation_line.is_empty():
 			pressure_bits.append("Shift: %s" % mutation_line)
+		if not civilization_line.is_empty():
+			pressure_bits.append("World: %s" % civilization_line)
+		if not safe_mode_line.is_empty():
+			pressure_bits.append("Safe mode: %s" % safe_mode_line)
 		if not convergence_axis.is_empty():
 			pressure_bits.append("Axis: %s" % convergence_axis)
 		return _compact_shell_clause(pressure_line, pressure_bits)
 	if not experiment_line.is_empty():
 		var experiment_bits: Array[String] = []
+		if not theory_line.is_empty():
+			experiment_bits.append("Theory: %s" % theory_line)
+		if not civilization_line.is_empty():
+			experiment_bits.append("World: %s" % civilization_line)
 		if not mutation_line.is_empty():
 			experiment_bits.append("Shift: %s" % mutation_line)
+		if not activation_line.is_empty():
+			experiment_bits.append("Activation: %s" % activation_line)
 		if not convergence_axis.is_empty():
 			experiment_bits.append("Axis: %s" % convergence_axis)
 		return _compact_shell_clause(experiment_line, experiment_bits)
+	if not theory_line.is_empty():
+		var theory_bits: Array[String] = []
+		if not civilization_line.is_empty():
+			theory_bits.append("World: %s" % civilization_line)
+		if not field_line.is_empty():
+			theory_bits.append("Field: %s" % field_line)
+		if not activation_line.is_empty():
+			theory_bits.append("Activation: %s" % activation_line)
+		return _compact_shell_clause(theory_line, theory_bits)
 	if not mutation_line.is_empty():
 		var mutation_bits: Array[String] = []
+		if not civilization_line.is_empty():
+			mutation_bits.append("World: %s" % civilization_line)
 		if not convergence_axis.is_empty():
 			mutation_bits.append("Axis: %s" % convergence_axis)
 		return _compact_shell_clause(mutation_line, mutation_bits)
+	if not civilization_line.is_empty():
+		var civilization_bits: Array[String] = []
+		if not field_line.is_empty():
+			civilization_bits.append("Field: %s" % field_line)
+		if not review_line.is_empty():
+			civilization_bits.append("Review: %s" % review_line)
+		return _compact_shell_clause(civilization_line, civilization_bits)
 	if not archive_tone.is_empty():
 		var tone_bits: Array[String] = []
 		if not motif_line.is_empty():

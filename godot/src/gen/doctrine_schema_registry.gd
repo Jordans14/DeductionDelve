@@ -7,6 +7,13 @@ const EXPERIMENT_SCHEMA_PATH := "res://config/experiment_schema.json"
 const EVALUATION_SCHEMA_PATH := "res://config/evaluation_schema.json"
 const CULTURAL_ACTOR_SCHEMA_PATH := "res://config/cultural_actor_schema.json"
 const NARRATIVE_PRESSURE_SCHEMA_PATH := "res://config/narrative_pressure_schema.json"
+const LINEAGE_SCHEMA_PATH := "res://config/lineage_schema.json"
+const INQUIRY_SCHEMA_PATH := "res://config/inquiry_schema.json"
+const COGNITIVE_FIELD_SCHEMA_PATH := "res://config/cognitive_field_schema.json"
+const CIVILIZATION_SCHEMA_PATH := "res://config/civilization_schema.json"
+const GOVERNANCE_SCHEMA_PATH := "res://config/governance_schema.json"
+const ARCHIVE_SCHEMA_PATH := "res://config/archive_schema.json"
+const COOKBOOK_SCHEMA_PATH := "res://config/cookbook_schema.json"
 const DOCTRINE_FAMILY_CATALOG_PATH := "res://config/doctrine_family_catalog.json"
 const EXPERIMENT_FAMILY_CATALOG_PATH := "res://config/experiment_family_catalog.json"
 
@@ -548,6 +555,83 @@ const FALLBACK_NARRATIVE_PRESSURE_SCHEMA := {
 		"legality_override",
 		"artifact_truth_override"
 	]
+}
+
+const FALLBACK_LINEAGE_SCHEMA := {
+	"schema_name": "Lineage",
+	"schema_version": 1,
+	"required_fields": ["lineage_id", "kind", "label", "source_ids", "state", "visibility", "play_routing_tags"],
+	"allowed_kinds": ["constitution", "experiment", "theory", "faction", "mutation", "cookbook", "judgment"],
+	"allowed_states": ["active", "dormant", "archival", "suppressed", "quarantined", "failed", "fossilized"],
+	"allowed_visibility": ["public", "operator", "archive", "suppressed"]
+}
+
+const FALLBACK_INQUIRY_SCHEMA := {
+	"schema_name": "DelveMindInquiry",
+	"schema_version": 1,
+	"observation_store_required_fields": ["schema_name", "schema_version", "records", "behavior_field_snapshots", "observable_ids"],
+	"procedure_store_required_fields": ["schema_name", "schema_version", "procedures", "proposal_ids"],
+	"theory_store_required_fields": ["schema_name", "schema_version", "theories", "schools", "lineage_registry"],
+	"judgment_store_required_fields": ["schema_name", "schema_version", "judgments", "contradiction_ids"],
+	"observable_required_fields": ["observable_id", "label", "category", "capture_mode", "play_routing_tags"],
+	"procedure_required_fields": ["procedure_id", "label", "status", "risk_class", "play_routing_tags"],
+	"theory_required_fields": ["theory_id", "label", "status", "school_id", "observable_ids", "play_routing_tags"],
+	"theory_school_required_fields": ["school_id", "label", "stance", "visibility"],
+	"judgment_required_fields": ["judgment_id", "theory_id", "outcome", "confidence", "play_routing_tags"],
+	"forecast_required_fields": ["forecast_id", "chamber_id", "theory_id", "prediction", "confidence"],
+	"allowed_theory_states": ["official", "rival", "failed_archival", "suppressed_dangerous", "folk", "cookbook", "anomaly_only", "proto"],
+	"allowed_judgment_outcomes": ["support", "weaken", "split", "suspend", "quarantine", "abstain"],
+	"allowed_chamber_ids": ["tactical", "crawl", "cultural", "epoch", "constitutional"]
+}
+
+const FALLBACK_COGNITIVE_FIELD_SCHEMA := {
+	"schema_name": "CognitiveField",
+	"schema_version": 1,
+	"field_dimensions": ["judgment", "instability", "memory", "structure", "containment", "reconciliation", "mourning", "anticipation"],
+	"required_field_state_keys": ["schema_name", "schema_version", "field_vectors", "interaction_rules", "derived_mind_ids", "summary_lines"],
+	"required_projection_keys": ["mind_id", "label", "intensity", "derived_from_dimensions"],
+	"required_snapshot_keys": ["snapshot_id", "field_state_id", "observed_at", "dominant_dimensions"]
+}
+
+const FALLBACK_CIVILIZATION_SCHEMA := {
+	"schema_name": "CivilizationState",
+	"schema_version": 1,
+	"faction_required_fields": ["faction_id", "label", "actor_type", "legibility", "play_routing_tags"],
+	"regime_required_fields": ["regime_id", "label", "mode", "faction_ids"],
+	"region_required_fields": ["region_id", "label", "pressure_profile", "play_routing_tags"],
+	"world_mutation_required_fields": ["mutation_id", "label", "status", "reversal_mode", "play_routing_tags"],
+	"residue_required_fields": ["residue_id", "label", "source_kind", "play_routing_tags"],
+	"literacy_track_required_fields": ["track_id", "label", "tier", "activation_tags"],
+	"strategy_cluster_required_fields": ["cluster_id", "label", "pressure_tags", "play_routing_tags"],
+	"allowed_mutation_statuses": ["dormant", "proposed", "approved", "quarantined", "reversed"]
+}
+
+const FALLBACK_GOVERNANCE_SCHEMA := {
+	"schema_name": "GovernanceState",
+	"schema_version": 1,
+	"activation_state_required_fields": ["epoch", "active_channels", "dormant_channels", "safe_mode_active", "quarantine_ids"],
+	"safe_mode_required_fields": ["enabled", "reason", "fallback_constitution_id", "cooling_tags"],
+	"explanation_packet_required_fields": ["packet_id", "artifact_type", "summary_lines", "operator_lines", "play_routing_tags"],
+	"stability_report_required_fields": ["report_id", "status", "summary_lines"],
+	"anti_bottleneck_report_required_fields": ["report_id", "bottleneck_flags", "summary_lines"],
+	"play_routing_report_required_fields": ["report_id", "baseline_routes", "status", "summary_lines"],
+	"court_decision_required_fields": ["decision_id", "status", "summary_lines"],
+	"meta_reflection_required_fields": ["reflection_id", "status", "summary_lines"],
+	"allowed_report_statuses": ["stable", "cooling", "warning", "quarantined"]
+}
+
+const FALLBACK_ARCHIVE_SCHEMA := {
+	"schema_name": "ArchiveEntry",
+	"schema_version": 1,
+	"required_fields": ["entry_id", "label", "entry_type", "summary_lines", "world_relation_line", "play_routing_tags"],
+	"allowed_entry_types": ["case", "legend", "theory", "faction", "mutation", "court", "reflection"]
+}
+
+const FALLBACK_COOKBOOK_SCHEMA := {
+	"schema_name": "CookbookFragment",
+	"schema_version": 1,
+	"required_fields": ["fragment_id", "claim", "method", "status", "power_envelope", "play_routing_tags"],
+	"allowed_statuses": ["glimpsed", "assembled", "networked", "quarantined"]
 }
 
 const FALLBACK_DOCTRINE_FAMILIES: Array[Dictionary] = [
@@ -1145,6 +1229,27 @@ static func cultural_actor_schema() -> Dictionary:
 static func narrative_pressure_schema() -> Dictionary:
 	return _load_json(NARRATIVE_PRESSURE_SCHEMA_PATH, FALLBACK_NARRATIVE_PRESSURE_SCHEMA)
 
+static func lineage_schema() -> Dictionary:
+	return _load_json(LINEAGE_SCHEMA_PATH, FALLBACK_LINEAGE_SCHEMA)
+
+static func inquiry_schema() -> Dictionary:
+	return _load_json(INQUIRY_SCHEMA_PATH, FALLBACK_INQUIRY_SCHEMA)
+
+static func cognitive_field_schema() -> Dictionary:
+	return _load_json(COGNITIVE_FIELD_SCHEMA_PATH, FALLBACK_COGNITIVE_FIELD_SCHEMA)
+
+static func civilization_schema() -> Dictionary:
+	return _load_json(CIVILIZATION_SCHEMA_PATH, FALLBACK_CIVILIZATION_SCHEMA)
+
+static func governance_schema() -> Dictionary:
+	return _load_json(GOVERNANCE_SCHEMA_PATH, FALLBACK_GOVERNANCE_SCHEMA)
+
+static func archive_schema() -> Dictionary:
+	return _load_json(ARCHIVE_SCHEMA_PATH, FALLBACK_ARCHIVE_SCHEMA)
+
+static func cookbook_schema() -> Dictionary:
+	return _load_json(COOKBOOK_SCHEMA_PATH, FALLBACK_COOKBOOK_SCHEMA)
+
 static func doctrine_family_catalog() -> Dictionary:
 	return _load_json(DOCTRINE_FAMILY_CATALOG_PATH, {
 		"schema_name": "DoctrineFamilyCatalog",
@@ -1181,6 +1286,13 @@ static func validate_registry() -> Array[String]:
 	failures.append_array(_validate_evaluation_schema(evaluation_schema()))
 	failures.append_array(_validate_basic_schema(cultural_actor_schema(), "CulturalActor", ["required_fields", "allowed_actor_types"]))
 	failures.append_array(_validate_narrative_pressure_schema(narrative_pressure_schema()))
+	failures.append_array(_validate_lineage_schema(lineage_schema()))
+	failures.append_array(_validate_inquiry_schema(inquiry_schema()))
+	failures.append_array(_validate_cognitive_field_schema(cognitive_field_schema()))
+	failures.append_array(_validate_civilization_schema(civilization_schema()))
+	failures.append_array(_validate_governance_schema(governance_schema()))
+	failures.append_array(_validate_archive_schema(archive_schema()))
+	failures.append_array(_validate_cookbook_schema(cookbook_schema()))
 	failures.append_array(_validate_doctrine_catalog(doctrine_family_catalog()))
 	failures.append_array(_validate_experiment_catalog(experiment_family_catalog()))
 	return failures
@@ -1216,11 +1328,48 @@ static func _validate_constitution_schema(schema: Dictionary) -> Array[String]:
 		if not schema.has(key):
 			failures.append("constitution_schema.json missing %s" % key)
 	var required_sections := _string_array(schema.get("required_sections", []))
-	for section in ["identity", "doctrine", "control_surfaces", "constitution_summary", "generation_surface", "compile_metadata", "narrative_pressure_state", "experimental_ontology_state"]:
+	for section in [
+		"identity",
+		"doctrine",
+		"control_surfaces",
+		"constitution_summary",
+		"generation_surface",
+		"compile_metadata",
+		"narrative_pressure_state",
+		"experimental_ontology_state",
+		"lineage_registry",
+		"civilization_surface",
+		"cognitive_field_state",
+		"mind_projections",
+		"theory_surface",
+		"activation_state",
+		"explanation_packet",
+		"review_surface"
+	]:
 		if not required_sections.has(section):
 			failures.append("constitution_schema.json required_sections missing %s" % section)
 	var required_symbolic_fields := _string_array(schema.get("required_symbolic_fields", []))
-	for field in ["doctrine_family_id", "doctrine_variant_id", "generation_seed", "topology_profile", "route_profile", "item_ecology_profile", "pressure_ecology_profile", "narrative_pressure_state", "experimental_ontology_state", "fairness_bounds", "compile_metadata"]:
+	for field in [
+		"doctrine_family_id",
+		"doctrine_variant_id",
+		"generation_seed",
+		"topology_profile",
+		"route_profile",
+		"item_ecology_profile",
+		"pressure_ecology_profile",
+		"narrative_pressure_state",
+		"experimental_ontology_state",
+		"fairness_bounds",
+		"compile_metadata",
+		"lineage_registry",
+		"civilization_surface",
+		"cognitive_field_state",
+		"mind_projections",
+		"theory_surface",
+		"activation_state",
+		"explanation_packet",
+		"review_surface"
+	]:
 		if not required_symbolic_fields.has(field):
 			failures.append("constitution_schema.json required_symbolic_fields missing %s" % field)
 	var required_generation_surface_keys := _string_array(schema.get("required_generation_surface_keys", []))
@@ -1474,6 +1623,78 @@ static func _validate_basic_schema(schema: Dictionary, schema_name: String, requ
 	for key in required_keys:
 		if not schema.has(key):
 			failures.append("%s missing %s" % [schema_name, key])
+	return failures
+
+static func _validate_lineage_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "Lineage", ["required_fields", "allowed_kinds", "allowed_states", "allowed_visibility"])
+	_require_values(_string_array(schema.get("required_fields", [])), ["lineage_id", "kind", "label", "source_ids", "state", "visibility", "play_routing_tags"], "Lineage required_fields", failures)
+	return failures
+
+static func _validate_inquiry_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "DelveMindInquiry", [
+		"observation_store_required_fields",
+		"procedure_store_required_fields",
+		"theory_store_required_fields",
+		"judgment_store_required_fields",
+		"observable_required_fields",
+		"procedure_required_fields",
+		"theory_required_fields",
+		"theory_school_required_fields",
+		"judgment_required_fields",
+		"forecast_required_fields",
+		"allowed_theory_states",
+		"allowed_judgment_outcomes",
+		"allowed_chamber_ids"
+	])
+	_require_values(_string_array(schema.get("observation_store_required_fields", [])), ["records", "behavior_field_snapshots", "observable_ids"], "DelveMindInquiry observation_store_required_fields", failures)
+	_require_values(_string_array(schema.get("theory_required_fields", [])), ["theory_id", "label", "status", "school_id", "observable_ids", "play_routing_tags"], "DelveMindInquiry theory_required_fields", failures)
+	_require_values(_string_array(schema.get("allowed_theory_states", [])), ["official", "rival", "failed_archival", "suppressed_dangerous", "folk", "cookbook", "anomaly_only", "proto"], "DelveMindInquiry allowed_theory_states", failures)
+	return failures
+
+static func _validate_cognitive_field_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "CognitiveField", ["field_dimensions", "required_field_state_keys", "required_projection_keys", "required_snapshot_keys"])
+	_require_values(_string_array(schema.get("field_dimensions", [])), ["judgment", "instability", "memory", "structure", "containment", "reconciliation", "mourning", "anticipation"], "CognitiveField field_dimensions", failures)
+	return failures
+
+static func _validate_civilization_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "CivilizationState", [
+		"faction_required_fields",
+		"regime_required_fields",
+		"region_required_fields",
+		"world_mutation_required_fields",
+		"residue_required_fields",
+		"literacy_track_required_fields",
+		"strategy_cluster_required_fields",
+		"allowed_mutation_statuses"
+	])
+	_require_values(_string_array(schema.get("faction_required_fields", [])), ["faction_id", "label", "actor_type", "legibility", "play_routing_tags"], "CivilizationState faction_required_fields", failures)
+	_require_values(_string_array(schema.get("world_mutation_required_fields", [])), ["mutation_id", "label", "status", "reversal_mode", "play_routing_tags"], "CivilizationState world_mutation_required_fields", failures)
+	return failures
+
+static func _validate_governance_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "GovernanceState", [
+		"activation_state_required_fields",
+		"safe_mode_required_fields",
+		"explanation_packet_required_fields",
+		"stability_report_required_fields",
+		"anti_bottleneck_report_required_fields",
+		"play_routing_report_required_fields",
+		"court_decision_required_fields",
+		"meta_reflection_required_fields",
+		"allowed_report_statuses"
+	])
+	_require_values(_string_array(schema.get("activation_state_required_fields", [])), ["epoch", "active_channels", "dormant_channels", "safe_mode_active", "quarantine_ids"], "GovernanceState activation_state_required_fields", failures)
+	_require_values(_string_array(schema.get("explanation_packet_required_fields", [])), ["packet_id", "artifact_type", "summary_lines", "operator_lines", "play_routing_tags"], "GovernanceState explanation_packet_required_fields", failures)
+	return failures
+
+static func _validate_archive_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "ArchiveEntry", ["required_fields", "allowed_entry_types"])
+	_require_values(_string_array(schema.get("required_fields", [])), ["entry_id", "label", "entry_type", "summary_lines", "world_relation_line", "play_routing_tags"], "ArchiveEntry required_fields", failures)
+	return failures
+
+static func _validate_cookbook_schema(schema: Dictionary) -> Array[String]:
+	var failures := _validate_basic_schema(schema, "CookbookFragment", ["required_fields", "allowed_statuses"])
+	_require_values(_string_array(schema.get("required_fields", [])), ["fragment_id", "claim", "method", "status", "power_envelope", "play_routing_tags"], "CookbookFragment required_fields", failures)
 	return failures
 
 static func _validate_doctrine_catalog(catalog: Dictionary) -> Array[String]:

@@ -18,7 +18,8 @@ static func default_state() -> Dictionary:
 	return {
 		"cases": [],
 		"legends": [],
-		"shorthand": {}
+		"shorthand": {},
+		"entries": []
 	}
 
 static func normalize(state: Dictionary) -> Dictionary:
@@ -28,6 +29,7 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["cases"] = Array(current.get("cases", [])).slice(0, CASE_LIMIT)
 	current["legends"] = Array(current.get("legends", [])).slice(0, LEGEND_LIMIT)
 	current["shorthand"] = Dictionary(current.get("shorthand", {}))
+	current["entries"] = _normalize_entries(Array(current.get("entries", [])))
 	return current
 
 static func apply_run(archive_state: Dictionary, run_context: Dictionary) -> Dictionary:
@@ -40,6 +42,9 @@ static func apply_run(archive_state: Dictionary, run_context: Dictionary) -> Dic
 	var cases: Array = Array(current.get("cases", []))
 	cases.push_front(case_entry)
 	current["cases"] = cases.slice(0, CASE_LIMIT)
+	var entries: Array = Array(current.get("entries", []))
+	entries.push_front(_build_archive_entry(case_entry, run_context))
+	current["entries"] = _normalize_entries(entries)
 	if _passes_legend_threshold(diagnostics, frame, world_memory):
 		var legends: Array = Array(current.get("legends", []))
 		legends.push_front(_build_legend_entry(case_entry, crawl_packet))
@@ -1119,6 +1124,36 @@ static func _shorthand_key(case_axes: Array[String]) -> String:
 	var first := str(case_axes[0]).strip_edges().replace(" ", "-").to_lower()
 	var second := str(_first_string(case_axes.slice(1, case_axes.size()), "")).strip_edges().replace(" ", "-").to_lower()
 	return first if second.is_empty() else "%s/%s" % [first, second]
+
+static func _build_archive_entry(case_entry: Dictionary, run_context: Dictionary) -> Dictionary:
+	var frame: Dictionary = Dictionary(run_context.get("frame", {}))
+	var diagnostics: Dictionary = Dictionary(run_context.get("diagnostics", {}))
+	return {
+		"entry_id": "archive_%s" % str(case_entry.get("id", "")).strip_edges(),
+		"label": str(case_entry.get("label", "Archive case")).strip_edges(),
+		"entry_type": "case",
+		"summary_lines": _string_array([
+			str(case_entry.get("comparison_line", "")).strip_edges(),
+			str(case_entry.get("world_relation_line", "")).strip_edges(),
+			str(frame.get("governance_line", "")).strip_edges()
+		]).slice(0, 3),
+		"world_relation_line": str(case_entry.get("world_relation_line", diagnostics.get("doctrine_world_goal", ""))).strip_edges(),
+		"play_routing_tags": ["witness", "artifact_custody", "route_choice", "return"]
+	}
+
+static func _normalize_entries(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var entry := Dictionary(value).duplicate(true)
+		entry["entry_id"] = str(entry.get("entry_id", "")).strip_edges()
+		entry["label"] = str(entry.get("label", "")).strip_edges()
+		entry["entry_type"] = str(entry.get("entry_type", "case")).strip_edges()
+		entry["summary_lines"] = _string_array(entry.get("summary_lines", [])).slice(0, 4)
+		entry["world_relation_line"] = str(entry.get("world_relation_line", "")).strip_edges()
+		entry["play_routing_tags"] = _string_array(entry.get("play_routing_tags", []))
+		if not entry["entry_id"].is_empty():
+			result.append(entry)
+	return result.slice(0, CASE_LIMIT)
 
 static func _string_array(values: Variant) -> Array[String]:
 	var result: Array[String] = []

@@ -1,0 +1,21 @@
+{
+  "schema_name": "ArchiveEntry",
+  "schema_version": 1,
+  "required_fields": [
+    "entry_id",
+    "label",
+    "entry_type",
+    "summary_lines",
+    "world_relation_line",
+    "play_routing_tags"
+  ],
+  "allowed_entry_types": [
+    "case",
+    "legend",
+    "theory",
+    "faction",
+    "mutation",
+    "court",
+    "reflection"
+  ]
+}

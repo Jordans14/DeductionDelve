@@ -1,0 +1,56 @@
+{
+  "schema_name": "GovernanceState",
+  "schema_version": 1,
+  "activation_state_required_fields": [
+    "epoch",
+    "active_channels",
+    "dormant_channels",
+    "safe_mode_active",
+    "quarantine_ids"
+  ],
+  "safe_mode_required_fields": [
+    "enabled",
+    "reason",
+    "fallback_constitution_id",
+    "cooling_tags"
+  ],
+  "explanation_packet_required_fields": [
+    "packet_id",
+    "artifact_type",
+    "summary_lines",
+    "operator_lines",
+    "play_routing_tags"
+  ],
+  "stability_report_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "anti_bottleneck_report_required_fields": [
+    "report_id",
+    "bottleneck_flags",
+    "summary_lines"
+  ],
+  "play_routing_report_required_fields": [
+    "report_id",
+    "baseline_routes",
+    "status",
+    "summary_lines"
+  ],
+  "court_decision_required_fields": [
+    "decision_id",
+    "status",
+    "summary_lines"
+  ],
+  "meta_reflection_required_fields": [
+    "reflection_id",
+    "status",
+    "summary_lines"
+  ],
+  "allowed_report_statuses": [
+    "stable",
+    "cooling",
+    "warning",
+    "quarantined"
+  ]
+}

@@ -3,6 +3,10 @@ extends RefCounted
 
 const SCHEMA_REGISTRY_SCRIPT = preload("res://src/gen/doctrine_schema_registry.gd")
 const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
+const OBSERVATION_STORE_SCRIPT = preload("res://src/product/delvemind_observation_store.gd")
+const PROCEDURE_STORE_SCRIPT = preload("res://src/product/delvemind_procedure_store.gd")
+const THEORY_STORE_SCRIPT = preload("res://src/product/delvemind_theory_store.gd")
+const JUDGMENT_STORE_SCRIPT = preload("res://src/product/delvemind_judgment_store.gd")
 
 const RUNTIME_FORBIDDEN_FIELDS := [
 	"peer_ids",
@@ -50,14 +54,24 @@ static func normalize(state: Dictionary) -> Dictionary:
 		existing_experiment["experiment_id"] = str(existing_experiment.get("experiment_id", experiment_id)).strip_edges()
 		experiment_registry[experiment_id] = _normalize_experiment(existing_experiment)
 	current["schema_name"] = "DelveMindExperimentState"
-	current["schema_version"] = 1
+	current["schema_version"] = 2
 	current["history_lines"] = _string_array(current.get("history_lines", []))
 	current["hypotheses"] = hypothesis_registry
 	current["experiments"] = experiment_registry
 	current["learning_state"] = DELVEMIND_LEARNING_LOOP_SCRIPT.normalize_learning_state(Dictionary(current.get("learning_state", {})))
+	current["observation_store"] = OBSERVATION_STORE_SCRIPT.normalize(Dictionary(current.get("observation_store", {})))
+	current["procedure_store"] = PROCEDURE_STORE_SCRIPT.ensure_foundational_procedure(Dictionary(current.get("procedure_store", {})))
+	current["theory_store"] = THEORY_STORE_SCRIPT.sync_from_experiments(Dictionary(current.get("theory_store", {})), {"experiments": experiment_registry})
+	current["judgment_store"] = JUDGMENT_STORE_SCRIPT.sync_from_learning(Dictionary(current.get("judgment_store", {})), Dictionary(current.get("learning_state", {})))
+	current["simulation_chambers"] = Dictionary(current.get("simulation_chambers", {})).duplicate(true)
 	current["foundational_ids"] = _sorted_strings(_foundational_ids(experiment_registry))
 	current["archival_ids"] = _sorted_strings(_archival_ids(experiment_registry))
 	current["lineage_index"] = _build_lineage_index(experiment_registry)
+	current["lineage_registry"] = _build_lineage_registry(
+		Dictionary(current.get("lineage_registry", {})),
+		Dictionary(current.get("lineage_index", {})),
+		Dictionary(current.get("theory_store", {}))
+	)
 	current["validation_failures"] = validate_state(current)
 	return current
 
@@ -89,6 +103,9 @@ static func validate_state(state: Dictionary) -> Array[String]:
 			if not _experiment_exists(experiments, source_id):
 				failures.append("experiment %s synthesis_source %s is missing" % [str(experiment.get("experiment_id", "")), source_id])
 	failures.append_array(DELVEMIND_LEARNING_LOOP_SCRIPT.validate_learning_state(Dictionary(state.get("learning_state", {})), hypotheses, experiments))
+	for key in ["observation_store", "procedure_store", "theory_store", "judgment_store", "lineage_registry", "simulation_chambers"]:
+		if not state.has(key):
+			failures.append("DelveMindExperimentState missing %s" % key)
 	return _sorted_strings(failures)
 
 static func validate_hypothesis(hypothesis: Dictionary) -> Array[String]:
@@ -365,6 +382,12 @@ static func build_world_lines(state: Dictionary) -> Array[String]:
 	var history_lines := _string_array(current.get("history_lines", []))
 	if not history_lines.is_empty():
 		lines.append(history_lines[0])
+	var theory_surface := THEORY_STORE_SCRIPT.build_public_surface(Dictionary(current.get("theory_store", {})))
+	for theory_line in _string_array(theory_surface.get("lines", [])):
+		if not lines.has(theory_line):
+			lines.append(theory_line)
+		if lines.size() >= 2:
+			return lines.slice(0, 2)
 	for experiment_raw in _sorted_dict_array_from_map(Dictionary(current.get("experiments", {})), "experiment_id"):
 		var experiment: Dictionary = Dictionary(experiment_raw)
 		var public_lines := _string_array(experiment.get("public_lines", []))
@@ -379,14 +402,20 @@ static func build_world_lines(state: Dictionary) -> Array[String]:
 static func _default_shell() -> Dictionary:
 	return {
 		"schema_name": "DelveMindExperimentState",
-		"schema_version": 1,
+		"schema_version": 2,
 		"hypotheses": {},
 		"experiments": {},
 		"learning_state": DELVEMIND_LEARNING_LOOP_SCRIPT.default_learning_state(),
+		"observation_store": OBSERVATION_STORE_SCRIPT.default_store(),
+		"procedure_store": PROCEDURE_STORE_SCRIPT.default_store(),
+		"theory_store": THEORY_STORE_SCRIPT.default_store(),
+		"judgment_store": JUDGMENT_STORE_SCRIPT.default_store(),
+		"simulation_chambers": {},
 		"history_lines": [],
 		"foundational_ids": [],
 		"archival_ids": [],
-		"lineage_index": {}
+		"lineage_index": {},
+		"lineage_registry": {}
 	}
 
 static func _build_family_hypothesis(family: Dictionary) -> Dictionary:
@@ -743,11 +772,53 @@ static func advance_persistence(state: Dictionary, run_record: Dictionary, diagn
 	if not history_line.is_empty():
 		history_lines = _push_front_limited(history_lines, history_line, 8)
 	current["history_lines"] = history_lines
+	current["observation_store"] = OBSERVATION_STORE_SCRIPT.record_run(
+		Dictionary(current.get("observation_store", {})),
+		run_record,
+		diagnostics,
+		Dictionary(Dictionary(run_record.get("expedition_constitution_summary", {})).get("cognitive_field_state", {}))
+	)
+	current["procedure_store"] = PROCEDURE_STORE_SCRIPT.ensure_foundational_procedure(Dictionary(current.get("procedure_store", {})))
+	current["theory_store"] = THEORY_STORE_SCRIPT.sync_from_experiments(Dictionary(current.get("theory_store", {})), current)
+	current["judgment_store"] = JUDGMENT_STORE_SCRIPT.sync_from_learning(
+		Dictionary(current.get("judgment_store", {})),
+		Dictionary(current.get("learning_state", {}))
+	)
+	current["lineage_registry"] = _build_lineage_registry(
+		Dictionary(current.get("lineage_registry", {})),
+		Dictionary(current.get("lineage_index", {})),
+		Dictionary(current.get("theory_store", {}))
+	)
 	current["validation_failures"] = _merge_string_arrays(
 		_string_array(current.get("validation_failures", [])),
 		_string_array(manifestation.get("failures", []))
 	)
 	current["validation_failures"] = _merge_string_arrays(_string_array(current.get("validation_failures", [])), validate_state(current))
+	return current
+
+static func _build_lineage_registry(existing: Dictionary, lineage_index: Dictionary, theory_store: Dictionary) -> Dictionary:
+	var current := Dictionary(existing).duplicate(true)
+	for experiment_id_variant in Dictionary(lineage_index.get("parents", {})).keys():
+		var experiment_id := str(experiment_id_variant).strip_edges()
+		if experiment_id.is_empty():
+			continue
+		var state_band := "active"
+		var state_bands: Dictionary = Dictionary(lineage_index.get("state_bands", {}))
+		if _string_array(state_bands.get("archival", [])).has(experiment_id):
+			state_band = "archival"
+		elif _string_array(state_bands.get("foundational", [])).has(experiment_id):
+			state_band = "foundational"
+		current[experiment_id] = {
+			"lineage_id": experiment_id,
+			"kind": "experiment",
+			"label": experiment_id,
+			"source_ids": _string_array([str(Dictionary(lineage_index.get("parents", {})).get(experiment_id_variant, "")).strip_edges()]),
+			"state": state_band,
+			"visibility": "operator",
+			"play_routing_tags": ["witness", "route_choice", "return"]
+		}
+	for theory_id_variant in Dictionary(theory_store.get("lineage_registry", {})).keys():
+		current[str(theory_id_variant).strip_edges()] = Dictionary(Dictionary(theory_store.get("lineage_registry", {})).get(theory_id_variant, {})).duplicate(true)
 	return current
 
 static func _manifested_ids_for_persistence(experiments: Dictionary, run_record: Dictionary, diagnostics: Dictionary) -> Dictionary:
