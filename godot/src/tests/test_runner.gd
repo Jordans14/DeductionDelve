@@ -193,6 +193,8 @@ func _cleanup_after_tests() -> void:
 			network_manager.clear_runtime_context_for_test()
 		if network_manager.has_method("reset_to_lobby"):
 			network_manager.reset_to_lobby("test_runner_cleanup")
+		if network_manager.has_method("release_shutdown_resources"):
+			network_manager.release_shutdown_resources()
 	var run_state := root.get_node_or_null("RunState")
 	if run_state != null and run_state.has_method("clear"):
 		run_state.clear()
@@ -205,6 +207,11 @@ func _cleanup_after_tests() -> void:
 		if _initial_root_child_ids.has(node.get_instance_id()):
 			continue
 		node.queue_free()
+	if network_manager != null:
+		network_manager.queue_free()
+	if run_state != null:
+		run_state.queue_free()
+	await process_frame
 	await process_frame
 	await process_frame
 
@@ -7405,6 +7412,7 @@ func _test_phase6_shell_proof_fast_path(failures: Array[String]) -> void:
 		failures.append("Phase 6 proof reconnect fix should only emit when the reconnect offer actually changes")
 	elif bool(Dictionary(emitted_offers[0]).get("available", false)) != true or not Dictionary(emitted_offers[1]).is_empty():
 		failures.append("Phase 6 proof reconnect fix should emit one concrete offer and one clear event")
+	manager.free()
 
 func _phase7_run_record(seed: int, overrides: Dictionary = {}) -> Dictionary:
 	var base := {

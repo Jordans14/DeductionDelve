@@ -49,6 +49,10 @@ var _bomb_script_cache = null
 var _rope_script_cache = null
 var _zipline_script_cache = null
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		release_shutdown_resources()
+
 func _get_bomb_script():
 	if _bomb_script_cache == null:
 		_bomb_script_cache = load("res://src/items/bomb.gd")
@@ -156,6 +160,13 @@ var _run_state_override_for_test: Node = null
 var _event_log_override_for_test: Node = null
 var reconnect_offer: Dictionary = {}
 var last_connection_status: String = "Not connected"
+
+func release_shutdown_resources() -> void:
+	artifact_service = null
+	item_service = null
+	_bomb_script_cache = null
+	_rope_script_cache = null
+	_zipline_script_cache = null
 
 func get_room_slot(pos: Vector2) -> int:
 	return maxi(int(floor(pos.x / 1024.0)), 0)
