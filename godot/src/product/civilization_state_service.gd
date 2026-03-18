@@ -259,7 +259,7 @@ static func _normalize_world_mutations(values: Array) -> Array[Dictionary]:
 		var current := Dictionary(value).duplicate(true)
 		current["mutation_id"] = str(current.get("mutation_id", "")).strip_edges()
 		current["label"] = str(current.get("label", "")).strip_edges()
-		current["status"] = str(current.get("status", "dormant")).strip_edges()
+		current["status"] = str(current.get("status", "recorded")).strip_edges()
 		current["reversal_mode"] = str(current.get("reversal_mode", "counteraction")).strip_edges()
 		current["play_routing_tags"] = _string_array(current.get("play_routing_tags", []))
 		if not current["mutation_id"].is_empty():

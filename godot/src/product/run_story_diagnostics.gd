@@ -49,7 +49,7 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var theory_ids := _take_unique(_string_array(expedition_constitution_summary.get("theory_ids", [])), 4)
 	var theory_school_ids := _take_unique(_string_array(expedition_constitution_summary.get("theory_school_ids", [])), 4)
 	var theory_statuses := _take_unique(_string_array(expedition_constitution_summary.get("theory_statuses", [])), 4)
-	var activation_epoch := str(expedition_constitution_summary.get("activation_epoch", "structural_presence")).strip_edges()
+	var activation_epoch := str(expedition_constitution_summary.get("activation_epoch", "inactive")).strip_edges()
 	var activation_active_channels := _take_unique(_string_array(expedition_constitution_summary.get("activation_active_channels", [])), 6)
 	var activation_dormant_channels := _take_unique(_string_array(expedition_constitution_summary.get("activation_dormant_channels", [])), 8)
 	var activation_lines := _take_unique(_string_array(expedition_constitution_summary.get("activation_lines", [])), 3)
@@ -375,7 +375,7 @@ static func _public_safe_constitution_summary(raw: Dictionary) -> Dictionary:
 		"theory_ids": _string_array(public_summary.get("theory_ids", raw.get("theory_ids", []))),
 		"theory_school_ids": _string_array(public_summary.get("theory_school_ids", raw.get("theory_school_ids", []))),
 		"theory_statuses": _string_array(public_summary.get("theory_statuses", raw.get("theory_statuses", []))),
-		"activation_epoch": str(public_summary.get("activation_epoch", raw.get("activation_epoch", "structural_presence"))).strip_edges(),
+		"activation_epoch": str(public_summary.get("activation_epoch", raw.get("activation_epoch", "inactive"))).strip_edges(),
 		"activation_active_channels": _string_array(public_summary.get("activation_active_channels", raw.get("activation_active_channels", []))),
 		"activation_dormant_channels": _string_array(public_summary.get("activation_dormant_channels", raw.get("activation_dormant_channels", []))),
 		"activation_lines": _string_array(public_summary.get("activation_lines", raw.get("activation_lines", []))),

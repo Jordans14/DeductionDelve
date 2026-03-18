@@ -376,6 +376,8 @@ func _build_rooms() -> void:
 	if RunState.room_chain.is_empty():
 		var resolution := resolve_room_chain_for_build_for_test(RunState.room_chain, RunState.run_seed, NetworkManager)
 		RunState.room_chain = Array(resolution.get("room_chain", [])).duplicate(true)
+		if str(resolution.get("source", "")).strip_edges() == "emergency_fallback":
+			push_warning("GameController: room_chain missing at _build_rooms; using emergency fallback generation")
 		print("BUILD_ROOMS_RECOVER source=%s chain_size=%d" % [str(resolution.get("source", "unknown")), RunState.room_chain.size()])
 	if room_builder and room_builder.has_method("build_from_chain"):
 		print("BUILD_ROOMS chain_size=%d" % RunState.room_chain.size())
@@ -404,7 +406,6 @@ func resolve_room_chain_for_build_for_test(current_chain: Array, run_seed: int, 
 			directive = network_manager.get_current_expedition_constitution()
 		elif network_manager.has_method("get_current_delve_directive"):
 			directive = network_manager.get_current_delve_directive()
-	push_warning("GameController: room_chain missing at _build_rooms; using emergency fallback generation")
 	var gen := RunGenerator.new()
 	return {
 		"source": "emergency_fallback",

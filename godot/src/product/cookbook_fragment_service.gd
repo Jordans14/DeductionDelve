@@ -17,7 +17,7 @@ static func default_state() -> Dictionary:
 		"marginalia_lines": [],
 		"network_lines": [],
 		"fragments": [],
-		"escalation_stage": "dormant",
+		"escalation_stage": "latent",
 		"unauthorized_theory_ids": [],
 		"unauthorized_theory_links": [],
 		"contamination_state": {
@@ -195,7 +195,7 @@ static func _resolve_escalation_stage(cookbook_state: Dictionary) -> String:
 		return "assembled"
 	if int(cookbook_state.get("fragment_count", 0)) >= 1:
 		return "glimpsed"
-	return "dormant"
+	return "latent"
 
 static func _resolve_fragment_status(cookbook_state: Dictionary) -> String:
 	match str(cookbook_state.get("escalation_stage", _resolve_escalation_stage(cookbook_state))):

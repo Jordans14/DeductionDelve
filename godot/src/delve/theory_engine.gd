@@ -271,7 +271,7 @@ static func _activation_epoch(activation_state: Dictionary, theories: Array[Dict
 	var epoch := str(activation_state.get("epoch", "")).strip_edges()
 	if not epoch.is_empty():
 		return epoch
-	return "fully_active" if not theories.is_empty() else "structural_presence"
+	return "fully_active" if not theories.is_empty() else "inactive"
 
 static func _promotion_candidates(theories: Array[Dictionary]) -> Array[String]:
 	var result: Array[String] = []

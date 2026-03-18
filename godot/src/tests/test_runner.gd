@@ -1,5 +1,8 @@
 extends SceneTree
 
+var _pending_failures: Array[String] = []
+var _initial_root_child_ids: Array[int] = []
+
 const NET_HELPERS_SCRIPT = preload("res://src/tests/net_manager_test_helpers.gd")
 const NETWORK_MANAGER_SCRIPT = preload("res://src/net/network_manager.gd")
 const RUN_GENERATOR_SCRIPT = preload("res://src/gen/run_generator.gd")
@@ -41,6 +44,7 @@ class DummyDamageTarget:
 		health -= amt
 
 func _init() -> void:
+	_initial_root_child_ids = _capture_initial_root_child_ids()
 	var failures: Array[String] = []
 	_test_seed_determinism(failures)
 	_test_room_count_bounds(failures)
@@ -167,14 +171,49 @@ func _init() -> void:
 	_test_visual_doctrine_refactor(failures)
 	_test_lobby_shell_scene_contract(failures)
 
-	if failures.is_empty():
-		print("[PASS] Milestone tests passed.")
-		quit(0)
-		return
+	_pending_failures = failures.duplicate()
+	call_deferred("_finalize_runner_exit")
 
-	for failure in failures:
-		push_error("[FAIL] %s" % failure)
-	quit(1)
+func _finalize_runner_exit() -> void:
+	if _pending_failures.is_empty():
+		print("[PASS] Milestone tests passed.")
+	else:
+		for failure in _pending_failures:
+			push_error("[FAIL] %s" % failure)
+	await _cleanup_after_tests()
+	quit(0 if _pending_failures.is_empty() else 1)
+
+func _cleanup_after_tests() -> void:
+	var root := get_root()
+	var network_manager := root.get_node_or_null("NetworkManager")
+	if network_manager != null:
+		if network_manager.has_method("disconnect_peer"):
+			network_manager.disconnect_peer("test_runner_cleanup")
+		if network_manager.has_method("clear_runtime_context_for_test"):
+			network_manager.clear_runtime_context_for_test()
+		if network_manager.has_method("reset_to_lobby"):
+			network_manager.reset_to_lobby("test_runner_cleanup")
+	var run_state := root.get_node_or_null("RunState")
+	if run_state != null and run_state.has_method("clear"):
+		run_state.clear()
+	for child in root.get_children():
+		if child == null:
+			continue
+		if not (child is Node):
+			continue
+		var node := child as Node
+		if _initial_root_child_ids.has(node.get_instance_id()):
+			continue
+		node.queue_free()
+	await process_frame
+	await process_frame
+
+func _capture_initial_root_child_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for child in get_root().get_children():
+		if child is Node:
+			ids.append((child as Node).get_instance_id())
+	return ids
 
 func _test_seed_determinism(failures: Array[String]) -> void:
 	var generator := RUN_GENERATOR_SCRIPT.new()

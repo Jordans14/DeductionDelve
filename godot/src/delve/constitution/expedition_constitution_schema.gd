@@ -375,7 +375,7 @@ static func build_public_summary(
 		"theory_ids": [],
 		"theory_school_ids": [],
 		"theory_statuses": [],
-		"activation_epoch": "structural_presence",
+		"activation_epoch": "inactive",
 		"activation_active_channels": [],
 		"activation_dormant_channels": [],
 		"activation_lines": [],
@@ -435,7 +435,7 @@ static func build_runtime_summary(summary: Dictionary, constitution_hash: String
 		"theory_ids": Array(normalized_summary.get("theory_ids", [])).duplicate(true),
 		"theory_school_ids": Array(normalized_summary.get("theory_school_ids", [])).duplicate(true),
 		"theory_statuses": Array(normalized_summary.get("theory_statuses", [])).duplicate(true),
-		"activation_epoch": str(normalized_summary.get("activation_epoch", "structural_presence")),
+		"activation_epoch": str(normalized_summary.get("activation_epoch", "inactive")),
 		"activation_active_channels": Array(normalized_summary.get("activation_active_channels", [])).duplicate(true),
 		"activation_dormant_channels": Array(normalized_summary.get("activation_dormant_channels", [])).duplicate(true),
 		"activation_lines": Array(normalized_summary.get("activation_lines", [])).duplicate(true),
@@ -1021,7 +1021,7 @@ static func _apply_phase_v3_summary(
 	current["theory_ids"] = _string_array(theory_surface.get("theory_ids", []))
 	current["theory_school_ids"] = _string_array(theory_surface.get("school_ids", []))
 	current["theory_statuses"] = _string_array(theory_surface.get("statuses", []))
-	current["activation_epoch"] = str(activation_state.get("epoch", "structural_presence")).strip_edges()
+	current["activation_epoch"] = str(activation_state.get("epoch", "inactive")).strip_edges()
 	current["activation_active_channels"] = _string_array(activation_state.get("active_channels", []))
 	current["activation_dormant_channels"] = _string_array(activation_state.get("dormant_channels", []))
 	current["activation_lines"] = _string_array(activation_state.get("activation_lines", []))

@@ -351,7 +351,7 @@ static func _build_cognitive_field_state(world_model: Dictionary, public_summary
 		},
 		"interaction_rules": ["dominant theory surfaces remain routed through public-safe summaries"],
 		"derived_mind_ids": _string_array(public_summary.get("dominant_minds", [])),
-		"summary_lines": _string_array(Array(theory_surface.get("lines", [])) + ["field state remains structurally present"])
+		"summary_lines": _string_array(Array(theory_surface.get("lines", [])) + ["field vectors are actively shaping doctrine pressure"])
 	}
 
 static func _build_mind_projections(public_summary: Dictionary, cognitive_field_state: Dictionary, run_identity: Dictionary = {}) -> Array[Dictionary]:
