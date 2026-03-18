@@ -784,6 +784,16 @@ static func advance_persistence(state: Dictionary, run_record: Dictionary, diagn
 		Dictionary(current.get("judgment_store", {})),
 		Dictionary(current.get("learning_state", {}))
 	)
+	current["theory_store"] = _apply_theory_surface_snapshot(
+		Dictionary(current.get("theory_store", {})),
+		run_record,
+		diagnostics
+	)
+	current["simulation_chambers"] = _record_simulation_surface(
+		Dictionary(current.get("simulation_chambers", {})),
+		run_record,
+		diagnostics
+	)
 	current["lineage_registry"] = _build_lineage_registry(
 		Dictionary(current.get("lineage_registry", {})),
 		Dictionary(current.get("lineage_index", {})),
@@ -794,6 +804,53 @@ static func advance_persistence(state: Dictionary, run_record: Dictionary, diagn
 		_string_array(manifestation.get("failures", []))
 	)
 	current["validation_failures"] = _merge_string_arrays(_string_array(current.get("validation_failures", [])), validate_state(current))
+	return current
+
+static func _apply_theory_surface_snapshot(theory_store: Dictionary, run_record: Dictionary, diagnostics: Dictionary) -> Dictionary:
+	var current := THEORY_STORE_SCRIPT.normalize(theory_store)
+	var theories := _dict_array(current.get("theories", []))
+	var theory_ids := _string_array(diagnostics.get("theory_ids", []))
+	var statuses := _string_array(diagnostics.get("theory_statuses", []))
+	for index in range(theory_ids.size()):
+		var theory_id := theory_ids[index]
+		var status := statuses[index] if index < statuses.size() else "official"
+		var updated := false
+		for theory_index in range(theories.size()):
+			var theory := Dictionary(theories[theory_index]).duplicate(true)
+			if str(theory.get("theory_id", "")).strip_edges() != theory_id:
+				continue
+			theory["status"] = status
+			theories[theory_index] = theory
+			updated = true
+			break
+		if not updated:
+			theories.push_back({
+				"theory_id": theory_id,
+				"label": theory_id.replace("_", " "),
+				"status": status,
+				"school_id": "observed_surface",
+				"observable_ids": _string_array(diagnostics.get("experiment_families", [])),
+				"play_routing_tags": ["movement", "burden", "rescue", "witness", "route_choice", "artifact_custody", "hesitation", "extraction", "return"]
+			})
+	current["theories"] = theories
+	return THEORY_STORE_SCRIPT.normalize(current)
+
+static func _record_simulation_surface(simulation_chambers: Dictionary, run_record: Dictionary, diagnostics: Dictionary) -> Dictionary:
+	var current: Dictionary = Dictionary(simulation_chambers).duplicate(true)
+	var chamber_lines := _string_array(diagnostics.get("theory_surface_lines", []))
+	if chamber_lines.is_empty():
+		return current
+	current["records"] = _merge_dict_arrays(
+		[{
+			"forecast_id": "postrun_%s" % str(run_record.get("seed", 0)),
+			"chamber_id": "constitutional",
+			"theory_id": _first_string(_string_array(diagnostics.get("theory_ids", [])), ""),
+			"prediction": chamber_lines[0],
+			"confidence": 2
+		}],
+		_dict_array(current.get("records", [])),
+		16
+	)
 	return current
 
 static func _build_lineage_registry(existing: Dictionary, lineage_index: Dictionary, theory_store: Dictionary) -> Dictionary:
@@ -1395,6 +1452,21 @@ static func _merge_string_arrays(base_values: Variant, extra_values: Variant) ->
 		if not result.has(value):
 			result.append(value)
 	return _sorted_strings(result)
+
+static func _merge_dict_arrays(base_values: Array[Dictionary], extra_values: Array[Dictionary], limit: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in base_values:
+		result.append(Dictionary(value).duplicate(true))
+	for value in extra_values:
+		result.append(Dictionary(value).duplicate(true))
+	return result.slice(0, limit)
+
+static func _first_string(values: Array[String], fallback: String) -> String:
+	for value in values:
+		var text := str(value).strip_edges()
+		if not text.is_empty():
+			return text
+	return fallback
 
 static func _dict_array(values: Variant) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []

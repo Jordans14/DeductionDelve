@@ -293,9 +293,10 @@ const MINDS: Array[Dictionary] = [
 ]
 
 static func synthesize(world_model: Dictionary, session_context: Dictionary, planner: Dictionary, seed_value: int, room_count: int, meta: Dictionary = {}, counter: Dictionary = {}) -> Dictionary:
-	var force_profile := _build_force_profile(world_model, session_context, seed_value)
+	var cognitive_field_state := _build_cognitive_field_from_world_model(world_model, session_context, seed_value)
+	var force_profile := _force_profile_from_field(cognitive_field_state, world_model, session_context, seed_value)
 	var force_order := _sorted_force_scores(force_profile)
-	var mind_states := _build_mind_states(force_profile, world_model, session_context, seed_value)
+	var mind_states := _build_derived_mind_states(cognitive_field_state, force_profile, world_model, session_context, seed_value)
 	var role_map := _assign_roles(mind_states, force_profile, session_context, seed_value)
 	mind_states = _apply_roles_to_minds(mind_states, role_map)
 	var domain_weights := _build_domain_weights(mind_states, force_profile, seed_value)
@@ -309,6 +310,16 @@ static func synthesize(world_model: Dictionary, session_context: Dictionary, pla
 	var readability_budget := _build_readability_budget(force_order, mind_states, pressure_grammar, symbolic_motifs)
 	var control_surfaces := _project_control_surfaces(force_profile, mind_states, domain_weights, pressure_grammar, pacing_profile, item_ecology_bias, group_tension_bias, archive_interpretation, convergence_fragmentation, meta, counter)
 	var public_doctrine := _build_public_doctrine_summary(force_order, mind_states, domain_weights, pacing_profile, pressure_grammar, symbolic_motifs, planner, item_ecology_bias, group_tension_bias, archive_interpretation, convergence_fragmentation, readability_budget)
+	cognitive_field_state["derived_mind_ids"] = _string_array(public_doctrine.get("dominant_minds", []))
+	cognitive_field_state["summary_lines"] = _string_array(
+		Array(cognitive_field_state.get("summary_lines", []))
+		+ Array(public_doctrine.get("surface_lines", []))
+		+ [_first_non_empty([
+			str(archive_interpretation.get("tone", "")).strip_edges(),
+			str(public_doctrine.get("pressure_line", "")).strip_edges(),
+			"field vectors are actively steering doctrine selection"
+		])]
+	).slice(0, 4)
 	return {
 		"force_profile": force_profile.duplicate(true),
 		"force_order": force_order.duplicate(true),
@@ -326,8 +337,240 @@ static func synthesize(world_model: Dictionary, session_context: Dictionary, pla
 		"readability_budget": readability_budget.duplicate(true),
 		"public_safe_doctrine_summary": public_doctrine.duplicate(true),
 		"control_surfaces": control_surfaces.duplicate(true),
+		"cognitive_field_state": cognitive_field_state.duplicate(true),
 		"room_count": room_count
 	}
+
+static func _build_cognitive_field_from_world_model(world_model: Dictionary, session_context: Dictionary, seed_value: int) -> Dictionary:
+	var social: Dictionary = Dictionary(world_model.get("social_model", {}))
+	var route: Dictionary = Dictionary(world_model.get("route_model", {}))
+	var ecology: Dictionary = Dictionary(world_model.get("ecology_model", {}))
+	var economy: Dictionary = Dictionary(world_model.get("economy_model", {}))
+	var cultural: Dictionary = Dictionary(world_model.get("cultural_model", {}))
+	var theory_surface: Dictionary = Dictionary(world_model.get("theory_surface", {}))
+	var governance_state: Dictionary = Dictionary(world_model.get("governance_state", {}))
+	var activation_state: Dictionary = Dictionary(governance_state.get("activation_state", {}))
+	var protocol_state := str(Dictionary(world_model.get("session_model", {})).get("protocol_state", session_context.get("protocol_state", ""))).strip_edges()
+	var theory_count := _string_array(theory_surface.get("theory_ids", [])).size()
+	var rivalry_count := _status_count(_string_array(theory_surface.get("statuses", [])), ["rival", "suppressed", "cookbook", "anomaly"])
+	var mutation_count := int(cultural.get("world_mutation_count", 0))
+	var field_vectors := {
+		"judgment": clampi(
+			2 + theory_count + int(route.get("route_control", 0)) / 2 + int(social.get("alliance_stability", 0)) / 2 + _seed_texture(seed_value, "field_judgment", 1),
+			0,
+			12
+		),
+		"instability": clampi(
+			int(cultural.get("contradiction_heat", 0))
+			+ int(cultural.get("cookbook_redirection_pressure", 0))
+			+ int(social.get("trust_fragility", 0))
+			+ int(cultural.get("punitive_heat", 0))
+			+ int(cultural.get("paranoia_heat", 0))
+			+ rivalry_count
+			+ int(ecology.get("anomaly_recurrence", 0)) / 2
+			+ _seed_texture(seed_value, "field_instability", 1),
+			0,
+			12
+		),
+		"memory": clampi(
+			int(cultural.get("orthodoxy_strength", 0))
+			+ int(cultural.get("ritual_spread", 0))
+			+ int(social.get("friendship_pressure", 0))
+			+ int(cultural.get("cookbook_fragment_count", 0)) * 2
+			+ int(cultural.get("cookbook_holder_depth", 0))
+			+ int(cultural.get("shorthand_density", 0)) / 2
+			+ int(cultural.get("crawl_density", 0)) / 2
+			+ _seed_texture(seed_value, "field_memory", 1),
+			0,
+			12
+		),
+		"structure": clampi(
+			int(route.get("route_control", 0)) / 2 + int(route.get("rescue_geometry", 0)) / 2 + int(cultural.get("faction_count", 0)) + int(cultural.get("regime_count", 0)) + _seed_texture(seed_value, "field_structure", 1),
+			0,
+			12
+		),
+		"containment": clampi(
+			int(cultural.get("custody_pressure", 0))
+			+ int(cultural.get("silence_pressure", 0))
+			+ int(cultural.get("administrative_pressure", 0))
+			+ int(cultural.get("ordinary_life_pressure", 0))
+			+ int(cultural.get("relay_bottleneck_pressure", 0))
+			+ int(cultural.get("relay_memory_pressure", 0)) / 2
+			+ int(social.get("alliance_stability", 0)) / 2
+			+ mutation_count
+			+ _seed_texture(seed_value, "field_containment", 1),
+			0,
+			12
+		),
+		"reconciliation": clampi(
+			int(social.get("alliance_stability", 0)) / 2 + int(economy.get("recovery_appetite", 0)) + int(route.get("rescue_geometry", 0)) / 2 + mutation_count / 2 + _seed_texture(seed_value, "field_reconciliation", 1),
+			0,
+			12
+		),
+		"mourning": clampi(
+			int(cultural.get("melancholy_heat", 0)) + int(cultural.get("martyr_pressure", 0)) / 2 + int(cultural.get("ordinary_life_pressure", 0)) / 2 + _seed_texture(seed_value, "field_mourning", 1),
+			0,
+			12
+		),
+		"anticipation": clampi(
+			int(route.get("loop_familiarity", 0)) / 2
+			+ int(ecology.get("anomaly_recurrence", 0)) / 2
+			+ int(cultural.get("literacy_depth", 0))
+			+ int(cultural.get("revision_pressure", 0))
+			+ int(cultural.get("semantic_drift", 0))
+			+ int(cultural.get("cookbook_fragment_count", 0))
+			+ int(cultural.get("cookbook_redirection_pressure", 0))
+			+ int(cultural.get("relay_memory_pressure", 0))
+			+ theory_count
+			+ _seed_texture(seed_value, "field_anticipation", 1),
+			0,
+			12
+		),
+		"subversion": clampi(
+			int(cultural.get("cookbook_fragment_count", 0)) + int(cultural.get("cookbook_holder_depth", 0)) + int(cultural.get("false_canon_pressure", 0)) + int(cultural.get("forgery_pressure", 0)) / 2 + _seed_texture(seed_value, "field_subversion", 1),
+			0,
+			12
+		),
+		"legitimacy": clampi(
+			int(cultural.get("legitimacy_pressure", 0)) + int(cultural.get("sacred_pressure", 0)) / 2 + int(cultural.get("faction_count", 0)) + int(cultural.get("regime_count", 0)) + _seed_texture(seed_value, "field_legitimacy", 1),
+			0,
+			12
+		)
+	}
+	var dominant_dimensions := _top_dimension_ids(field_vectors, 4)
+	var summary_lines: Array[String] = []
+	if not dominant_dimensions.is_empty():
+		summary_lines.append("field dominance: %s" % ", ".join(dominant_dimensions))
+	if theory_count > 0:
+		summary_lines.append("%d active theory carriers are now shaping doctrine weather" % theory_count)
+	if mutation_count > 0:
+		summary_lines.append("%d world scars are feeding forward into the next constitution" % mutation_count)
+	if bool(activation_state.get("safe_mode_active", false)):
+		summary_lines.append("governance cooling is damping runaway field escalation")
+	return {
+		"schema_name": "CognitiveFieldState",
+		"schema_version": 1,
+		"field_state_id": "field_%s" % JSON.stringify({
+			"protocol_state": protocol_state,
+			"vectors": field_vectors
+		}).md5_text().substr(0, 12),
+		"protocol_state": protocol_state,
+		"field_vectors": field_vectors,
+		"interaction_rules": _field_interaction_rules(field_vectors),
+		"derived_mind_ids": [],
+		"summary_lines": _string_array(summary_lines)
+	}
+
+static func _force_profile_from_field(cognitive_field_state: Dictionary, world_model: Dictionary, session_context: Dictionary, seed_value: int) -> Dictionary:
+	var vectors: Dictionary = Dictionary(cognitive_field_state.get("field_vectors", {}))
+	var protocol_state := str(Dictionary(world_model.get("session_model", {})).get("protocol_state", session_context.get("protocol_state", ""))).strip_edges()
+	var cultural: Dictionary = Dictionary(world_model.get("cultural_model", {}))
+	var ecology: Dictionary = Dictionary(world_model.get("ecology_model", {}))
+	var social: Dictionary = Dictionary(world_model.get("social_model", {}))
+	return {
+		"trial": clampi(int(vectors.get("judgment", 0)) / 2 + int(vectors.get("structure", 0)) / 3 + int(vectors.get("legitimacy", 0)) / 3 + _protocol_trial_pressure(protocol_state) + _seed_texture(seed_value, "force_trial", 1), 0, 10),
+		"deception": clampi(int(vectors.get("instability", 0)) / 2 + int(vectors.get("subversion", 0)) / 2 + int(cultural.get("contradiction_heat", 0)) / 2 + int(social.get("trust_fragility", 0)) / 2 + _seed_texture(seed_value, "force_deception", 1), 0, 10),
+		"discovery": clampi(int(vectors.get("anticipation", 0)) / 2 + int(vectors.get("judgment", 0)) / 3 + int(vectors.get("memory", 0)) / 4 + int(cultural.get("revision_pressure", 0)) / 2 + int(cultural.get("cookbook_fragment_count", 0)) / 2 + int(cultural.get("relay_memory_pressure", 0)) / 2 + _seed_texture(seed_value, "force_discovery", 1), 0, 10),
+		"memory": clampi(int(vectors.get("memory", 0)) / 2 + int(vectors.get("mourning", 0)) / 2 + int(cultural.get("ritual_spread", 0)) / 2 + int(cultural.get("cookbook_fragment_count", 0)) + int(cultural.get("cookbook_holder_depth", 0)) / 2 + _seed_texture(seed_value, "force_memory", 1), 0, 10),
+		"risk": clampi(int(vectors.get("instability", 0)) / 2 + int(vectors.get("anticipation", 0)) / 4 + int(ecology.get("presence_pressure", 0)) / 2 + int(cultural.get("punitive_heat", 0)) + int(cultural.get("paranoia_heat", 0)) + _seed_texture(seed_value, "force_risk", 1), 0, 10),
+		"containment": clampi(int(vectors.get("containment", 0)) / 2 + int(vectors.get("legitimacy", 0)) / 3 + int(vectors.get("reconciliation", 0)) / 4 + int(cultural.get("relay_bottleneck_pressure", 0)) / 2 + int(social.get("alliance_stability", 0)) / 2 + int(cultural.get("ordinary_life_pressure", 0)) / 2 + _seed_texture(seed_value, "force_containment", 1), 0, 10)
+	}
+
+static func _build_derived_mind_states(cognitive_field_state: Dictionary, force_profile: Dictionary, world_model: Dictionary, session_context: Dictionary, seed_value: int) -> Array[Dictionary]:
+	var protocol_state := str(Dictionary(world_model.get("session_model", {})).get("protocol_state", session_context.get("protocol_state", ""))).strip_edges()
+	var vectors: Dictionary = Dictionary(cognitive_field_state.get("field_vectors", {}))
+	var dimension_affinities := {
+		"examiner": ["judgment", "structure", "legitimacy"],
+		"trickster": ["instability", "subversion", "anticipation"],
+		"archivist": ["memory", "mourning", "legitimacy"],
+		"cartographer": ["structure", "anticipation", "reconciliation"],
+		"warden": ["containment", "legitimacy", "judgment"]
+	}
+	var mind_states: Array[Dictionary] = []
+	for mind_def_raw in MINDS:
+		var mind_def: Dictionary = Dictionary(mind_def_raw)
+		var mind_id := str(mind_def.get("id", "")).strip_edges()
+		var score := 0
+		var force_interpretation: Dictionary = {}
+		for force_id in FORCE_LABELS.keys():
+			var force_value := int(force_profile.get(force_id, 0))
+			var matrix_entry: Dictionary = Dictionary(Dictionary(mind_def.get("force_matrix", {})).get(force_id, {}))
+			var interpreted := force_value * int(matrix_entry.get("weight", 0))
+			force_interpretation[force_id] = {
+				"weight": int(matrix_entry.get("weight", 0)),
+				"score": interpreted,
+				"reading": str(matrix_entry.get("reading", "")),
+				"distortion": str(matrix_entry.get("distortion", ""))
+			}
+			score += interpreted
+		for dimension_id in _string_array(dimension_affinities.get(mind_id, [])):
+			score += int(vectors.get(dimension_id, 0)) * 2
+		score += int(Dictionary(mind_def.get("protocol_affinities", {})).get(protocol_state, 0)) * 2
+		score += _seed_texture(seed_value, "projection:%s" % mind_id, 1)
+		var mood := _resolve_mood(mind_def, force_profile)
+		var intensity := clampi(int(round(float(score) / 8.0)), 1, 8)
+		mind_states.append({
+			"id": mind_id,
+			"label": str(mind_def.get("label", "")),
+			"score": score,
+			"intensity": intensity,
+			"mood": mood,
+			"signature_affinities": Array(mind_def.get("signature_affinities", [])).duplicate(),
+			"force_interpretation": force_interpretation,
+			"domain_strengths": Dictionary(mind_def.get("domain_strengths", {})).duplicate(true),
+			"role_affinities": Dictionary(mind_def.get("role_affinities", {})).duplicate(true),
+			"pressure_preferences": Dictionary(mind_def.get("pressure_preferences", {})).duplicate(true),
+			"motif_preferences": Dictionary(mind_def.get("motif_preferences", {})).duplicate(true),
+			"pacing_preferences": Dictionary(mind_def.get("pacing_preferences", {})).duplicate(true),
+			"interaction_tendencies": Dictionary(mind_def.get("interaction_tendencies", {})).duplicate(true),
+			"derived_from_dimensions": _string_array(dimension_affinities.get(mind_id, []))
+		})
+	mind_states.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a.get("score", 0)) == int(b.get("score", 0)):
+			return str(a.get("id", "")) < str(b.get("id", ""))
+		return int(a.get("score", 0)) > int(b.get("score", 0))
+	)
+	return mind_states
+
+static func _field_interaction_rules(field_vectors: Dictionary) -> Array[String]:
+	var rules: Array[String] = []
+	if int(field_vectors.get("instability", 0)) >= 6 and int(field_vectors.get("containment", 0)) >= 5:
+		rules.append("instability now forces containment-heavy doctrine and governance review")
+	if int(field_vectors.get("subversion", 0)) >= 5 and int(field_vectors.get("legitimacy", 0)) >= 5:
+		rules.append("subversion and legitimacy now compete over archive authority and theory adoption")
+	if int(field_vectors.get("memory", 0)) >= 5 and int(field_vectors.get("mourning", 0)) >= 4:
+		rules.append("memory pressure now recasts burden, witness, and return as cultural obligations")
+	if int(field_vectors.get("anticipation", 0)) >= 5 and int(field_vectors.get("judgment", 0)) >= 5:
+		rules.append("anticipation and judgment now push theory invention toward route-checking forecasts")
+	if rules.is_empty():
+		rules.append("field vectors remain coupled to doctrine, generation, and governance")
+	return rules
+
+static func _top_dimension_ids(field_vectors: Dictionary, limit: int) -> Array[String]:
+	var ranked: Array[Dictionary] = []
+	for key_variant in field_vectors.keys():
+		var key := str(key_variant).strip_edges()
+		ranked.append({"id": key, "score": int(field_vectors.get(key_variant, 0))})
+	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a.get("score", 0)) == int(b.get("score", 0)):
+			return str(a.get("id", "")) < str(b.get("id", ""))
+		return int(a.get("score", 0)) > int(b.get("score", 0))
+	)
+	var result: Array[String] = []
+	for entry in ranked:
+		var id := str(Dictionary(entry).get("id", "")).strip_edges()
+		if not id.is_empty():
+			result.append(id)
+		if result.size() >= limit:
+			break
+	return result
+
+static func _status_count(statuses: Array[String], targets: Array[String]) -> int:
+	var count := 0
+	for status in statuses:
+		if targets.has(status):
+			count += 1
+	return count
 
 static func _build_force_profile(world_model: Dictionary, session_context: Dictionary, seed_value: int) -> Dictionary:
 	var social: Dictionary = Dictionary(world_model.get("social_model", {}))
@@ -1164,6 +1407,13 @@ static func _first_string(values: Array, fallback: String = "") -> String:
 		if not text.is_empty():
 			return text
 	return fallback
+
+static func _first_non_empty(values: Array) -> String:
+	for value in values:
+		var text := str(value).strip_edges()
+		if not text.is_empty():
+			return text
+	return ""
 
 static func _string_array(values: Variant) -> Array[String]:
 	var result: Array[String] = []

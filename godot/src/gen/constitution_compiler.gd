@@ -77,14 +77,29 @@ static func compile(
 	var governance_state := GOVERNANCE_SERVICE_SCRIPT.normalize(Dictionary(world_model.get("governance_state", {})))
 	var theory_surface := THEORY_ENGINE_SCRIPT.build_surface(experimental_ontology_state, world_model, governance_state)
 	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(Dictionary(world_model.get("world_memory_snapshot", {})))
-	var cognitive_field_state := _build_cognitive_field_state(world_model, compiler_public_summary, theory_surface)
-	var mind_projections := _build_mind_projections(compiler_public_summary, cognitive_field_state)
 	var contradiction_packet := CONTRADICTION_ENGINE_SCRIPT.build_contradiction_records(
 		theory_surface,
 		Dictionary(world_model.get("cookbook_state_snapshot", {})),
 		Dictionary(world_model.get("world_memory_snapshot", {}))
 	)
+	governance_state = GOVERNANCE_SERVICE_SCRIPT.evaluate_planning_state(
+		governance_state,
+		world_model,
+		theory_surface,
+		civilization_surface,
+		contradiction_packet,
+		Dictionary(world_model.get("cookbook_state_snapshot", {}))
+	)
+	theory_surface = THEORY_ENGINE_SCRIPT.build_surface(experimental_ontology_state, world_model, governance_state)
+	contradiction_packet = CONTRADICTION_ENGINE_SCRIPT.build_contradiction_records(
+		theory_surface,
+		Dictionary(world_model.get("cookbook_state_snapshot", {})),
+		Dictionary(world_model.get("world_memory_snapshot", {}))
+	)
+	var cognitive_field_state := _build_cognitive_field_state(world_model, compiler_public_summary, theory_surface, run_identity)
+	var mind_projections := _build_mind_projections(compiler_public_summary, cognitive_field_state, run_identity)
 	var activation_state := GOVERNANCE_SERVICE_SCRIPT.normalize_activation_state(Dictionary(governance_state.get("activation_state", {})))
+	activation_state["safe_mode_state"] = Dictionary(governance_state.get("safe_mode_state", {})).duplicate(true)
 	var review_surface := GOVERNANCE_SERVICE_SCRIPT.build_review_surface(governance_state)
 	review_surface["lines"] = _merge_arrays(
 		Array(review_surface.get("lines", [])),
@@ -98,7 +113,8 @@ static func compile(
 		[
 			str(compiler_public_summary.get("world_goal", "")).strip_edges(),
 			_first_string(Array(theory_surface.get("lines", [])), ""),
-			_first_string(Array(civilization_surface.get("lines", [])), "")
+			_first_string(Array(civilization_surface.get("lines", [])), ""),
+			_first_string(Array(Dictionary(contradiction_packet.get("meta_reflection_report", {})).get("summary_lines", [])), "")
 		],
 		Array(review_surface.get("lines", [])),
 		["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
@@ -307,7 +323,16 @@ static func validate_compile_output(bundle: Dictionary) -> Array[String]:
 			failures.append("narrative pressure state must not expose runtime-only field %s" % banned)
 	return failures
 
-static func _build_cognitive_field_state(world_model: Dictionary, public_summary: Dictionary, theory_surface: Dictionary) -> Dictionary:
+static func _build_cognitive_field_state(world_model: Dictionary, public_summary: Dictionary, theory_surface: Dictionary, run_identity: Dictionary = {}) -> Dictionary:
+	var run_field_state: Dictionary = Dictionary(run_identity.get("cognitive_field_state", {}))
+	if not run_field_state.is_empty():
+		var current := run_field_state.duplicate(true)
+		current["summary_lines"] = _string_array(
+			Array(current.get("summary_lines", []))
+			+ Array(theory_surface.get("lines", []))
+			+ Array(Dictionary(world_model.get("theory_surface", {})).get("chamber_lines", []))
+		).slice(0, 4)
+		return current
 	var dominant_forces := _string_array(public_summary.get("dominant_forces", []))
 	var dominant_domains := _string_array(public_summary.get("dominant_domains", []))
 	var theory_ids := _string_array(theory_surface.get("theory_ids", []))
@@ -329,7 +354,21 @@ static func _build_cognitive_field_state(world_model: Dictionary, public_summary
 		"summary_lines": _string_array(Array(theory_surface.get("lines", [])) + ["field state remains structurally present"])
 	}
 
-static func _build_mind_projections(public_summary: Dictionary, cognitive_field_state: Dictionary) -> Array[Dictionary]:
+static func _build_mind_projections(public_summary: Dictionary, cognitive_field_state: Dictionary, run_identity: Dictionary = {}) -> Array[Dictionary]:
+	var projected: Array[Dictionary] = []
+	for mind_raw in Array(run_identity.get("active_minds", [])):
+		var mind_state: Dictionary = Dictionary(mind_raw)
+		var mind_id := str(mind_state.get("id", "")).strip_edges()
+		if mind_id.is_empty():
+			continue
+		projected.append({
+			"mind_id": mind_id,
+			"label": str(mind_state.get("label", mind_id)).strip_edges(),
+			"intensity": clampi(int(mind_state.get("intensity", 0)), 0, 8),
+			"derived_from_dimensions": _string_array(mind_state.get("derived_from_dimensions", Dictionary(cognitive_field_state.get("field_vectors", {})).keys()))
+		})
+	if not projected.is_empty():
+		return projected
 	var projections: Array[Dictionary] = []
 	var dominant_minds := _string_array(public_summary.get("dominant_minds", []))
 	var dimensions := Dictionary(cognitive_field_state.get("field_vectors", {}))
