@@ -712,8 +712,9 @@ static func _activation_score_trace(experiment: Dictionary, hypotheses: Dictiona
 	var stressor_signal := _stressor_signal_score(str(experiment.get("stressor", "")), world_model)
 	var ontology_signal := _ontology_condition_score(str(experiment.get("ontology_condition", "")), ontology_snapshot, ontology_routing)
 	var guidance_bias := _learning_guidance_bias_trace(experiment, learning_guidance)
+	var governance_bias := _governance_bias_trace(experiment, world_model)
 	var foundational_bonus := 1 if bool(hypothesis.get("foundational_flag", false)) else 0
-	var unclamped_score := state_weight + confidence_weight + axis_signal + stressor_signal + ontology_signal + int(guidance_bias.get("total_bias", 0)) + foundational_bonus
+	var unclamped_score := state_weight + confidence_weight + axis_signal + stressor_signal + ontology_signal + int(guidance_bias.get("total_bias", 0)) + int(governance_bias.get("total_bias", 0)) + foundational_bonus
 	return {
 		"base_score": state_weight + confidence_weight + axis_signal + stressor_signal + ontology_signal + foundational_bonus,
 		"state_weight": state_weight,
@@ -723,6 +724,7 @@ static func _activation_score_trace(experiment: Dictionary, hypotheses: Dictiona
 		"ontology_signal": ontology_signal,
 		"foundational_bonus": foundational_bonus,
 		"learning_guidance_bias": guidance_bias.duplicate(true),
+		"governance_bias": governance_bias.duplicate(true),
 		"final_score": clampi(unclamped_score, 0, 12)
 	}
 
@@ -771,6 +773,42 @@ static func _learning_guidance_bias_trace(experiment: Dictionary, learning_guida
 		"total_bias": clamped_bias,
 		"applied_tokens": applied_tokens
 	}
+
+static func _governance_bias_trace(experiment: Dictionary, world_model: Dictionary) -> Dictionary:
+	var experiment_id := str(experiment.get("experiment_id", "")).strip_edges()
+	var governance_state: Dictionary = Dictionary(world_model.get("governance_state", {}))
+	var anti_bottleneck_report := _most_recent_governance_report_with_detail(Array(governance_state.get("anti_bottleneck_reports", [])), "bottleneck_flags")
+	var play_routing_report := _most_recent_governance_report_with_detail(Array(governance_state.get("play_routing_reports", [])), "missing_routes")
+	var bottleneck_flags := _string_array(anti_bottleneck_report.get("bottleneck_flags", []))
+	var missing_routes := _string_array(play_routing_report.get("missing_routes", []))
+	var bias := 0
+	var applied_tokens: Array[String] = []
+	if experiment_id in ["exp_negative_space", "exp_echo_literacy"]:
+		if str(anti_bottleneck_report.get("status", "")).strip_edges() == "blocked":
+			bias += 1
+			applied_tokens.append("anti_bottleneck=blocked:+1")
+		if not missing_routes.is_empty():
+			bias += 1
+			applied_tokens.append("play_routing_missing=%d:+1" % missing_routes.size())
+	var clamped_bias := clampi(bias, 0, 2)
+	if clamped_bias != bias:
+		applied_tokens.append("clamped_to=%d" % clamped_bias)
+	return {
+		"total_bias": clamped_bias,
+		"applied_tokens": applied_tokens,
+		"bottleneck_flags": bottleneck_flags,
+		"missing_routes": missing_routes
+	}
+
+static func _most_recent_governance_report_with_detail(reports: Array, detail_key: String) -> Dictionary:
+	var normalized_reports := _dict_array(reports)
+	for report_raw in normalized_reports:
+		var report: Dictionary = Dictionary(report_raw)
+		if report.has(detail_key):
+			return report.duplicate(true)
+	if not normalized_reports.is_empty():
+		return Dictionary(normalized_reports[0]).duplicate(true)
+	return {}
 
 static func _recent_evaluation_ids(learning_state: Dictionary) -> Array[String]:
 	var result: Array[String] = []

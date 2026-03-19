@@ -17,6 +17,7 @@ const NOTEBOOK_FILTER_EVIDENCE := "EVIDENCE"
 const NOTEBOOK_FILTER_SUSPECT := "SUSPECT"
 const NOTEBOOK_FILTER_ALIBI := "ALIBI"
 const NOTEBOOK_FILTER_OTHER := "OTHER"
+const CURATED_PHENOMENON_FAMILY_IDS := ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
@@ -2250,6 +2251,21 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		world_aftermath_refs,
 		phase9_extensions
 	)
+	var forensic_extensions := phase9_extensions.duplicate(true)
+	forensic_extensions["pathology_profile"] = pathology_profile.duplicate(true)
+	forensic_extensions["pathology_state"] = pathology_state.duplicate(true)
+	forensic_extensions["active_encounter_state"] = active_encounter_state.duplicate(true)
+	forensic_extensions["encounter_history"] = encounter_history.duplicate(true)
+	forensic_extensions["apex_framework_profile"] = apex_framework_profile.duplicate(true)
+	forensic_extensions["peak_structure_profile"] = peak_structure_profile.duplicate(true)
+	forensic_extensions["active_apex_state"] = active_apex_state.duplicate(true)
+	forensic_extensions["apex_history"] = apex_history.duplicate(true)
+	var phenomenon_manifest := _build_phenomenon_manifest(
+		Dictionary(expedition_constitution.get("experimental_ontology_state", {})).duplicate(true),
+		governance_state_for_bundle,
+		live_experiment_ids
+	)
+	forensic_extensions["phenomenon_manifest"] = phenomenon_manifest.duplicate(true)
 	var forensic_bundle := _build_forensic_bundle(
 		run_seed,
 		constitution_hash,
@@ -2260,24 +2276,7 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		EventLog,
 		normalization_mode,
 		modulation_loadout,
-		{
-			"encounter_manifest": encounter_manifest.duplicate(true),
-			"pathology_profile": pathology_profile.duplicate(true),
-			"pathology_state": pathology_state.duplicate(true),
-			"active_encounter_state": active_encounter_state.duplicate(true),
-			"encounter_history": encounter_history.duplicate(true),
-			"apex_framework_profile": apex_framework_profile.duplicate(true),
-			"apex_manifest": apex_manifest.duplicate(true),
-			"peak_structure_profile": peak_structure_profile.duplicate(true),
-			"active_apex_state": active_apex_state.duplicate(true),
-			"apex_history": apex_history.duplicate(true),
-			"local_aftermath": local_aftermath.duplicate(true),
-			"world_aftermath_refs": world_aftermath_refs.duplicate(true),
-			"active_regime_ids": _string_array(expedition_constitution_summary.get("active_regime_ids", [])),
-			"active_lifecycle_state_ids": _string_array(expedition_constitution_summary.get("lifecycle_state_ids", [])),
-			"governance_action_snapshot": governance_action_snapshot.duplicate(true),
-			"experiment_outcomes": experiment_outcomes.duplicate(true)
-		}
+		forensic_extensions
 	)
 	if RunState != null:
 		RunState.replay_identity = replay_identity.duplicate(true)
@@ -2491,6 +2490,7 @@ func _build_forensic_bundle(
 	var top_apex_manifest := Dictionary(phase_extensions.get("apex_manifest", {})).duplicate(true)
 	var top_local_aftermath := Dictionary(phase_extensions.get("local_aftermath", {})).duplicate(true)
 	var top_world_aftermath_refs := Array(phase_extensions.get("world_aftermath_refs", [])).duplicate(true)
+	var phenomenon_manifest := _normalize_phenomenon_manifest(Dictionary(phase_extensions.get("phenomenon_manifest", {})))
 	var stewardship_review := _build_phase8_stewardship_review(
 		constitution_summary,
 		governance_hook_set,
@@ -2564,7 +2564,8 @@ func _build_forensic_bundle(
 				"local_aftermath": top_local_aftermath.duplicate(true),
 				"world_aftermath_refs": top_world_aftermath_refs.duplicate(true)
 			},
-			"phase8_stewardship_review": stewardship_review.duplicate(true)
+			"phase8_stewardship_review": stewardship_review.duplicate(true),
+			"phenomenon_manifest": phenomenon_manifest.duplicate(true)
 		}
 	}
 	var digest_source := bundle.duplicate(true)
@@ -2598,6 +2599,123 @@ func _build_phase8_stewardship_review(constitution_summary: Dictionary, governan
 		"warning_tags": _string_array(warning_tags).slice(0, 4),
 		"summary_lines": _string_array(summary_lines).slice(0, 2)
 	}
+
+func _normalize_phenomenon_manifest(raw: Dictionary) -> Dictionary:
+	var public_entries: Array[Dictionary] = []
+	for entry_raw in Array(raw.get("public_entries", [])):
+		if entry_raw is Dictionary:
+			public_entries.append(Dictionary(entry_raw).duplicate(true))
+	var operator_entries: Array[Dictionary] = []
+	for entry_raw in Array(raw.get("operator_entries", [])):
+		if entry_raw is Dictionary:
+			operator_entries.append(Dictionary(entry_raw).duplicate(true))
+	return {
+		"summary_lines": _string_array(raw.get("summary_lines", [])),
+		"operator_lines": _string_array(raw.get("operator_lines", [])),
+		"public_entries": public_entries,
+		"operator_entries": operator_entries
+	}
+
+func _build_phenomenon_manifest(experimental_ontology_state: Dictionary, governance_state: Dictionary, live_experiment_ids: Array[String]) -> Dictionary:
+	var anti_bottleneck_report := _most_recent_report_with_detail(Array(governance_state.get("anti_bottleneck_reports", [])), "bottleneck_flags")
+	var play_routing_report := _most_recent_report_with_detail(Array(governance_state.get("play_routing_reports", [])), "missing_routes")
+	var anti_status := str(anti_bottleneck_report.get("status", "")).strip_edges()
+	var play_status := str(play_routing_report.get("status", "")).strip_edges()
+	var bottleneck_flags := _string_array(anti_bottleneck_report.get("bottleneck_flags", []))
+	var missing_routes := _string_array(play_routing_report.get("missing_routes", []))
+	var live_ids := _string_array(live_experiment_ids)
+	var live_experiment_map: Dictionary = {}
+	for experiment_raw in Array(experimental_ontology_state.get("live_experiments", [])):
+		var experiment := Dictionary(experiment_raw).duplicate(true)
+		var experiment_id := str(experiment.get("experiment_id", "")).strip_edges()
+		if experiment_id.is_empty():
+			continue
+		live_experiment_map[experiment_id] = experiment
+	for experiment_raw in Array(experimental_ontology_state.get("experiment_registry", [])):
+		var experiment := Dictionary(experiment_raw).duplicate(true)
+		var experiment_id := str(experiment.get("experiment_id", "")).strip_edges()
+		if experiment_id.is_empty():
+			continue
+		if live_ids.is_empty() or live_ids.has(experiment_id):
+			if not live_experiment_map.has(experiment_id):
+				live_experiment_map[experiment_id] = experiment
+	var summary_lines: Array[String] = []
+	var operator_lines: Array[String] = []
+	var public_entries: Array[Dictionary] = []
+	var operator_entries: Array[Dictionary] = []
+	var ordered_ids := live_ids.duplicate()
+	if ordered_ids.is_empty():
+		ordered_ids = _string_array(live_experiment_map.keys())
+		ordered_ids.sort()
+	for experiment_id in ordered_ids:
+		var experiment: Dictionary = Dictionary(live_experiment_map.get(experiment_id, {})).duplicate(true)
+		if experiment.is_empty():
+			continue
+		var family_id := str(experiment.get("family_id", "")).strip_edges()
+		if not CURATED_PHENOMENON_FAMILY_IDS.has(family_id):
+			continue
+		var family_label := str(experiment.get("family_label", _title_case(family_id.replace("_", " ")))).strip_edges()
+		var compile_outputs: Dictionary = Dictionary(experiment.get("compile_outputs", {}))
+		var public_activation: Dictionary = Dictionary(compile_outputs.get("public_activation", {}))
+		var surface_lines := _string_array(public_activation.get("surface_lines", experiment.get("public_lines", [])))
+		if surface_lines.is_empty():
+			surface_lines = _string_array(experiment.get("public_lines", []))
+		for line in surface_lines:
+			if not summary_lines.has(line):
+				summary_lines.append(line)
+		public_entries.append({
+			"family_id": family_id,
+			"family_label": family_label,
+			"surface_lines": surface_lines
+		})
+		operator_entries.append({
+			"family_id": family_id,
+			"family_label": family_label,
+			"experiment_id": experiment_id,
+			"target": str(experiment.get("target", "")).strip_edges(),
+			"axis": str(experiment.get("axis", "")).strip_edges(),
+			"stressor": str(experiment.get("stressor", "")).strip_edges(),
+			"ontology_condition": str(experiment.get("ontology_condition", "")).strip_edges(),
+			"cultural_medium": str(experiment.get("cultural_medium", "")).strip_edges(),
+			"time_horizon": str(experiment.get("time_horizon", "")).strip_edges(),
+			"observation_contract": str(experiment.get("observation_contract", "")).strip_edges(),
+			"topology_type": str(experiment.get("topology_type", "")).strip_edges(),
+			"expression_mode": str(experiment.get("expression_mode", "")).strip_edges(),
+			"compile_targets": _string_array(compile_outputs.get("compile_targets", [])),
+			"anti_bottleneck_status": anti_status,
+			"bottleneck_flags": bottleneck_flags,
+			"play_routing_status": play_status,
+			"missing_routes": missing_routes
+		})
+		var operator_line := "%s tracked %s through %s under %s." % [
+			family_label,
+			str(experiment.get("target", "")).strip_edges(),
+			str(experiment.get("stressor", "")).strip_edges(),
+			str(experiment.get("ontology_condition", "")).strip_edges()
+		]
+		if not operator_lines.has(operator_line):
+			operator_lines.append(operator_line)
+	if not _first_string(anti_bottleneck_report.get("summary_lines", ""), "").is_empty():
+		operator_lines.push_front(_first_string(anti_bottleneck_report.get("summary_lines", []), ""))
+	if not _first_string(play_routing_report.get("summary_lines", ""), "").is_empty():
+		var play_line := _first_string(play_routing_report.get("summary_lines", []), "")
+		if not operator_lines.has(play_line):
+			operator_lines.insert(mini(1, operator_lines.size()), play_line)
+	return _normalize_phenomenon_manifest({
+		"summary_lines": _string_array(summary_lines),
+		"operator_lines": _string_array(operator_lines),
+		"public_entries": public_entries,
+		"operator_entries": operator_entries
+	})
+
+func _most_recent_report_with_detail(reports: Array, detail_key: String) -> Dictionary:
+	for report_raw in reports:
+		var report := Dictionary(report_raw).duplicate(true)
+		if report.has(detail_key):
+			return report
+	if not reports.is_empty():
+		return Dictionary(reports[0]).duplicate(true)
+	return {}
 
 func _explanation_packet_lane_lines(entries: Array) -> Array[String]:
 	var result: Array[String] = []

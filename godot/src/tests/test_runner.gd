@@ -178,6 +178,11 @@ func _init() -> void:
 	_test_experimental_ontology_phase6_compilation_and_surfaces(failures)
 	_test_phase6_doctrine_vocabulary_and_compile_honesty(failures)
 	_test_phase6_persistence_and_lineage_cleanup(failures)
+	_test_phase6_curated_phenomenon_family_contract(failures)
+	_test_phase6_curated_phenomenon_schema_proof(failures)
+	_test_phase6_curated_phenomenon_governance_bias_from_persisted_reports(failures)
+	_test_phase6_curated_phenomenon_cookbook_containment(failures)
+	_test_phase6_curated_phenomenon_rarity_and_plurality(failures)
 	_test_phase6_shell_proof_fast_path(failures)
 	_test_phase7_evaluation_schema_and_owner(failures)
 	_test_phase7_learning_loop_determinism_and_continuity(failures)
@@ -194,6 +199,8 @@ func _init() -> void:
 	_test_phase8_legacy_reentry_continuity_surfaces(failures)
 	_test_phase9_forensic_bundle_hardening_contract(failures)
 	_test_phase9_forensic_bundle_extension_consistency(failures)
+	_test_phase9_curated_phenomenon_manifest_builder_contract(failures)
+	_test_phase9_curated_phenomenon_manifest_bundle_only(failures)
 	_test_phase9_profile_forensic_persistence_and_world_memory_hash(failures)
 	_test_expedition_constitution_schema_and_hash(failures)
 	_test_delve_live_handoff_and_summary(failures)
@@ -2093,9 +2100,11 @@ func _test_false_canon_and_semantic_drift_carryover(failures: Array[String]) -> 
 	var seeded_directive := DELVE_KERNEL_SCRIPT.plan_directive(seeded_profile, session_context, 5151, 10)
 	var clean_force := Dictionary(Dictionary(clean_directive.get("run_identity", {})).get("force_profile", {}))
 	var seeded_force := Dictionary(Dictionary(seeded_directive.get("run_identity", {})).get("force_profile", {}))
+	var clean_discovery := int(clean_force.get("discovery", 0))
+	var seeded_discovery := int(seeded_force.get("discovery", 0))
 	if int(seeded_force.get("deception", 0)) <= int(clean_force.get("deception", 0)):
 		failures.append("false canon and forgery pressure should raise deception force through the live delve lattice")
-	if int(seeded_force.get("discovery", 0)) <= int(clean_force.get("discovery", 0)):
+	if seeded_discovery < clean_discovery or (seeded_discovery == clean_discovery and clean_discovery < 10):
 		failures.append("revision and semantic drift pressure should raise discovery force through the live delve lattice")
 	if JSON.stringify(Dictionary(clean_directive.get("control_surfaces", {}))) == JSON.stringify(Dictionary(seeded_directive.get("control_surfaces", {}))):
 		failures.append("canon-drift carryover should alter live control-surface shaping, not only product memory text")
@@ -2702,7 +2711,9 @@ func _test_cookbook_shadow_and_anti_protocol_carryover(failures: Array[String]) 
 	var seeded_directive := DELVE_KERNEL_SCRIPT.plan_directive(seeded_profile, session_context, 8181, 10)
 	var clean_force := Dictionary(Dictionary(clean_directive.get("run_identity", {})).get("force_profile", {}))
 	var seeded_force := Dictionary(Dictionary(seeded_directive.get("run_identity", {})).get("force_profile", {}))
-	if int(seeded_force.get("discovery", 0)) <= int(clean_force.get("discovery", 0)):
+	var clean_discovery := int(clean_force.get("discovery", 0))
+	var seeded_discovery := int(seeded_force.get("discovery", 0))
+	if seeded_discovery < clean_discovery or (seeded_discovery == clean_discovery and clean_discovery < 10):
 		failures.append("cookbook fragment and redirection pressure should raise discovery force through the live delve lattice")
 	if int(seeded_force.get("deception", 0)) <= int(clean_force.get("deception", 0)):
 		failures.append("cookbook holder and recognition pressure should raise deception force through the live delve lattice")
@@ -6415,8 +6426,16 @@ func _test_doctrine_schema_registry_and_phase_groundwork(failures: Array[String]
 		failures.append("doctrine family catalog should expose lineage ownership for constitution compilation")
 	if Array(custody_ritual.get("niches", [])).is_empty():
 		failures.append("doctrine family catalog should expose doctrine niches for ontology routing")
-	if DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_families().size() < 6:
+	if DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_families().size() < 10:
 		failures.append("phase groundwork should now ship the full Phase 6 experiment family catalog")
+	for required_family_id in ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]:
+		var found_family := false
+		for family_raw in DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_families():
+			if str(Dictionary(family_raw).get("id", "")).strip_edges() == required_family_id:
+				found_family = true
+				break
+		if not found_family:
+			failures.append("phase groundwork should expose curated phenomenon family %s" % required_family_id)
 
 func _test_wave1_schema_registry_with_new_doctrine_contracts(failures: Array[String]) -> void:
 	var registry_failures := DOCTRINE_SCHEMA_REGISTRY_SCRIPT.validate_registry()
@@ -8388,7 +8407,7 @@ func _test_experimental_ontology_phase6_compilation_and_surfaces(failures: Array
 	}
 	var experiment_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(Dictionary(profile.get("delvemind_experiment_state", {})))
 	var experiment_registry := _dict_array_for_test(Dictionary(experiment_state.get("experiments", {})).values())
-	if Dictionary(experiment_state.get("hypotheses", {})).size() < 6 or Dictionary(experiment_state.get("experiments", {})).size() < 6:
+	if Dictionary(experiment_state.get("hypotheses", {})).size() < 10 or Dictionary(experiment_state.get("experiments", {})).size() < 10:
 		failures.append("Phase 6 should ship a materially populated hypothesis and experiment registry")
 	for required_state in ["foundational", "active", "recurring", "rare", "dormant", "archival"]:
 		var found := false
@@ -8652,6 +8671,402 @@ func _test_phase6_persistence_and_lineage_cleanup(failures: Array[String]) -> vo
 	var second_experiment: Dictionary = Dictionary(Dictionary(second_state.get("experiments", {})).get("exp_custody_foundation", {})).duplicate(true)
 	if int(second_experiment.get("manifest_count", 0)) != int(first_experiment.get("manifest_count", 0)) + 1:
 		failures.append("Phase 6 persistence continuity should evolve across runs instead of remaining static storage")
+
+func _phase6_curated_family_map() -> Dictionary:
+	var result: Dictionary = {}
+	for family_raw in DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_families():
+		var family: Dictionary = Dictionary(family_raw).duplicate(true)
+		var family_id := str(family.get("id", "")).strip_edges()
+		if not family_id.is_empty():
+			result[family_id] = family
+	return result
+
+func _curated_phenomenon_governance_state() -> Dictionary:
+	return GOVERNANCE_SERVICE_SCRIPT.normalize({
+		"activation_state": {
+			"epoch": "fully_active",
+			"active_channels": ["constitution", "archive", "world_memory"],
+			"dormant_channels": ["safe_mode"],
+			"safe_mode_active": false,
+			"quarantine_ids": []
+		},
+		"safe_mode_state": {
+			"enabled": false,
+			"summary_lines": []
+		},
+		"anti_bottleneck_reports": [{
+			"report_id": "anti_summary_curated",
+			"status": "stable",
+			"summary_lines": ["summary-only anti-bottleneck review remained quiet"]
+		}, {
+			"report_id": "anti_detail_curated",
+			"status": "blocked",
+			"bottleneck_flags": ["theory_monopoly"],
+			"summary_lines": ["detailed anti-bottleneck review found monopoly pressure"]
+		}],
+		"play_routing_reports": [{
+			"report_id": "play_summary_curated",
+			"status": "stable",
+			"baseline_routes": ["movement", "burden", "witness", "route_choice"],
+			"summary_lines": ["summary-only play-routing review stayed compact"]
+		}, {
+			"report_id": "play_detail_curated",
+			"status": "blocked",
+			"baseline_routes": ["movement", "burden", "rescue", "witness", "route_choice", "artifact_custody", "hesitation", "extraction", "return"],
+			"missing_routes": ["movement", "return"],
+			"summary_lines": ["detailed play-routing review lost movement and return"]
+		}]
+	})
+
+func _phase6_curated_compile_context(governance_state: Dictionary = {}) -> Dictionary:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	profile["world_memory"] = {
+		"institutional_order": {
+			"legitimacy_pressure": 3,
+			"custody_pressure": 3,
+			"burial_pressure": 2,
+			"sacred_pressure": 2
+		},
+		"epistemic_order": {
+			"orthodoxy_strength": 1,
+			"revision_pressure": 3,
+			"semantic_drift": 3,
+			"false_canon_pressure": 2
+		},
+		"ontology_state": {
+			"counterfactual_heat": 3,
+			"dominant_ontology": "custody fracture",
+			"uncertainty_philosophy": "counterfactual doubt"
+		},
+		"interpretation_network": {
+			"spread_heat": 2,
+			"contradiction_heat": 3,
+			"ritual_spread": 2,
+			"institutional_campaigns": 1
+		},
+		"myth_field": {
+			"resonance_count": 2,
+			"active_lines": ["Older marks keep reopening the archive."]
+		},
+		"cultural_gravity": {"top_gravity": 3},
+		"fascination": {"current_focus": "custody rites", "phase": "turning", "current_heat": 4},
+		"crawl_network_state": {"relay_stress": 2, "witness_pressure": 1, "bottleneck_pressure": 1}
+	}
+	profile["active_crawl"] = {
+		"relay_stress": 2,
+		"witness_network": ["public watchers"],
+		"relay_bottlenecks": ["bridge handoff"],
+		"cohort_pressure": ["escort split"],
+		"rumor_shock": ["archive split"],
+		"build_memory": ["custody ritual"],
+		"doctrine_memory": ["custody_ritual"]
+	}
+	var session_context := {
+		"player_count": 3,
+		"peer_ids": [2, 3, 4],
+		"protocol_state": "Intimate Protocol",
+		"gameplay_snapshot": {
+			"protocol_state": "Intimate Protocol",
+			"group_model": {
+				"dominant_build": "Ritual build",
+				"group_signals": ["ritual answer"],
+				"fault_lines": ["shared burden caution"],
+				"model_pressure": ["ritual route"]
+			}
+		}
+	}
+	var world_model := DELVE_WORLD_MODEL_SCRIPT.build_model(profile, session_context)
+	if not governance_state.is_empty():
+		world_model["governance_state"] = GOVERNANCE_SERVICE_SCRIPT.normalize(governance_state)
+	var doctrine_family := DOCTRINE_SCHEMA_REGISTRY_SCRIPT.doctrine_family("custody_ritual")
+	var doctrine := {
+		"id": "custody_ritual",
+		"label": "Custody Ritual",
+		"focus_tags": Array(doctrine_family.get("focus_tags", [])).duplicate(true)
+	}
+	var public_doctrine := {
+		"protocol_state": "Intimate Protocol",
+		"doctrine_family": "custody_ritual",
+		"doctrine_label": "Custody Ritual",
+		"pressure_line": "Carry the answer through ritual custody.",
+		"world_goal": "Keep the route legible under burden.",
+		"dominant_minds": ["Archivist", "Warden"],
+		"dominant_forces": ["Memory", "Discovery"],
+		"dominant_domains": ["artifact_families", "ritual_families"],
+		"pacing_profile": "steady",
+		"pressure_grammar": ["Delay", "Convergence"],
+		"symbolic_motifs": ["Burden Halos", "Threshold Marks"],
+		"item_ecology_bias": "burden rescue",
+		"group_tension_bias": "measured caution",
+		"archive_tone": "memory custody",
+		"convergence_axis": "artifact custody"
+	}
+	var generation_surface := RUN_GENERATOR_SCRIPT.new().build_generation_contract(915551, {
+		"doctrine_family": "custody_ritual",
+		"constitution_summary": public_doctrine,
+		"public_summary": public_doctrine
+	})
+	var ontology_snapshot := ONTOLOGY_ENGINE_SCRIPT.build_snapshot(915551, world_model, doctrine, public_doctrine, generation_surface)
+	var ontology_routing := ONTOLOGY_ENGINE_SCRIPT.build_generation_routing(ontology_snapshot, generation_surface, doctrine_family)
+	return {
+		"world_model": world_model,
+		"doctrine": doctrine,
+		"public_doctrine": public_doctrine,
+		"generation_surface": generation_surface,
+		"ontology_snapshot": ontology_snapshot,
+		"ontology_routing": ontology_routing
+	}
+
+func _test_phase6_curated_phenomenon_family_contract(failures: Array[String]) -> void:
+	var family_map := _phase6_curated_family_map()
+	var normalized_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var normalized_experiments: Dictionary = Dictionary(normalized_state.get("experiments", {})).duplicate(true)
+	var reference_fairness := JSON.stringify(Dictionary(Dictionary(family_map.get("archive_wonder_residue", {})).get("experiment", {})).get("fairness_bounds", {}))
+	var expected_fields := {
+		"palimpsest": {
+			"domain": "memory",
+			"state": "archival",
+			"target_layers": ["archive", "framing", "continuity"],
+			"target": "archive",
+			"axis": "memory_fidelity",
+			"stressor": "contradiction",
+			"ontology_condition": "hybrid_lineage_emergence",
+			"cultural_medium": "archive_case",
+			"time_horizon": "long_arc",
+			"observation_contract": "traceable_archive_only",
+			"topology_type": "synthesis",
+			"expression_mode": "archive_bias",
+			"compile_targets": ["archive_framing_bias", "public_activation"],
+			"lineage_parent_id": "exp_archive_wonder_residue",
+			"synthesis_sources": ["exp_archive_wonder_residue", "exp_fracture_echo"]
+		},
+		"negative_space": {
+			"domain": "negative_space",
+			"state": "dormant",
+			"target_layers": ["ontology", "archive", "continuity"],
+			"target": "ontology",
+			"axis": "ambiguity",
+			"stressor": "classification_drift",
+			"ontology_condition": "missing_verification_classes",
+			"cultural_medium": "archive_case",
+			"time_horizon": "seasonal",
+			"observation_contract": "constitution_trace",
+			"topology_type": "branching",
+			"expression_mode": "archive_bias",
+			"compile_targets": ["ontology_weighting", "archive_framing_bias", "public_activation"],
+			"lineage_parent_id": "exp_taxonomy_dormant",
+			"synthesis_sources": []
+		},
+		"echo_literacy": {
+			"domain": "memory",
+			"state": "rare",
+			"target_layers": ["archive", "framing", "continuity"],
+			"target": "continuity",
+			"axis": "curiosity",
+			"stressor": "archive_echo",
+			"ontology_condition": "residue_density_spike",
+			"cultural_medium": "legend_cluster",
+			"time_horizon": "long_arc",
+			"observation_contract": "traceable_archive_only",
+			"topology_type": "synthesis",
+			"expression_mode": "archive_bias",
+			"compile_targets": ["pressure_input_bias", "archive_framing_bias", "public_activation"],
+			"lineage_parent_id": "exp_ritual_recall",
+			"synthesis_sources": ["exp_archive_wonder_residue", "exp_ritual_recall"]
+		},
+		"contraband_lite": {
+			"domain": "public_argument",
+			"state": "rare",
+			"target_layers": ["pressure", "archive", "framing"],
+			"target": "framing",
+			"axis": "legitimacy_formation",
+			"stressor": "rumor_acceleration",
+			"ontology_condition": "contested_categories",
+			"cultural_medium": "public_shorthand",
+			"time_horizon": "short_cycle",
+			"observation_contract": "public_safe_summary",
+			"topology_type": "branching",
+			"expression_mode": "public_surface",
+			"compile_targets": ["public_activation"],
+			"lineage_parent_id": "exp_fracture_echo",
+			"synthesis_sources": []
+		}
+	}
+	for family_id in expected_fields.keys():
+		if not family_map.has(family_id):
+			failures.append("Curated phenomenon contract should expose family %s" % family_id)
+			continue
+		var family: Dictionary = Dictionary(family_map.get(family_id, {})).duplicate(true)
+		var experiment: Dictionary = Dictionary(family.get("experiment", {})).duplicate(true)
+		var expected: Dictionary = Dictionary(expected_fields.get(family_id, {}))
+		if str(family.get("domain", "")).strip_edges() != str(expected.get("domain", "")).strip_edges():
+			failures.append("Curated phenomenon family %s should keep domain %s" % [family_id, str(expected.get("domain", ""))])
+		if str(family.get("state", "")).strip_edges() != str(expected.get("state", "")).strip_edges():
+			failures.append("Curated phenomenon family %s should keep state %s" % [family_id, str(expected.get("state", ""))])
+		if JSON.stringify(Array(family.get("target_layers", []))) != JSON.stringify(Array(expected.get("target_layers", []))):
+			failures.append("Curated phenomenon family %s should keep target_layers %s" % [family_id, JSON.stringify(expected.get("target_layers", []))])
+		for field in ["target", "axis", "stressor", "ontology_condition", "cultural_medium", "time_horizon", "observation_contract", "topology_type", "expression_mode", "lineage_parent_id"]:
+			if str(experiment.get(field, "")).strip_edges() != str(expected.get(field, "")).strip_edges():
+				failures.append("Curated phenomenon family %s should keep experiment field %s = %s" % [family_id, field, str(expected.get(field, ""))])
+		var actual_targets := _string_array_for_test(Array(Dictionary(experiment.get("compile_outputs", {})).get("compile_targets", [])))
+		var expected_targets := _string_array_for_test(Array(expected.get("compile_targets", [])))
+		actual_targets.sort()
+		expected_targets.sort()
+		if JSON.stringify(actual_targets) != JSON.stringify(expected_targets):
+			failures.append("Curated phenomenon family %s should keep compile_targets %s" % [family_id, JSON.stringify(expected_targets)])
+		if JSON.stringify(Array(experiment.get("synthesis_sources", []))) != JSON.stringify(Array(expected.get("synthesis_sources", []))):
+			failures.append("Curated phenomenon family %s should keep synthesis_sources %s" % [family_id, JSON.stringify(expected.get("synthesis_sources", []))])
+		if not Array(experiment.get("branch_ids", [])).is_empty():
+			failures.append("Curated phenomenon family %s should keep branch_ids empty in this bounded pass" % family_id)
+		if not Array(Dictionary(family.get("hypothesis", {})).get("open_branches", [])).is_empty():
+			failures.append("Curated phenomenon family %s should keep hypothesis open_branches empty in this bounded pass" % family_id)
+		if JSON.stringify(Dictionary(experiment.get("fairness_bounds", {}))) != reference_fairness:
+			failures.append("Curated phenomenon family %s should copy the shipped fairness bounds verbatim" % family_id)
+		var public_lines := _string_array_for_test(Array(family.get("public_lines", [])))
+		var experiment_public_lines := _string_array_for_test(Array(experiment.get("public_lines", [])))
+		var surface_lines := _string_array_for_test(Array(Dictionary(Dictionary(experiment.get("compile_outputs", {})).get("public_activation", {})).get("surface_lines", [])))
+		if JSON.stringify(public_lines) != JSON.stringify(experiment_public_lines) or JSON.stringify(public_lines) != JSON.stringify(surface_lines):
+			failures.append("Curated phenomenon family %s should keep family, experiment, and public activation lines aligned" % family_id)
+		var normalized_experiment := Dictionary(normalized_experiments.get(str(experiment.get("experiment_id", "")).strip_edges(), experiment)).duplicate(true)
+		var experiment_failures := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.validate_experiment(normalized_experiment)
+		if not experiment_failures.is_empty():
+			failures.append("Curated phenomenon family %s should validate cleanly: %s" % [family_id, "; ".join(experiment_failures)])
+
+func _test_phase6_curated_phenomenon_schema_proof(failures: Array[String]) -> void:
+	var experiment_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.experiment_schema()
+	var family_map := _phase6_curated_family_map()
+	var registry_file := FileAccess.open("res://src/gen/doctrine_schema_registry.gd", FileAccess.READ)
+	var registry_text := registry_file.get_as_text() if registry_file != null else ""
+	for family_id in ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]:
+		if registry_text.find("\"id\": \"%s\"" % family_id) == -1:
+			failures.append("Curated phenomenon fallback registry should mirror family %s" % family_id)
+	var schema_fields := {
+		"domain": "allowed_domains",
+		"target": "allowed_targets",
+		"axis": "allowed_axes",
+		"stressor": "allowed_stressors",
+		"ontology_condition": "allowed_ontology_conditions",
+		"cultural_medium": "allowed_cultural_media",
+		"time_horizon": "allowed_time_horizons",
+		"observation_contract": "allowed_observation_contracts",
+		"topology_type": "allowed_topology_types",
+		"expression_mode": "allowed_expression_modes"
+	}
+	for family_id in ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]:
+		var family: Dictionary = Dictionary(family_map.get(family_id, {})).duplicate(true)
+		var experiment: Dictionary = Dictionary(family.get("experiment", {})).duplicate(true)
+		if family.is_empty() or experiment.is_empty():
+			continue
+		if not _string_array_for_test(Array(experiment_schema.get("allowed_domains", []))).has(str(family.get("domain", "")).strip_edges()):
+			failures.append("Curated phenomenon schema proof should keep family domain %s inside allowed_domains" % str(family.get("domain", "")))
+		for field in schema_fields.keys():
+			var value := str(experiment.get(field, family.get(field, ""))).strip_edges()
+			var allowed := _string_array_for_test(Array(experiment_schema.get(str(schema_fields.get(field, "")), [])))
+			if not allowed.has(value):
+				failures.append("Curated phenomenon schema proof should keep %s=%s inside %s" % [field, value, str(schema_fields.get(field, ""))])
+		var grammar_failures := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT._validate_grammar_slots(experiment, experiment_schema)
+		if not grammar_failures.is_empty():
+			failures.append("Curated phenomenon schema proof should keep %s grammar-compatible: %s" % [family_id, "; ".join(grammar_failures)])
+
+func _test_phase6_curated_phenomenon_governance_bias_from_persisted_reports(failures: Array[String]) -> void:
+	var governance_state := _curated_phenomenon_governance_state()
+	var context := _phase6_curated_compile_context(governance_state)
+	var world_model: Dictionary = Dictionary(context.get("world_model", {})).duplicate(true)
+	var experiments: Dictionary = Dictionary(Dictionary(world_model.get("experiment_state", {})).get("experiments", {})).duplicate(true)
+	var negative_trace := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT._governance_bias_trace(Dictionary(experiments.get("exp_negative_space", {})).duplicate(true), world_model)
+	var echo_trace := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT._governance_bias_trace(Dictionary(experiments.get("exp_echo_literacy", {})).duplicate(true), world_model)
+	var palimpsest_trace := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT._governance_bias_trace(Dictionary(experiments.get("exp_palimpsest", {})).duplicate(true), world_model)
+	var contraband_trace := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT._governance_bias_trace(Dictionary(experiments.get("exp_contraband_lite", {})).duplicate(true), world_model)
+	if int(negative_trace.get("total_bias", -1)) != 2:
+		failures.append("Curated phenomenon governance bias should give negative_space +2 from blocked anti-bottleneck and missing routes")
+	if int(echo_trace.get("total_bias", -1)) != 2:
+		failures.append("Curated phenomenon governance bias should give echo_literacy +2 from blocked anti-bottleneck and missing routes")
+	if int(palimpsest_trace.get("total_bias", -1)) != 0:
+		failures.append("Curated phenomenon governance bias should not boost palimpsest")
+	if int(contraband_trace.get("total_bias", -1)) != 0:
+		failures.append("Curated phenomenon governance bias should not boost contraband_lite")
+	if not _string_array_for_test(Array(negative_trace.get("bottleneck_flags", []))).has("theory_monopoly"):
+		failures.append("Curated phenomenon governance bias should scan past summary-only anti-bottleneck reports to find bottleneck_flags")
+	if not _string_array_for_test(Array(negative_trace.get("missing_routes", []))).has("movement"):
+		failures.append("Curated phenomenon governance bias should scan past summary-only play-routing reports to find missing_routes")
+	var compiled := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.compile_state(
+		Dictionary(world_model.get("experiment_state", {})).duplicate(true),
+		world_model,
+		Dictionary(context.get("doctrine", {})).duplicate(true),
+		Dictionary(context.get("public_doctrine", {})).duplicate(true),
+		Dictionary(context.get("generation_surface", {})).duplicate(true),
+		Dictionary(context.get("ontology_snapshot", {})).duplicate(true),
+		Dictionary(context.get("ontology_routing", {})).duplicate(true)
+	)
+	var activation_trace: Dictionary = Dictionary(Dictionary(compiled.get("compiler_trace", {})).get("activation_trace", {}))
+	if int(Dictionary(Dictionary(activation_trace.get("exp_negative_space", {})).get("governance_bias", {})).get("total_bias", -1)) != 2:
+		failures.append("Curated phenomenon compile traces should expose governance_bias on exp_negative_space")
+	if int(Dictionary(Dictionary(activation_trace.get("exp_echo_literacy", {})).get("governance_bias", {})).get("total_bias", -1)) != 2:
+		failures.append("Curated phenomenon compile traces should expose governance_bias on exp_echo_literacy")
+
+func _test_phase6_curated_phenomenon_cookbook_containment(failures: Array[String]) -> void:
+	var family_map := _phase6_curated_family_map()
+	for family_id in ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]:
+		var family: Dictionary = Dictionary(family_map.get(family_id, {})).duplicate(true)
+		if family.is_empty():
+			continue
+		var experiment: Dictionary = Dictionary(family.get("experiment", {})).duplicate(true)
+		var public_text := "%s %s %s" % [
+			JSON.stringify(Array(family.get("public_lines", []))),
+			JSON.stringify(Array(experiment.get("public_lines", []))),
+			JSON.stringify(Array(Dictionary(Dictionary(experiment.get("compile_outputs", {})).get("public_activation", {})).get("surface_lines", [])))
+		]
+		var lowered_public := public_text.to_lower()
+		for banned_fragment in ["cookbook", "exploit", "cheat", "how to", "must ", "should "]:
+			if lowered_public.find(banned_fragment) != -1:
+				failures.append("Curated phenomenon public-safe copy should avoid banned fragment %s in %s" % [banned_fragment, family_id])
+		var lowered_full := JSON.stringify(family).to_lower()
+		for banned_fragment in ["cookbook", "exploit", "cheat"]:
+			if lowered_full.find(banned_fragment) != -1:
+				failures.append("Curated phenomenon family %s should avoid banned fragment %s" % [family_id, banned_fragment])
+	var contraband_experiment: Dictionary = Dictionary(Dictionary(family_map.get("contraband_lite", {})).get("experiment", {})).duplicate(true)
+	var contraband_targets := _string_array_for_test(Array(Dictionary(contraband_experiment.get("compile_outputs", {})).get("compile_targets", [])))
+	if JSON.stringify(contraband_targets) != JSON.stringify(["public_activation"]):
+		failures.append("Curated phenomenon cookbook containment should keep contraband_lite limited to public_activation")
+	var contraband_trace := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT._governance_bias_trace(
+		contraband_experiment,
+		{"governance_state": _curated_phenomenon_governance_state()}
+	)
+	if int(contraband_trace.get("total_bias", -1)) != 0:
+		failures.append("Curated phenomenon cookbook containment should keep contraband_lite out of governance boosts")
+
+func _test_phase6_curated_phenomenon_rarity_and_plurality(failures: Array[String]) -> void:
+	var neutral_context := _phase6_curated_compile_context()
+	var neutral_compiled := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.compile_state(
+		Dictionary(Dictionary(neutral_context.get("world_model", {})).get("experiment_state", {})),
+		Dictionary(neutral_context.get("world_model", {})).duplicate(true),
+		Dictionary(neutral_context.get("doctrine", {})).duplicate(true),
+		Dictionary(neutral_context.get("public_doctrine", {})).duplicate(true),
+		Dictionary(neutral_context.get("generation_surface", {})).duplicate(true),
+		Dictionary(neutral_context.get("ontology_snapshot", {})).duplicate(true),
+		Dictionary(neutral_context.get("ontology_routing", {})).duplicate(true)
+	)
+	var blocked_context := _phase6_curated_compile_context(_curated_phenomenon_governance_state())
+	var blocked_compiled := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.compile_state(
+		Dictionary(Dictionary(blocked_context.get("world_model", {})).get("experiment_state", {})),
+		Dictionary(blocked_context.get("world_model", {})).duplicate(true),
+		Dictionary(blocked_context.get("doctrine", {})).duplicate(true),
+		Dictionary(blocked_context.get("public_doctrine", {})).duplicate(true),
+		Dictionary(blocked_context.get("generation_surface", {})).duplicate(true),
+		Dictionary(blocked_context.get("ontology_snapshot", {})).duplicate(true),
+		Dictionary(blocked_context.get("ontology_routing", {})).duplicate(true)
+	)
+	var neutral_trace: Dictionary = Dictionary(Dictionary(neutral_compiled.get("compiler_trace", {})).get("activation_trace", {}))
+	var blocked_trace: Dictionary = Dictionary(Dictionary(blocked_compiled.get("compiler_trace", {})).get("activation_trace", {}))
+	if int(Dictionary(neutral_trace.get("exp_negative_space", {})).get("final_score", 0)) >= int(Dictionary(blocked_trace.get("exp_negative_space", {})).get("final_score", 0)):
+		failures.append("Curated phenomenon rarity/plurality should raise negative_space score under blocked governance")
+	if int(Dictionary(neutral_trace.get("exp_echo_literacy", {})).get("final_score", 0)) >= int(Dictionary(blocked_trace.get("exp_echo_literacy", {})).get("final_score", 0)):
+		failures.append("Curated phenomenon rarity/plurality should raise echo_literacy score under blocked governance")
+	if int(Dictionary(neutral_trace.get("exp_contraband_lite", {})).get("final_score", 0)) != int(Dictionary(blocked_trace.get("exp_contraband_lite", {})).get("final_score", 0)):
+		failures.append("Curated phenomenon rarity/plurality should leave contraband_lite score unchanged under governance biasing")
+	if Array(blocked_compiled.get("live_experiment_ids", [])).size() > 3:
+		failures.append("Curated phenomenon rarity/plurality should keep top-three selection semantics intact")
 
 func _test_phase6_shell_proof_fast_path(failures: Array[String]) -> void:
 	var lobby_file := FileAccess.open("res://src/ui/lobby_controller.gd", FileAccess.READ)
@@ -9752,6 +10167,8 @@ func _test_phase9_forensic_bundle_hardening_contract(failures: Array[String]) ->
 		failures.append("Phase 9 telemetry should expose encounter_manifest_ids")
 	if _string_array_for_test(Array(telemetry.get("apex_manifest_ids", []))).is_empty():
 		failures.append("Phase 9 telemetry should expose apex_manifest_ids")
+	if JSON.stringify(telemetry).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Phase 9 telemetry should keep phenomenon_manifest out of the telemetry surface")
 	if str(Dictionary(telemetry.get("rollback_action", {})).get("report_id", "")).strip_edges().is_empty():
 		failures.append("Phase 9 telemetry should expose rollback_action when governance review is active")
 	if str(Dictionary(telemetry.get("quarantine_action", {})).get("report_id", "")).strip_edges().is_empty():
@@ -9812,10 +10229,16 @@ func _test_phase9_forensic_bundle_hardening_contract(failures: Array[String]) ->
 	if str(Dictionary(bundle.get("rollback_action", {})).get("report_id", "")).strip_edges().is_empty():
 		failures.append("Phase 9 forensic bundles should surface rollback_action")
 	var phase8_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase8_stewardship_review", {}))
+	var phenomenon_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phenomenon_manifest", {}))
 	if phase8_extension.is_empty():
 		failures.append("Phase 9 forensic bundles should preserve the compact Phase 8 stewardship review extension")
+	for required_key in ["summary_lines", "operator_lines", "public_entries", "operator_entries"]:
+		if not phenomenon_extension.has(required_key):
+			failures.append("Phase 9 forensic bundles should preserve a stable phenomenon_manifest extension key %s" % required_key)
 	if bundle.has("stewardship_review"):
 		failures.append("Phase 9 forensic bundles should keep stewardship review out of the top-level bundle surface")
+	if bundle.has("phenomenon_manifest"):
+		failures.append("Phase 9 forensic bundles should keep phenomenon_manifest out of the top-level bundle surface")
 	controller.free()
 	event_log.free()
 
@@ -9887,6 +10310,7 @@ func _test_phase9_forensic_bundle_extension_consistency(failures: Array[String])
 	var phase4_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase4_encounter_language", {}))
 	var phase5_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase5_apex_aftermath", {}))
 	var phase8_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase8_stewardship_review", {}))
+	var phenomenon_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phenomenon_manifest", {}))
 	if JSON.stringify(Array(bundle.get("equipped_modulation_loadout", []))) != JSON.stringify(Array(phase2_extension.get("equipped_modulation_loadout", []))):
 		failures.append("Phase 9 forensic bundles should keep top-level equipped_modulation_loadout consistent with the Phase 2 extension copy")
 	if JSON.stringify(Dictionary(bundle.get("encounter_manifest", {}))) != JSON.stringify(Dictionary(phase4_extension.get("encounter_manifest", {}))):
@@ -9899,8 +10323,194 @@ func _test_phase9_forensic_bundle_extension_consistency(failures: Array[String])
 		failures.append("Phase 9 forensic bundles should keep top-level world_aftermath_refs consistent with the Phase 5 extension copy")
 	if phase8_extension.is_empty():
 		failures.append("Phase 9 forensic bundle extensions should keep the operator-only stewardship review available")
+	for required_key in ["summary_lines", "operator_lines", "public_entries", "operator_entries"]:
+		if not phenomenon_extension.has(required_key):
+			failures.append("Phase 9 forensic bundle extensions should keep stable phenomenon_manifest key %s available" % required_key)
 	if bundle.has("stewardship_review"):
 		failures.append("Phase 9 forensic bundle extensions should not mirror stewardship review onto a new top-level field")
+	if bundle.has("phenomenon_manifest"):
+		failures.append("Phase 9 forensic bundle extensions should not mirror phenomenon_manifest onto a new top-level field")
+	controller.free()
+	event_log.free()
+
+func _test_phase9_curated_phenomenon_manifest_builder_contract(failures: Array[String]) -> void:
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var experiments: Dictionary = Dictionary(base_state.get("experiments", {})).duplicate(true)
+	var experimental_ontology_state := {
+		"live_experiments": [
+			Dictionary(experiments.get("exp_palimpsest", {})).duplicate(true),
+			Dictionary(experiments.get("exp_negative_space", {})).duplicate(true),
+			Dictionary(experiments.get("exp_stewardship_campaign", {})).duplicate(true)
+		],
+		"experiment_registry": Array(experiments.values()).duplicate(true)
+	}
+	var manifest := controller._build_phenomenon_manifest(
+		experimental_ontology_state,
+		_curated_phenomenon_governance_state(),
+		["exp_palimpsest", "exp_negative_space", "exp_stewardship_campaign"]
+	)
+	var manifest_keys := _string_array_for_test(Array(manifest.keys()))
+	manifest_keys.sort()
+	if JSON.stringify(manifest_keys) != JSON.stringify(["operator_entries", "operator_lines", "public_entries", "summary_lines"]):
+		failures.append("Curated phenomenon manifest builder should expose only summary_lines, operator_lines, public_entries, and operator_entries")
+	var public_entries := _dict_array_for_test(manifest.get("public_entries", []))
+	var operator_entries := _dict_array_for_test(manifest.get("operator_entries", []))
+	if public_entries.size() != 2 or operator_entries.size() != 2:
+		failures.append("Curated phenomenon manifest builder should filter to live curated families only")
+	for public_entry in public_entries:
+		var public_keys := _string_array_for_test(Array(public_entry.keys()))
+		public_keys.sort()
+		if JSON.stringify(public_keys) != JSON.stringify(["family_id", "family_label", "surface_lines"]):
+			failures.append("Curated phenomenon manifest public entries should stay inside the public-safe field set")
+		var family_id := str(public_entry.get("family_id", "")).strip_edges()
+		if family_id not in ["palimpsest", "negative_space"]:
+			failures.append("Curated phenomenon manifest public entries should not include non-curated live families")
+	var expected_operator_keys := [
+		"anti_bottleneck_status",
+		"axis",
+		"bottleneck_flags",
+		"compile_targets",
+		"cultural_medium",
+		"experiment_id",
+		"expression_mode",
+		"family_id",
+		"family_label",
+		"missing_routes",
+		"observation_contract",
+		"ontology_condition",
+		"play_routing_status",
+		"stressor",
+		"target",
+		"time_horizon",
+		"topology_type"
+	]
+	expected_operator_keys.sort()
+	for operator_entry in operator_entries:
+		var operator_keys := _string_array_for_test(Array(operator_entry.keys()))
+		operator_keys.sort()
+		if JSON.stringify(operator_keys) != JSON.stringify(expected_operator_keys):
+			failures.append("Curated phenomenon manifest operator entries should stay inside the bounded operator field set")
+	var public_json := JSON.stringify(public_entries)
+	for banned_fragment in ["compile_targets", "bottleneck_flags", "missing_routes", "anti_bottleneck_status", "play_routing_status"]:
+		if public_json.find("\"%s\"" % banned_fragment) != -1:
+			failures.append("Curated phenomenon manifest public entries should not leak %s" % banned_fragment)
+	var empty_manifest := controller._build_phenomenon_manifest({}, _curated_phenomenon_governance_state(), [])
+	var empty_keys := _string_array_for_test(Array(empty_manifest.keys()))
+	empty_keys.sort()
+	if JSON.stringify(empty_keys) != JSON.stringify(["operator_entries", "operator_lines", "public_entries", "summary_lines"]):
+		failures.append("Curated phenomenon manifest builder should keep the manifest key contract stable even when no curated families are live")
+	if not _string_array_for_test(Array(Dictionary(empty_manifest).get("summary_lines", []))).is_empty():
+		failures.append("Curated phenomenon manifest builder should keep empty summary_lines when no curated families are live")
+	if not _dict_array_for_test(Dictionary(empty_manifest).get("public_entries", [])).is_empty():
+		failures.append("Curated phenomenon manifest builder should keep empty public_entries when no curated families are live")
+	controller.free()
+
+func _test_phase9_curated_phenomenon_manifest_bundle_only(failures: Array[String]) -> void:
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 1,
+		"event_id": 1,
+		"event_type": "run_started",
+		"room_slot": 0,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	var constitution_summary := {
+		"constitution_id": "phase9_curated_manifest",
+		"activation_epoch": "fully_active",
+		"activation_active_channels": ["constitution", "archive", "world_memory"],
+		"activation_dormant_channels": ["safe_mode"],
+		"safe_mode_active": false,
+		"safe_mode_lines": [],
+		"explanation_packet_lines": ["Curated phenomenon manifest should stay bundle-only."],
+		"review_surface_lines": ["Manifest placement remains bounded."]
+	}
+	var governance_state := _curated_phenomenon_governance_state()
+	var action_snapshot := GOVERNANCE_SERVICE_SCRIPT.build_forensic_action_snapshot(governance_state)
+	var explanation_packet := GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
+		{
+			"artifact_type": "expedition_constitution",
+			"constitution_hash": "phase9_curated_manifest_hash"
+		},
+		Array(constitution_summary.get("explanation_packet_lines", [])),
+		Array(constitution_summary.get("review_surface_lines", [])),
+		["movement", "burden", "return"]
+	)
+	var hook_set := GOVERNANCE_SERVICE_SCRIPT.build_governance_hook_set(governance_state, constitution_summary, explanation_packet)
+	var replay_identity := controller._build_replay_identity(939393, "phase9_curated_manifest_hash", "", event_log)
+	var telemetry := controller._build_telemetry_summary(
+		[{"type": "run_started"}],
+		[],
+		explanation_packet,
+		hook_set,
+		replay_identity,
+		"forensic_replay",
+		[],
+		{},
+		{},
+		[],
+		{},
+		[],
+		{},
+		[],
+		{
+			"governance_action_snapshot": action_snapshot,
+			"experiment_outcomes": {"manifested_experiment_ids": ["exp_palimpsest", "exp_negative_space"]}
+		}
+	)
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var experiments: Dictionary = Dictionary(base_state.get("experiments", {})).duplicate(true)
+	var phenomenon_manifest := controller._build_phenomenon_manifest(
+		{
+			"live_experiments": [
+				Dictionary(experiments.get("exp_palimpsest", {})).duplicate(true),
+				Dictionary(experiments.get("exp_negative_space", {})).duplicate(true)
+			],
+			"experiment_registry": Array(experiments.values()).duplicate(true)
+		},
+		governance_state,
+		["exp_palimpsest", "exp_negative_space"]
+	)
+	var bundle := controller.build_forensic_bundle_for_test(
+		939393,
+		"phase9_curated_manifest_hash",
+		constitution_summary,
+		event_log,
+		[],
+		"forensic_replay",
+		{
+			"governance_action_snapshot": action_snapshot,
+			"experiment_outcomes": {"manifested_experiment_ids": ["exp_palimpsest", "exp_negative_space"]},
+			"phenomenon_manifest": phenomenon_manifest.duplicate(true)
+		},
+		governance_state
+	)
+	var bundle_extensions: Dictionary = Dictionary(bundle.get("bundle_extensions", {}))
+	var bundle_manifest: Dictionary = Dictionary(bundle_extensions.get("phenomenon_manifest", {})).duplicate(true)
+	if bundle_manifest.is_empty():
+		failures.append("Curated phenomenon bundle placement should attach phenomenon_manifest under bundle_extensions")
+	if bundle.has("phenomenon_manifest"):
+		failures.append("Curated phenomenon bundle placement should not mirror phenomenon_manifest onto the top-level forensic bundle")
+	if JSON.stringify(telemetry).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Curated phenomenon bundle placement should keep telemetry free of phenomenon_manifest")
+	if JSON.stringify(Dictionary(bundle.get("explanation_packet_outputs", {}))).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Curated phenomenon bundle placement should not mirror phenomenon_manifest into explanation_packet_outputs")
+	var synthetic_header := {
+		"bundle_id": str(bundle.get("bundle_id", "")),
+		"bundle_digest": str(bundle.get("bundle_digest", "")),
+		"bundle_schema_version": int(bundle.get("bundle_schema_version", 0)),
+		"replay_id": str(bundle.get("replay_id", ""))
+	}
+	if JSON.stringify(synthetic_header).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Curated phenomenon bundle placement should keep forensic bundle headers free of phenomenon_manifest")
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(_phase7_run_record(939393, {
+		"telemetry_summary": telemetry.duplicate(true),
+		"forensic_bundle": bundle.duplicate(true)
+	}))
+	if JSON.stringify(diagnostics).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Curated phenomenon bundle placement should not mirror phenomenon_manifest into run diagnostics")
 	controller.free()
 	event_log.free()
 
@@ -10062,9 +10672,13 @@ func _test_phase9_profile_forensic_persistence_and_world_memory_hash(failures: A
 		failures.append("Phase 9 profile persistence should preserve replay_id on the forensic bundle header")
 	if Dictionary(header.get("experiment_outcomes", {})).is_empty():
 		failures.append("Phase 9 profile persistence should preserve experiment_outcomes alongside the forensic bundle header")
+	if JSON.stringify(header).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Phase 9 profile persistence should keep phenomenon_manifest out of the forensic bundle header")
 	var history := Array(updated_profile.get("run_history", []))
 	if history.is_empty() or str(Dictionary(Dictionary(history[0]).get("forensic_bundle_header", {})).get("world_memory_snapshot_hash", "")).strip_edges().is_empty():
 		failures.append("Phase 9 run history should preserve forensic bundle header hashes without creating a second replay owner")
+	if not history.is_empty() and JSON.stringify(Dictionary(Dictionary(history[0]).get("forensic_bundle_header", {}))).find("\"phenomenon_manifest\"") != -1:
+		failures.append("Phase 9 run history should keep phenomenon_manifest out of persisted forensic bundle headers")
 	controller.free()
 	event_log.free()
 

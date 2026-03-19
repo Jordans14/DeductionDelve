@@ -512,6 +512,293 @@
           "Old classifications are starting to feel less settled than they sounded."
         ]
       }
+    },
+    {
+      "id": "palimpsest",
+      "label": "Palimpsest",
+      "domain": "memory",
+      "state": "archival",
+      "target_layers": ["archive", "framing", "continuity"],
+      "recurrence_weight": 1,
+      "public_lines": [
+        "Older accounts are starting to show their newer layers without settling the older ones."
+      ],
+      "hypothesis": {
+        "hypothesis_id": "hyp_palimpsest",
+        "domain": "memory",
+        "thesis": "Layered archive memory stays legible when contradiction exposes newer readings without erasing older traces.",
+        "confidence": 1,
+        "target_layers": ["archive", "framing", "continuity"],
+        "target_populations": ["archive readers", "legend keepers"],
+        "supporting_evidence_ids": ["hybrid_lineage", "split_record"],
+        "contradicting_evidence_ids": ["closed_case"],
+        "open_branches": [],
+        "persistence_state": "archival",
+        "dormancy_state": "archival",
+        "recurrence_weight": 1,
+        "foundational_flag": false
+      },
+      "experiment": {
+        "experiment_id": "exp_palimpsest",
+        "program_id": "palimpsest_program",
+        "topology_type": "synthesis",
+        "target": "archive",
+        "axis": "memory_fidelity",
+        "stressor": "contradiction",
+        "ontology_condition": "hybrid_lineage_emergence",
+        "cultural_medium": "archive_case",
+        "time_horizon": "long_arc",
+        "observation_contract": "traceable_archive_only",
+        "fairness_bounds": {
+          "artifact_trust_floor": "objective_central",
+          "mechanic_legibility_floor": "readable",
+          "strategic_readability_floor": "arguable",
+          "role_fairness_required": true,
+          "runtime_non_mutation_required": true,
+          "no_hidden_targeting_required": true
+        },
+        "state": "archival",
+        "expression_mode": "archive_bias",
+        "compile_outputs": {
+          "archive_framing_bias": {
+            "lines": [
+              "Archive retellings are starting to show older memory layers beneath newer conclusions."
+            ],
+            "emphasis_tags": ["memory fidelity", "layered archive"]
+          },
+          "public_activation": {
+            "surface_lines": [
+              "Older accounts are starting to show their newer layers without settling the older ones."
+            ]
+          },
+          "compile_targets": ["archive_framing_bias", "public_activation"]
+        },
+        "lineage_parent_id": "exp_archive_wonder_residue",
+        "branch_ids": [],
+        "synthesis_sources": ["exp_archive_wonder_residue", "exp_fracture_echo"],
+        "recurrence_weight": 1,
+        "public_lines": [
+          "Older accounts are starting to show their newer layers without settling the older ones."
+        ]
+      }
+    },
+    {
+      "id": "negative_space",
+      "label": "Negative Space",
+      "domain": "negative_space",
+      "state": "dormant",
+      "target_layers": ["ontology", "archive", "continuity"],
+      "recurrence_weight": 1,
+      "public_lines": [
+        "What is missing from the record is starting to shape how the record gets read."
+      ],
+      "hypothesis": {
+        "hypothesis_id": "hyp_negative_space",
+        "domain": "negative_space",
+        "thesis": "Absence becomes legible when missing verification classes start shaping how archive cases are named.",
+        "confidence": 1,
+        "target_layers": ["ontology", "archive", "continuity"],
+        "target_populations": ["taxonomy keepers", "archive readers"],
+        "supporting_evidence_ids": ["classification_note", "residue_trace"],
+        "contradicting_evidence_ids": ["clean_verification"],
+        "open_branches": [],
+        "persistence_state": "dormant",
+        "dormancy_state": "dormant",
+        "recurrence_weight": 1,
+        "foundational_flag": false
+      },
+      "experiment": {
+        "experiment_id": "exp_negative_space",
+        "program_id": "negative_space_program",
+        "topology_type": "branching",
+        "target": "ontology",
+        "axis": "ambiguity",
+        "stressor": "classification_drift",
+        "ontology_condition": "missing_verification_classes",
+        "cultural_medium": "archive_case",
+        "time_horizon": "seasonal",
+        "observation_contract": "constitution_trace",
+        "fairness_bounds": {
+          "artifact_trust_floor": "objective_central",
+          "mechanic_legibility_floor": "readable",
+          "strategic_readability_floor": "arguable",
+          "role_fairness_required": true,
+          "runtime_non_mutation_required": true,
+          "no_hidden_targeting_required": true
+        },
+        "state": "dormant",
+        "expression_mode": "archive_bias",
+        "compile_outputs": {
+          "ontology_weighting": {
+            "lineage_bias_tags": ["fractured_verification_lineage"],
+            "niche_bias_tags": ["archive_classification_niche"],
+            "rediscovery_bias": 2,
+            "hybridization_bias": 1
+          },
+          "archive_framing_bias": {
+            "lines": [
+              "Archive framing is starting to register what missing classes are doing to settled records."
+            ],
+            "emphasis_tags": ["absence pressure", "classification drift"]
+          },
+          "public_activation": {
+            "surface_lines": [
+              "What is missing from the record is starting to shape how the record gets read."
+            ]
+          },
+          "compile_targets": [
+            "ontology_weighting",
+            "archive_framing_bias",
+            "public_activation"
+          ]
+        },
+        "lineage_parent_id": "exp_taxonomy_dormant",
+        "branch_ids": [],
+        "synthesis_sources": [],
+        "recurrence_weight": 1,
+        "public_lines": [
+          "What is missing from the record is starting to shape how the record gets read."
+        ]
+      }
+    },
+    {
+      "id": "echo_literacy",
+      "label": "Echo Literacy",
+      "domain": "memory",
+      "state": "rare",
+      "target_layers": ["archive", "framing", "continuity"],
+      "recurrence_weight": 1,
+      "public_lines": [
+        "People are starting to recognize when old echoes matter before anyone can fully name why."
+      ],
+      "hypothesis": {
+        "hypothesis_id": "hyp_echo_literacy",
+        "domain": "memory",
+        "thesis": "Echo literacy rises when archive residue stays meaningful across continuity without collapsing into closure.",
+        "confidence": 2,
+        "target_layers": ["archive", "framing", "continuity"],
+        "target_populations": ["archive readers", "legend keepers"],
+        "supporting_evidence_ids": ["legend_echo", "residue_trace"],
+        "contradicting_evidence_ids": ["closed_case"],
+        "open_branches": [],
+        "persistence_state": "rare",
+        "dormancy_state": "rare",
+        "recurrence_weight": 1,
+        "foundational_flag": false
+      },
+      "experiment": {
+        "experiment_id": "exp_echo_literacy",
+        "program_id": "echo_literacy_program",
+        "topology_type": "synthesis",
+        "target": "continuity",
+        "axis": "curiosity",
+        "stressor": "archive_echo",
+        "ontology_condition": "residue_density_spike",
+        "cultural_medium": "legend_cluster",
+        "time_horizon": "long_arc",
+        "observation_contract": "traceable_archive_only",
+        "fairness_bounds": {
+          "artifact_trust_floor": "objective_central",
+          "mechanic_legibility_floor": "readable",
+          "strategic_readability_floor": "arguable",
+          "role_fairness_required": true,
+          "runtime_non_mutation_required": true,
+          "no_hidden_targeting_required": true
+        },
+        "state": "rare",
+        "expression_mode": "archive_bias",
+        "compile_outputs": {
+          "pressure_input_bias": {
+            "curiosity": 1
+          },
+          "archive_framing_bias": {
+            "lines": [
+              "Archive echoes are starting to matter before anyone can settle what they prove."
+            ],
+            "emphasis_tags": ["echo residue", "memory pressure"]
+          },
+          "public_activation": {
+            "surface_lines": [
+              "People are starting to recognize when old echoes matter before anyone can fully name why."
+            ]
+          },
+          "compile_targets": [
+            "pressure_input_bias",
+            "archive_framing_bias",
+            "public_activation"
+          ]
+        },
+        "lineage_parent_id": "exp_ritual_recall",
+        "branch_ids": [],
+        "synthesis_sources": ["exp_archive_wonder_residue", "exp_ritual_recall"],
+        "recurrence_weight": 1,
+        "public_lines": [
+          "People are starting to recognize when old echoes matter before anyone can fully name why."
+        ]
+      }
+    },
+    {
+      "id": "contraband_lite",
+      "label": "Contraband-lite",
+      "domain": "public_argument",
+      "state": "rare",
+      "target_layers": ["pressure", "archive", "framing"],
+      "recurrence_weight": 1,
+      "public_lines": [
+        "Unofficial readings are starting to circulate, but they still read as provisional."
+      ],
+      "hypothesis": {
+        "hypothesis_id": "hyp_contraband_lite",
+        "domain": "public_argument",
+        "thesis": "Provisional public readings circulate when legitimacy formation outruns settled verification.",
+        "confidence": 1,
+        "target_layers": ["pressure", "archive", "framing"],
+        "target_populations": ["public witnesses", "rumor keepers"],
+        "supporting_evidence_ids": ["split_record", "witness_dispute"],
+        "contradicting_evidence_ids": ["clean_verification"],
+        "open_branches": [],
+        "persistence_state": "rare",
+        "dormancy_state": "rare",
+        "recurrence_weight": 1,
+        "foundational_flag": false
+      },
+      "experiment": {
+        "experiment_id": "exp_contraband_lite",
+        "program_id": "contraband_lite_program",
+        "topology_type": "branching",
+        "target": "framing",
+        "axis": "legitimacy_formation",
+        "stressor": "rumor_acceleration",
+        "ontology_condition": "contested_categories",
+        "cultural_medium": "public_shorthand",
+        "time_horizon": "short_cycle",
+        "observation_contract": "public_safe_summary",
+        "fairness_bounds": {
+          "artifact_trust_floor": "objective_central",
+          "mechanic_legibility_floor": "readable",
+          "strategic_readability_floor": "arguable",
+          "role_fairness_required": true,
+          "runtime_non_mutation_required": true,
+          "no_hidden_targeting_required": true
+        },
+        "state": "rare",
+        "expression_mode": "public_surface",
+        "compile_outputs": {
+          "public_activation": {
+            "surface_lines": [
+              "Unofficial readings are starting to circulate, but they still read as provisional."
+            ]
+          },
+          "compile_targets": ["public_activation"]
+        },
+        "lineage_parent_id": "exp_fracture_echo",
+        "branch_ids": [],
+        "synthesis_sources": [],
+        "recurrence_weight": 1,
+        "public_lines": [
+          "Unofficial readings are starting to circulate, but they still read as provisional."
+        ]
+      }
     }
   ]
 }
