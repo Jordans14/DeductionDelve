@@ -26,6 +26,18 @@
   - doctrine-sensitive normalization regression coverage
   - proof coverage for encounter/apex activation
 
+## 2026-03-18 Repo-Truth Closure Note
+- The tracked repo already passes the deterministic and headless proof lane on the existing owner tree with the Phase 1-9 execution artifact set still intact.
+- This addendum records repo-truth closure rather than a new numbered phase: the current repo-scope constitutional superstructure is materially implemented on the existing owner tree, and the main follow-up work is doc-truth maintenance plus future-phase deferrals.
+- No new owner family, shell path, archive path, truth path, or runtime authority path was opened by this closure note.
+
+## 2026-03-19 Current-Scope Wave Certification
+- Wave 2 is certified as already materially satisfied on the current owner tree through the live constitution/compiler, experiment/learning, governance, and constitution-summary migration proof lane.
+- Wave 3 is certified as already materially satisfied on the current owner tree through the live branch/protocol weighting, visual doctrine, bounded ecology, inhabitant differentiation, and read-only carryover proof lane.
+- Wave 4 is certified as already materially satisfied on the current owner tree through the live governance, civilization, contradiction, cookbook, world-memory, quiet-play, legacy reentry, and forensic hardening proof lane.
+- Wave 5 is certified as already materially satisfied on the current owner tree through the live shell explainability, shell continuity, shell contract, and multimodal non-authority proof lane.
+- Wave 6 is certified by the full deterministic and headless proof lane rerun on `2026-03-19`; this closes repo-scoped completion certification without opening a new numbered phase.
+
 ## Tracking Intent
 - Phase 2-9 artifacts should remain tracked alongside this index.
 - If any future audit addendum is needed, append it here or in a new tracked hardening note rather than leaving the review trail workspace-only.

@@ -35,10 +35,11 @@ The live repo already contains the current traversal/network/product shell found
    Status: completed and validated on `2026-03-14`.
    Result: the live repo now carries stronger deterministic branch personality plus compact artifact-lineage, branch-drift, prestige, and cultural-association signals through the existing generation, item, crawl, archive, and world-memory owners.
 
-## Current Frontier
-1. The explicit GenerationContract seam, trust-topology embodiment, relay/crawl-network embodiment, cookbook/anti-Protocol embodiment, civilization-conflict embodiment, role/custody deepening, bounded inhabitant differentiation, player-guidance deepening, role expansion, and the current content-breadth push are now live on the existing owner tree as of `2026-03-15`.
-2. The remaining frontier is no longer the basic owner-path embodiment of those systems; it is breadth tuning, authored differentiation, and honest repo auditing inside the same owners without reopening architecture law.
-3. Archive/crawl/world-memory interpretation should now deepen only where newly embodied run signals justify stronger comparison, not as a substitute for play-facing consequence.
+## Current Repo-Scoped Completion State
+1. The existing owner tree now materially closes the current repo-scoped constitutional superstructure as of `2026-03-18`, with deterministic and headless proof passing on the live owner path.
+2. Inside current repo scope, active work is proof-preserving hardening and doc-truth maintenance inside the same owners rather than new owner-path embodiment or new authority paths.
+3. Archive/crawl/world-memory interpretation should continue deepening only where tracked run signals and current proof coverage justify stronger comparison, not as a substitute for play-facing consequence or as a second truth model.
+4. Remaining expansion work is future-phase only unless a proof-locked gap appears inside an existing owner.
 
 ## Guardrails
 - no parallel archive
@@ -53,4 +54,4 @@ The live repo already contains the current traversal/network/product shell found
 - Broad predator/echo/protocol-agent rosters beyond the current bounded host ecology path
 - Cookbook fragments and anti-Protocol descent escalation beyond the current bounded routing seam
 
-These remain canonical future-phase targets. They should land only after the live Delve, visual governance, and product-truth boundaries are more fully stabilized.
+These remain canonical future-phase targets. They should land only after the current repo-scoped owner tree is intentionally reopened for future-phase work.

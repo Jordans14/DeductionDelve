@@ -56,9 +56,13 @@ The supporting doctrine layers must remain:
 - Run/export owner: [game_controller.gd](d:/DeductionDelve/godot/src/run/game_controller.gd)
 - Network/session owner: [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd)
 - Generation owner: [run_generator.gd](d:/DeductionDelve/godot/src/gen/run_generator.gd), [room_builder.gd](d:/DeductionDelve/godot/src/gen/room_builder.gd)
+- Constitution/compiler owner: [constitution_compiler.gd](d:/DeductionDelve/godot/src/gen/constitution_compiler.gd), [expedition_constitution_schema.gd](d:/DeductionDelve/godot/src/delve/constitution/expedition_constitution_schema.gd)
+- Governance owner: [governance_service.gd](d:/DeductionDelve/godot/src/product/governance_service.gd)
+- Experiment/learning owners: [delvemind_experiment_engine.gd](d:/DeductionDelve/godot/src/product/delvemind_experiment_engine.gd), [delvemind_learning_loop.gd](d:/DeductionDelve/godot/src/product/delvemind_learning_loop.gd)
 - Item owner: [item_service.gd](d:/DeductionDelve/godot/src/items/item_service.gd)
 - Role/deception owner: [role_service.gd](d:/DeductionDelve/godot/src/roles/role_service.gd)
-- AI Delve owner: [delve_kernel.gd](d:/DeductionDelve/godot/src/delve/delve_kernel.gd) and supporting files under `godot/src/delve/`
+- AI Delve owner: [delve_kernel.gd](d:/DeductionDelve/godot/src/delve/delve_kernel.gd), [world_model.gd](d:/DeductionDelve/godot/src/delve/world_model.gd), and supporting files under `godot/src/delve/`
+- Civilization / contradiction / cookbook owners: [civilization_state_service.gd](d:/DeductionDelve/godot/src/product/civilization_state_service.gd), [contradiction_engine.gd](d:/DeductionDelve/godot/src/product/contradiction_engine.gd), [cookbook_fragment_service.gd](d:/DeductionDelve/godot/src/product/cookbook_fragment_service.gd)
 - Visual governance owner: [visual_governance.gd](d:/DeductionDelve/godot/src/visual/visual_governance.gd)
 - Product orchestration owner: [profile_service.gd](d:/DeductionDelve/godot/src/product/profile_service.gd)
 - Run-interpretation owner: [run_story_diagnostics.gd](d:/DeductionDelve/godot/src/product/run_story_diagnostics.gd)
@@ -66,6 +70,8 @@ The supporting doctrine layers must remain:
 - Framing/broadcast owner: [framing_service.gd](d:/DeductionDelve/godot/src/product/framing_service.gd)
 - Archive owner: [archive_service.gd](d:/DeductionDelve/godot/src/product/archive_service.gd)
 - World-memory owner: [world_memory_service.gd](d:/DeductionDelve/godot/src/product/world_memory_service.gd)
+- Identity/progression support owners: [profile_identity_state.gd](d:/DeductionDelve/godot/src/product/profile_identity_state.gd), [profile_progression.gd](d:/DeductionDelve/godot/src/product/profile_progression.gd)
+- Directive inspection/proof owners: [delve_directive_inspector.gd](d:/DeductionDelve/godot/src/delve/delve_directive_inspector.gd), [test_runner.gd](d:/DeductionDelve/godot/src/tests/test_runner.gd)
 - Shell owner: [lobby_controller.gd](d:/DeductionDelve/godot/src/ui/lobby_controller.gd)
 
 ## Current-State Map
@@ -78,6 +84,15 @@ The supporting doctrine layers must remain:
 - Generation: `live and authoritative`
   Owners: [run_generator.gd](d:/DeductionDelve/godot/src/gen/run_generator.gd), [room_builder.gd](d:/DeductionDelve/godot/src/gen/room_builder.gd)
   Scope: deterministic room chain generation, branch context, doctrine/protocol threading into rooms, visual packet consumption.
+- Constitution compilation and public-safe summary path: `live and authoritative`
+  Owners: [constitution_compiler.gd](d:/DeductionDelve/godot/src/gen/constitution_compiler.gd), [expedition_constitution_schema.gd](d:/DeductionDelve/godot/src/delve/constitution/expedition_constitution_schema.gd)
+  Scope: canonical `constitution_summary` / `expedition_constitution_summary`, `compile_metadata`, `fairness_bounds`, `review_surface`, `compiler_trace`, explicit host-private `generation_contract`, and compatibility support for legacy `directive_summary` readers.
+- Governance and review surfaces: `live and authoritative`
+  Owner: [governance_service.gd](d:/DeductionDelve/godot/src/product/governance_service.gd)
+  Scope: activation state, safe-mode lines, review surfaces, hook sets, compression profiles, saturation reports, and forensic action snapshots.
+- Experiment and learning: `live and authoritative` for post-run and compile-safe surfaces
+  Owners: [delvemind_experiment_engine.gd](d:/DeductionDelve/godot/src/product/delvemind_experiment_engine.gd), [delvemind_learning_loop.gd](d:/DeductionDelve/godot/src/product/delvemind_learning_loop.gd)
+  Scope: live experiment and hypothesis state, public-safe experiment lines, continuity learning, and compiler-facing learning guidance. Not live: runtime authority, legality mutation, or adaptive client authority.
 - Items and loadout ecology: `live and authoritative`
   Owner: [item_service.gd](d:/DeductionDelve/godot/src/items/item_service.gd)
   Scope: deterministic spawn generation, build identity modeling, synergy signals, protocol-aware loadout interpretation.
@@ -89,20 +104,23 @@ The supporting doctrine layers must remain:
   Scope: local continuity, framing, archive cases, crawl heat, world memory, shell-safe summaries.
 - AI Delve: `live and authoritative`
   Owners: [delve_kernel.gd](d:/DeductionDelve/godot/src/delve/delve_kernel.gd), [world_model.gd](d:/DeductionDelve/godot/src/delve/world_model.gd), [doctrine_engine.gd](d:/DeductionDelve/godot/src/delve/doctrine_engine.gd), [delve_simulator.gd](d:/DeductionDelve/godot/src/delve/delve_simulator.gd), [causal_audit.gd](d:/DeductionDelve/godot/src/delve/causal_audit.gd)
-  Scope: builds a pre-run Influence Lattice from profile continuity, session context, gameplay snapshot, and seed; emits `protocol_state`, `doctrine_family`, `doctrine_label`, explicit host-private `generation_contract`, `control_surfaces`, `surface_summary`, `public_summary`, `world_goals`, `mind_balance`, `causal_audit`, and host-only `run_identity`.
-  Live consumers: [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd), [run_generator.gd](d:/DeductionDelve/godot/src/gen/run_generator.gd), [item_service.gd](d:/DeductionDelve/godot/src/items/item_service.gd), [run_story_diagnostics.gd](d:/DeductionDelve/godot/src/product/run_story_diagnostics.gd), [framing_service.gd](d:/DeductionDelve/godot/src/product/framing_service.gd)
+  Scope: builds pre-run Delve shaping from profile continuity, session context, gameplay snapshot, and seed; emits host-private planning state plus the explicit `generation_contract`; contributes to the canonical public-safe constitution summary path consumed by runtime, product, and shell layers.
+  Live consumers: [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd), [run_generator.gd](d:/DeductionDelve/godot/src/gen/run_generator.gd), [item_service.gd](d:/DeductionDelve/godot/src/items/item_service.gd), [run_story_diagnostics.gd](d:/DeductionDelve/godot/src/product/run_story_diagnostics.gd), [framing_service.gd](d:/DeductionDelve/godot/src/product/framing_service.gd), [world_memory_service.gd](d:/DeductionDelve/godot/src/product/world_memory_service.gd)
   Not live: continuous runtime orchestration, inhabitant roster control, product authority, a second GM layer.
 - Visual governance: `live and authoritative` for presentation
   Owner: [visual_governance.gd](d:/DeductionDelve/godot/src/visual/visual_governance.gd)
   Live consumers: [room_builder.gd](d:/DeductionDelve/godot/src/gen/room_builder.gd), [lobby_controller.gd](d:/DeductionDelve/godot/src/ui/lobby_controller.gd), [game_controller.gd](d:/DeductionDelve/godot/src/run/game_controller.gd), [player.gd](d:/DeductionDelve/godot/src/entities/player.gd), [item_pickup.gd](d:/DeductionDelve/godot/src/entities/item_pickup.gd), [evidence.gd](d:/DeductionDelve/godot/src/entities/evidence.gd), [crusher.gd](d:/DeductionDelve/godot/src/entities/crusher.gd), [door.gd](d:/DeductionDelve/godot/src/items/door.gd)
   Scope: motion hierarchy, shell title/symbols/palette, branch/protocol visual packets, item/evidence/carrier styling, background honesty, budget validation.
+- Distributed meta-dynamics and world-memory interpretation: `live but partial`
+  Owners: [world_memory_service.gd](d:/DeductionDelve/godot/src/product/world_memory_service.gd), [world_model.gd](d:/DeductionDelve/godot/src/delve/world_model.gd), [profile_progression.gd](d:/DeductionDelve/godot/src/product/profile_progression.gd), [profile_identity_state.gd](d:/DeductionDelve/godot/src/product/profile_identity_state.gd), [profile_service.gd](d:/DeductionDelve/godot/src/product/profile_service.gd), [archive_service.gd](d:/DeductionDelve/godot/src/product/archive_service.gd), [crawl_service.gd](d:/DeductionDelve/godot/src/product/crawl_service.gd), [governance_service.gd](d:/DeductionDelve/godot/src/product/governance_service.gd)
+  Scope: distributed fascination, fatigue, cultural gravity, epistemic-order, interpretation-network, public-identity, crawl-identity, compression, and saturation signals. This coverage is real but remains distributed across existing owners rather than a standalone meta-dynamics subsystem.
 - Protocol states: `live but partial`
   Owner: [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd)
   Scope: reduced live labels (`Expedition`, `Fracture`, `Intimate`, `Exposure`) derived from active peer count and consumed by gameplay modeling, Delve doctrine, generation, item ecology, and visual governance.
   Future-phase only: relay routing, recombination, full population-adaptive crawl topology.
-- AI inhabitants: `scaffolded or early`
-  Live state: host-authoritative ghost pressure inside [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd)
-  Future-phase canon: broader predator/echo/protocol-agent ecology in [AI_INHABITANTS](d:/DeductionDelve/docs/AI_INHABITANTS.md)
+- AI inhabitants and bounded ecology: `live but partial`
+  Live state: bounded host-authoritative ghost, anomaly echo, predator rush, and protocol-watch differentiation inside the one ecology path owned by [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd) and consumed by [game_controller.gd](d:/DeductionDelve/godot/src/run/game_controller.gd)
+  Future-phase canon: broader predator/echo/protocol-agent rosters beyond the current bounded ecology path, as tracked in [ROADMAP](d:/DeductionDelve/docs/ROADMAP.md) and [AI_INHABITANTS](d:/DeductionDelve/docs/AI_INHABITANTS.md)
 
 ## Shell Ownership
 The shell remains unified.
@@ -112,9 +130,10 @@ The shell remains unified.
 - No second archive/browser path should be added.
 
 ## Key Live Data Flows
-- Host session state plus local profile continuity feed [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd), which builds a gameplay snapshot and computes the full Delve directive before run start.
-- The host keeps the full directive and run-identity trace locally for generation, item shaping, host-local runtime inspection, and balancing, while clients receive only the public-safe directive summary.
-- The public-safe directive summary can include limited authored carryover such as dominant minds, dominant forces/domains, pacing, pressure grammar, motifs, item/group/archive summaries, convergence axis, and line-level surface summary strings. It must never include host-only `run_identity`, `mind_balance`, or clamped/strongest control-surface internals.
+- Host session state plus local profile continuity feed [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd), which builds a gameplay snapshot, computes the live expedition constitution before run start, and emits the explicit host-private `generation_contract` plus the canonical public-safe `constitution_summary`.
+- The host keeps the full expedition constitution and run-identity trace locally for generation, item shaping, host-local runtime inspection, and balancing, while clients receive only the canonical public-safe constitution summary.
+- Legacy `directive_summary` / `delve_directive_summary` remain compatibility aliases of the canonical public-safe constitution summary rather than a competing truth path.
+- The public-safe constitution summary can include limited authored carryover such as dominant minds, dominant forces/domains, pacing, pressure grammar, motifs, item/group/archive summaries, convergence axis, and line-level surface summary strings. It must never include host-only `run_identity`, `mind_balance`, or clamped/strongest control-surface internals.
 - [network_manager.gd](d:/DeductionDelve/godot/src/net/network_manager.gd) keeps the explicit `generation_contract` on the host-private run-start path.
 - [run_generator.gd](d:/DeductionDelve/godot/src/gen/run_generator.gd) consumes that explicit `generation_contract` as its single Delve-facing generation boundary.
 - [item_service.gd](d:/DeductionDelve/godot/src/items/item_service.gd) consumes the same narrow contract for item ecology without becoming a second balance owner.

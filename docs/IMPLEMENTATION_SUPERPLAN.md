@@ -26,18 +26,21 @@ Codex and human implementers must treat the following order as binding:
 7. `THE_DELVE_PROTOCOL.md`
 8. support docs in the constitution-defined read order
 9. `MASTER_ARCHITECTURE_CANON.md`
-10. `progress.md`
-11. live repository truth
+10. live repository truth in tracked code, tests, and tracked phase artifacts
+11. `progress.md`
 
 If anything conflicts:
 - the constitution wins,
 - then the constants file,
+- then tracked repository truth in code/tests/artifacts,
 - then this superplan,
-- then the prompt.
+- then the prompt,
+- then `progress.md`.
 
 This document must never be used to override the constitution.
 It exists only to turn the constitution into a safe execution program.
 `MASTER_ARCHITECTURE_CANON.md` is preserved as subordinate support material and must not be treated as a co-equal source of implementation authority.
+When tracked code/tests/artifacts conflict with stale progress wording or older execution summaries, tracked repo truth wins.
 
 ---
 
@@ -112,8 +115,9 @@ No implementation wave may introduce:
 Prefer deepening existing files and owner paths.
 If a proposed change appears to require a second owner, stop and redesign inside the current owner tree.
 
-### 2.8 One seam at a time
-After Phase 0, select exactly one highest-risk live-but-partial seam and work only that seam until it reaches a proof-gated stopping point.
+### 2.8 One bounded wave at a time
+Execute the active bounded wave or subwave in order.
+Do not broaden scope beyond the named owner set until its proof gates pass.
 
 ---
 
@@ -168,7 +172,7 @@ Codex is continuing and hardening a live system.
 - `godot/src/delve/world_model.gd`
 - `godot/src/delve/doctrine_engine.gd`
 - `godot/src/delve/delve_simulator.gd`
-- any live directive-consumer path already verified in `progress.md`
+- any live directive-consumer path already verified in tracked code/tests and reconciled docs
 
 ### Visual governance
 - `godot/src/visual/visual_governance.gd`
@@ -421,10 +425,9 @@ Deliverables:
 ### Phase 8 — Future-phase systems
 Remain guarded unless the roadmap and proof lanes explicitly justify entry:
 - relay recombination at scale
-- broad inhabitant rosters
-- Cookbook fragments / holders / network recognition
-- large-population protocol-state behavior
-- mythic rare-event population ceilings
+- full population-adaptive crawl routing
+- broad predator/echo/protocol-agent rosters beyond the current bounded host ecology path
+- Cookbook fragments / anti-Protocol descent escalation beyond the current bounded routing seam
 
 ---
 

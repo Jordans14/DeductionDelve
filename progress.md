@@ -5468,3 +5468,176 @@ All doctrine domains that were still PARTIAL at the start of this pass received 
 - Closing truth note:
   - Phase 7 is now canonically attributable, validation-first, duplicate-stable, cleaner in public/meta separation, more deeply cross-validated, and more explicit in compiler-bias traceability
   - the repo is now a materially cleaner substrate for the next doctrine phase without touching runtime authority
+
+## 2026-03-18 Repo-Truth Reconciliation / Current-Scope Completion Certification
+
+- Repo-safety intake on `2026-03-18` found a clean tracked worktree:
+  - `git status --short` -> no tracked changes
+  - `git diff --name-only` -> none
+  - `git diff --name-only --cached` -> none
+  - `git ls-files --others --exclude-standard` -> none
+
+- Repo-truth rule being locked in explicitly:
+  - when stale progress wording conflicts with tracked code, tracked tests, or tracked phase artifacts, the tracked code/tests/artifacts win
+  - older progress entries remain historical execution notes, not higher-priority truth than the live owner tree
+
+- Repo-truth findings now being treated as current truth:
+  - the canonical public-safe constitution path is already live:
+    - `constitution_summary` / `expedition_constitution_summary` are the active public-safe summary path
+    - legacy `directive_summary` / `delve_directive_summary` survive as compatibility aliases only
+  - bounded inhabitant ecology is already materially beyond ghost-only wording:
+    - ghost pressure
+    - anomaly echo
+    - predator rush
+    - protocol-watch containment
+    - all remain inside the one host ecology owner path
+  - governance, experiment, learning, civilization, contradiction, cookbook, world-memory, archive, quiet-play, legacy reentry, and forensic carryover are already materially live on the current owner tree
+  - distributed meta-dynamics coverage is materially present through existing world-memory, world-model, profile, archive, crawl, governance, and shell-safe owners; it is real but distributed rather than a standalone subsystem
+
+- Documentation reconciliation completed in this pass:
+  - `docs/ARCHITECTURE.md`
+    - corrected the owner map to include constitution/compiler, governance, experiment/learning, civilization/contradiction/cookbook, and directive-inspection owners
+    - corrected AI inhabitants from ghost-only/scaffolded wording to bounded live ecology on the one host owner path
+    - corrected the key data-flow description to make the canonical public-safe constitution-summary path explicit
+  - `docs/ROADMAP.md`
+    - shifted the framing from an older embodiment frontier to current repo-scoped completion on the existing owner tree
+    - kept future-phase relay/population/roster/cookbook escalation work explicitly deferred
+  - `docs/TESTING.md`
+    - updated the live test-focus list to include constitution-summary migration, experiment/learning guidance, governance carryover, quiet-play, legacy reentry, and forensic persistence
+    - reframed the old proof-lane retry note as an operational safeguard rather than a current-scope feature gap
+  - `docs/IMPLEMENTATION_SUPERPLAN.md`
+    - corrected the interpretation order so tracked repo truth in code/tests/artifacts outranks stale progress wording
+    - replaced the single-seam language with bounded-wave execution language
+    - corrected the future-phase bullets so they match the live repo and current roadmap doctrine
+  - `docs/NEXT_WAVE_EXECUTION_ARTIFACT_INDEX.md`
+    - added a repo-truth closure note clarifying that current-scope completion did not open a new numbered phase
+
+- Validation results for this reconciliation pass:
+  - `./scripts/run_tests.ps1` -> passed on `2026-03-18`
+  - `./scripts/run_headless_proof.ps1` -> passed on `2026-03-18`
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Supersession note:
+  - older progress lines that described no inhabitant ecology beyond ghost pressure or treated Phase 8/9 as still deferred are now historical and superseded by the tracked code/tests/artifacts plus this reconciliation entry
+
+- Closing truth note:
+  - the current repo-scope constitutional superstructure is materially implemented on the existing owner tree
+  - remaining roadmap expansion work is future-phase only unless a new proof-backed gap appears inside an existing owner
+
+## 2026-03-19 End-to-End Roadmap Continuation / Waves 2-6 Certification
+
+- Starting state after Wave 1:
+  - repo-truth closure was already landed in docs/support artifacts
+  - the runtime tree remained untouched
+  - the full proof lane was already green on the live owner tree
+
+- Wave 2 execution:
+  - subwaves `2A`, `2B`, and `2C` were audited against tracked code/tests from the current repo state
+  - result: already materially satisfied on the current owner tree
+  - proof basis:
+    - `_test_ontology_engine_and_compiler_bridge`
+    - `_test_constitution_compiler_symbolic_profiles_and_bounds`
+    - `_test_experimental_ontology_phase6_compilation_and_surfaces`
+    - `_test_phase7_learning_loop_determinism_and_continuity`
+    - `_test_phase7_compiler_guidance_and_public_traces`
+    - `_test_phase7_manifestation_identity_and_collision_handling`
+    - `_test_constitution_summary_migration_and_aliases`
+    - `_test_delve_intelligence_kernel_governance`
+  - exact repo-truth conclusion:
+    - compiler/schema/world-model closure is already live
+    - experiment/learning/governance constitutional closure is already live
+    - canonical constitution-summary migration is already live, with directive-summary paths remaining compatibility aliases only
+  - execution action taken:
+    - recorded Wave 2 certification in `docs/TESTING.md`, `docs/NEXT_WAVE_EXECUTION_ARTIFACT_INDEX.md`, and this progress entry
+
+- Wave 3 execution:
+  - subwaves `3A` and `3B` were audited against tracked code/tests from the current repo state
+  - result: already materially satisfied on the current owner tree
+  - proof basis:
+    - `_test_branch_and_protocol_weighting_depth`
+    - `_test_phase2_constitution_and_visual_normalization_contract`
+    - `_test_phase5_branch_context_and_visual_apex_preview`
+    - `_test_visual_doctrine_refactor`
+    - `_test_runtime_ecology_beyond_ghost`
+    - `_test_predator_rush_and_combat_scaling`
+    - `_test_inhabitant_differentiation_deepening`
+    - `_test_new_item_runtime_and_inhabitant_modes`
+    - `_test_read_only_ecology_signal_carryover`
+    - `_test_read_only_predator_signal_carryover`
+  - exact repo-truth conclusion:
+    - branch/protocol/visual authored differentiation is already live
+    - bounded ecology/item/runtime differentiation is already live on the one host ecology owner path
+  - execution action taken:
+    - recorded Wave 3 certification in `docs/TESTING.md`, `docs/NEXT_WAVE_EXECUTION_ARTIFACT_INDEX.md`, and this progress entry
+
+- Wave 4 execution:
+  - subwaves `4A`, `4B`, and `4C` were audited against tracked code/tests from the current repo state
+  - result: already materially satisfied on the current owner tree
+  - proof basis:
+    - `_test_institutional_order_carryover_and_delve_intake`
+    - `_test_affective_climate_and_ordinary_labor_carryover`
+    - `_test_interpretation_network_order_and_silence_carryover`
+    - `_test_epoch_state_world_model_and_horizon_carryover`
+    - `_test_cookbook_shadow_and_anti_protocol_carryover`
+    - `_test_cookbook_anti_protocol_embodiment`
+    - `_test_civilization_conflict_embodiment_diverges`
+    - `_test_master_narrative_v3_archive_world_memory_and_progression`
+    - `_test_master_narrative_v3_longform_continuity_and_lobby`
+    - `_test_phase3_world_memory_and_civilization_market_persistence`
+    - `_test_phase4_world_memory_encounter_persistence`
+    - `_test_phase5_world_aftermath_owner_boundary`
+    - `_test_phase5_world_aftermath_persistence`
+    - `_test_phase5_world_aftermath_shape_contract`
+    - `_test_phase8_quiet_play_diagnostics_and_safety`
+    - `_test_phase8_legacy_reentry_continuity_surfaces`
+    - `_test_phase9_forensic_bundle_hardening_contract`
+    - `_test_phase9_forensic_bundle_extension_consistency`
+    - `_test_phase9_profile_forensic_persistence_and_world_memory_hash`
+  - exact repo-truth conclusion:
+    - governance/civilization/contradiction/cookbook seams are already live
+    - distributed meta-dynamics coverage is already materially present across existing owners
+    - world-memory/archive/crawl/legacy continuity is already live
+    - forensic carryover and persistence are already live on the one replay/forensic path
+  - execution action taken:
+    - recorded Wave 4 certification in `docs/TESTING.md`, `docs/NEXT_WAVE_EXECUTION_ARTIFACT_INDEX.md`, and this progress entry
+
+- Wave 5 execution:
+  - subwaves `5A` and `5B` were audited against tracked code/tests from the current repo state
+  - result: already materially satisfied on the current owner tree
+  - proof basis:
+    - `_test_product_catalog_and_profile_progression`
+    - `_test_product_shell_deepening_helpers`
+    - `_test_product_shell_reconnect_history_and_voice_helpers`
+    - `_test_shell_explainability_tightening`
+    - `_test_phase6_shell_proof_fast_path`
+    - `_test_lobby_shell_scene_contract`
+    - `_test_multimodal_contract_non_authority`
+  - exact repo-truth conclusion:
+    - shell explainability and public-safe meaning compression are already live
+    - the unified shell final contract is already live and singular
+  - execution action taken:
+    - recorded Wave 5 certification in `docs/TESTING.md`, `docs/NEXT_WAVE_EXECUTION_ARTIFACT_INDEX.md`, and this progress entry
+
+- Wave 6 execution:
+  - subwaves `6A` and `6B` were executed as final certification work
+  - result: completed in this pass
+  - exact certification actions:
+    - reran `./scripts/run_tests.ps1`
+    - reran `./scripts/run_headless_proof.ps1`
+    - updated testing/artifact/progress truth so wave satisfaction is no longer implicit
+  - exact repo-truth conclusion:
+    - proof freeze and execution-artifact certification are satisfied
+    - doc-truth closure now explicitly records Waves 2-6 as satisfied on the existing owner tree
+
+- Validation results for the Waves 2-6 continuation pass:
+  - `./scripts/run_tests.ps1` -> passed on `2026-03-19`
+  - `./scripts/run_headless_proof.ps1` -> passed on `2026-03-19`
+  - proof seed: `1337`
+  - proof result: `RUN_VERIFY ok=true`
+  - report diff: `REPORT_DIFF ok=true mismatches=0`
+
+- Closing truth note:
+  - Waves 2-5 required certification rather than fresh runtime implementation because the tracked repo had already materially satisfied their exit criteria
+  - Wave 6 was completed in this pass through explicit proof reruns plus wave-level artifact/progress truth closure
