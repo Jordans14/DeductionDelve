@@ -122,6 +122,9 @@ var profile_settings: Dictionary = {}
 var equipped_notebook_theme_id: String = ""
 var equipped_banner_id: String = ""
 var equipped_title_id: String = ""
+var profile_normalization_mode: String = "default"
+var equipped_modulation_loadout: Array[Dictionary] = []
+var profile_governance_state: Dictionary = {}
 var visual_governance: RefCounted = VISUAL_GOVERNANCE_SCRIPT.new()
 
 func _ready() -> void:
@@ -219,12 +222,16 @@ func _ready() -> void:
 	print("GAME_READY pid=%d" % OS.get_process_id())
 
 func _load_profile_preferences() -> void:
-	var profile := PROFILE_SERVICE_SCRIPT.load_profile()
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.load_profile(PROFILE_SERVICE_SCRIPT.SAVE_PATH, catalog)
 	profile_settings = Dictionary(profile.get("settings", {})).duplicate(true)
 	var equipped: Dictionary = Dictionary(Dictionary(profile.get("cosmetics", {})).get("equipped", {}))
 	equipped_notebook_theme_id = str(equipped.get("notebook_theme", ""))
 	equipped_banner_id = str(equipped.get("banner", ""))
 	equipped_title_id = str(equipped.get("title", ""))
+	profile_normalization_mode = PROFILE_SERVICE_SCRIPT.current_normalization_mode(profile, catalog)
+	equipped_modulation_loadout = PROFILE_SERVICE_SCRIPT.build_equipped_modulation_loadout(profile, catalog)
+	profile_governance_state = GOVERNANCE_SERVICE_SCRIPT.normalize(Dictionary(profile.get("governance_state", {})))
 
 func _build_panel_theme(background: Color, border: Color) -> Theme:
 	var theme := Theme.new()
@@ -866,6 +873,10 @@ func build_run_guidance_packet_for_test(public_summary: Dictionary, branch_conte
 		focus_lines.append("Role caution: %s" % caution_line)
 	if not affordance_tags.is_empty():
 		focus_lines.append("Role affordances: %s" % ", ".join(affordance_tags.slice(0, 3)))
+	var signal_focus_lines := _signal_focus_lines_from_summary(public_summary)
+	var modulation_state := _apply_phase2_guidance_modulation(signal_focus_lines, runtime_state)
+	if not str(modulation_state.get("focus_line", "")).strip_edges().is_empty():
+		focus_lines.insert(0, "Signal focus: %s" % str(modulation_state.get("focus_line", "")))
 	var carrying_artifact := bool(runtime_state.get("carrying_artifact", false))
 	var extraction_active := bool(runtime_state.get("extraction_active", false))
 	var ghost_target_local := bool(runtime_state.get("ghost_target_local", false))
@@ -900,7 +911,10 @@ func build_run_guidance_packet_for_test(public_summary: Dictionary, branch_conte
 	return {
 		"run_kind_line": " / ".join(run_parts),
 		"focus_lines": focus_lines,
-		"action_tip": action_tip
+		"action_tip": action_tip,
+		"signal_focus_lane": str(modulation_state.get("selected_lane", "")),
+		"normalization_mode": str(runtime_state.get("normalization_mode", "default")),
+		"suppressed_modulation_count": int(runtime_state.get("suppressed_modulation_count", 0))
 	}
 
 func _build_run_guidance_packet() -> Dictionary:
@@ -932,9 +946,42 @@ func _build_run_guidance_packet() -> Dictionary:
 		"predator_active": bool(predator_snapshot.get("active", false)),
 		"predator_target_local": int(predator_snapshot.get("target_peer_id", -1)) == _local_peer_id(),
 		"protocol_watch_active": bool(protocol_watch_snapshot.get("active", false)),
-		"protocol_watch_target_local": int(protocol_watch_snapshot.get("target_peer_id", -1)) == _local_peer_id()
+		"protocol_watch_target_local": int(protocol_watch_snapshot.get("target_peer_id", -1)) == _local_peer_id(),
+		"normalization_mode": profile_normalization_mode,
+		"equipped_modulation_loadout": equipped_modulation_loadout.duplicate(true),
+		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(equipped_modulation_loadout)
 	}
 	return build_run_guidance_packet_for_test(public_summary, branch_context, _local_role_payload(), runtime_state)
+
+func _signal_focus_lines_from_summary(public_summary: Dictionary) -> Dictionary:
+	return {
+		"immediate": str(Array(public_summary.get("explanation_immediate_lines", []))[0]).strip_edges() if not Array(public_summary.get("explanation_immediate_lines", [])).is_empty() else "",
+		"run": str(Array(public_summary.get("explanation_run_lines", []))[0]).strip_edges() if not Array(public_summary.get("explanation_run_lines", [])).is_empty() else "",
+		"meta": str(Array(public_summary.get("explanation_meta_lines", []))[0]).strip_edges() if not Array(public_summary.get("explanation_meta_lines", [])).is_empty() else ""
+	}
+
+func _apply_phase2_guidance_modulation(signal_focus_lines: Dictionary, runtime_state: Dictionary) -> Dictionary:
+	var normalization_mode := PRODUCT_CATALOG_SCRIPT.normalize_normalization_mode(str(runtime_state.get("normalization_mode", "default")))
+	var loadout: Array = Array(runtime_state.get("equipped_modulation_loadout", []))
+	var preferred_lane := ""
+	if normalization_mode == "default":
+		for entry_raw in loadout:
+			var entry: Dictionary = Dictionary(entry_raw)
+			if str(entry.get("allowed_axis", "")).strip_edges() != "explanation_lane_bias":
+				continue
+			preferred_lane = str(entry.get("preferred_explanation_lane", "")).strip_edges()
+			if not preferred_lane.is_empty():
+				break
+	var selected_lane := preferred_lane if signal_focus_lines.has(preferred_lane) and not str(signal_focus_lines.get(preferred_lane, "")).strip_edges().is_empty() else ""
+	if selected_lane.is_empty():
+		for lane_key in ["immediate", "run", "meta"]:
+			if not str(signal_focus_lines.get(lane_key, "")).strip_edges().is_empty():
+				selected_lane = lane_key
+				break
+	return {
+		"selected_lane": selected_lane,
+		"focus_line": str(signal_focus_lines.get(selected_lane, "")).strip_edges()
+	}
 
 func _on_hazard_pulse_requested(room_slot: int, _source_peer_id: int, reason: String) -> void:
 	if room_builder and room_builder.has_method("flash_hazard_indicator"):
@@ -2132,6 +2179,18 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 	var expedition_constitution: Dictionary = Dictionary(RunState.expedition_constitution).duplicate(true) if RunState != null else {}
 	var activation_state: Dictionary = Dictionary(expedition_constitution.get("activation_state", {})).duplicate(true)
 	var explanation_packet: Dictionary = Dictionary(expedition_constitution.get("explanation_packet", {})).duplicate(true)
+	var encounter_manifest: Dictionary = Dictionary(expedition_constitution.get("encounter_manifest", {})).duplicate(true)
+	var pathology_profile: Dictionary = Dictionary(expedition_constitution.get("pathology_profile", {})).duplicate(true)
+	var pathology_state: Dictionary = Dictionary(RunState.pathology_state if RunState != null else expedition_constitution.get("pathology_state", {})).duplicate(true)
+	var active_encounter_state: Dictionary = Dictionary(RunState.active_encounter_state if RunState != null else {}).duplicate(true)
+	var encounter_history: Array = Array(RunState.encounter_history if RunState != null else []).duplicate(true)
+	var apex_framework_profile: Dictionary = Dictionary(expedition_constitution.get("apex_framework_profile", {})).duplicate(true)
+	var apex_manifest: Dictionary = Dictionary(expedition_constitution.get("apex_manifest", {})).duplicate(true)
+	var peak_structure_profile: Dictionary = Dictionary(expedition_constitution.get("peak_structure_profile", {})).duplicate(true)
+	var active_apex_state: Dictionary = Dictionary(RunState.active_apex_state if RunState != null else {}).duplicate(true)
+	var apex_history: Array = Array(RunState.apex_history if RunState != null else []).duplicate(true)
+	var local_aftermath: Dictionary = Dictionary(RunState.local_aftermath if RunState != null else {}).duplicate(true)
+	var world_aftermath_refs := _build_world_aftermath_refs(local_aftermath, active_apex_state, expedition_constitution_summary)
 	if explanation_packet.is_empty():
 		explanation_packet = GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
 			{
@@ -2142,22 +2201,54 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 			Array(expedition_constitution_summary.get("review_surface_lines", [])),
 			["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
 		)
+	var governance_state_for_bundle := Dictionary(profile_governance_state).duplicate(true)
+	governance_state_for_bundle["activation_state"] = activation_state.duplicate(true)
+	governance_state_for_bundle["safe_mode_state"] = {
+		"enabled": bool(expedition_constitution_summary.get("safe_mode_active", false)),
+		"reason": _first_string(expedition_constitution_summary.get("safe_mode_lines", []), ""),
+		"summary_lines": Array(expedition_constitution_summary.get("safe_mode_lines", [])).duplicate(true)
+	}
 	var governance_hook_set := GOVERNANCE_SERVICE_SCRIPT.build_governance_hook_set(
-		{
-			"activation_state": activation_state,
-			"safe_mode_state": Dictionary(activation_state.get("safe_mode_state", {})).duplicate(true)
-		},
+		governance_state_for_bundle,
 		expedition_constitution_summary,
 		explanation_packet
 	)
+	var governance_action_snapshot := GOVERNANCE_SERVICE_SCRIPT.build_forensic_action_snapshot(governance_state_for_bundle)
+	var experiment_outcomes := {
+		"manifested_experiment_ids": live_experiment_ids.duplicate(),
+		"live_experiment_ids": live_experiment_ids.duplicate(),
+		"live_hypothesis_ids": live_hypothesis_ids.duplicate()
+	}
+	var phase9_extensions := {
+		"active_regime_ids": _string_array(expedition_constitution_summary.get("active_regime_ids", [])),
+		"active_lifecycle_state_ids": _string_array(expedition_constitution_summary.get("lifecycle_state_ids", [])),
+		"encounter_manifest": encounter_manifest.duplicate(true),
+		"apex_manifest": apex_manifest.duplicate(true),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"governance_action_snapshot": governance_action_snapshot.duplicate(true),
+		"experiment_outcomes": experiment_outcomes.duplicate(true)
+	}
 	var run_seed := int(end_payload.get("seed", RunState.run_seed))
 	var replay_identity := _build_replay_identity(run_seed, constitution_hash, mutation_replay_signature)
+	var normalization_mode := profile_normalization_mode
+	var modulation_loadout: Array = equipped_modulation_loadout.duplicate(true)
 	var telemetry_summary := _build_telemetry_summary(
 		timeline_public_events,
 		timeline_private_events,
 		explanation_packet,
 		governance_hook_set,
-		replay_identity
+		replay_identity,
+		normalization_mode,
+		modulation_loadout,
+		active_encounter_state,
+		pathology_state,
+		encounter_history,
+		active_apex_state,
+		apex_history,
+		local_aftermath,
+		world_aftermath_refs,
+		phase9_extensions
 	)
 	var forensic_bundle := _build_forensic_bundle(
 		run_seed,
@@ -2165,7 +2256,28 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		expedition_constitution_summary,
 		explanation_packet,
 		governance_hook_set,
-		mutation_replay_signature
+		mutation_replay_signature,
+		EventLog,
+		normalization_mode,
+		modulation_loadout,
+		{
+			"encounter_manifest": encounter_manifest.duplicate(true),
+			"pathology_profile": pathology_profile.duplicate(true),
+			"pathology_state": pathology_state.duplicate(true),
+			"active_encounter_state": active_encounter_state.duplicate(true),
+			"encounter_history": encounter_history.duplicate(true),
+			"apex_framework_profile": apex_framework_profile.duplicate(true),
+			"apex_manifest": apex_manifest.duplicate(true),
+			"peak_structure_profile": peak_structure_profile.duplicate(true),
+			"active_apex_state": active_apex_state.duplicate(true),
+			"apex_history": apex_history.duplicate(true),
+			"local_aftermath": local_aftermath.duplicate(true),
+			"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+			"active_regime_ids": _string_array(expedition_constitution_summary.get("active_regime_ids", [])),
+			"active_lifecycle_state_ids": _string_array(expedition_constitution_summary.get("lifecycle_state_ids", [])),
+			"governance_action_snapshot": governance_action_snapshot.duplicate(true),
+			"experiment_outcomes": experiment_outcomes.duplicate(true)
+		}
 	)
 	if RunState != null:
 		RunState.replay_identity = replay_identity.duplicate(true)
@@ -2203,9 +2315,25 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"narrative_motion_facts": motion_facts,
 		"gameplay_signal_snapshot": gameplay_signal_snapshot,
 		"constitution_hash": constitution_hash,
+		"normalization_mode": normalization_mode,
+		"equipped_modulation_loadout": modulation_loadout.duplicate(true),
 		"replay_identity": replay_identity.duplicate(true),
 		"telemetry_summary": telemetry_summary.duplicate(true),
 		"forensic_bundle": forensic_bundle.duplicate(true),
+		"encounter_manifest": encounter_manifest.duplicate(true),
+		"pathology_profile": pathology_profile.duplicate(true),
+		"pathology_state": pathology_state.duplicate(true),
+		"active_encounter_state": active_encounter_state.duplicate(true),
+		"encounter_history": encounter_history.duplicate(true),
+		"apex_framework_profile": apex_framework_profile.duplicate(true),
+		"apex_manifest": apex_manifest.duplicate(true),
+		"peak_structure_profile": peak_structure_profile.duplicate(true),
+		"active_apex_state": active_apex_state.duplicate(true),
+		"apex_history": apex_history.duplicate(true),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"governance_action_snapshot": governance_action_snapshot.duplicate(true),
+		"experiment_outcomes": experiment_outcomes.duplicate(true),
 		"manifested_experiment_ids": live_experiment_ids.duplicate(),
 		"live_experiment_ids": live_experiment_ids.duplicate(),
 		"live_hypothesis_ids": live_hypothesis_ids.duplicate(),
@@ -2221,7 +2349,7 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"session_reconnect_ready": bool(reconnect_offer.get("available", false))
 	}
 
-func build_forensic_bundle_for_test(seed_value: int, constitution_hash: String, constitution_summary: Dictionary, event_log: Node, mutation_history: Array, normalization_mode: String = "default") -> Dictionary:
+func build_forensic_bundle_for_test(seed_value: int, constitution_hash: String, constitution_summary: Dictionary, event_log: Node, mutation_history: Array, normalization_mode: String = "default", phase_extensions: Dictionary = {}, governance_state: Dictionary = {}, modulation_loadout: Array = []) -> Dictionary:
 	var explanation_packet: Dictionary = GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
 		{
 			"artifact_type": "expedition_constitution",
@@ -2231,8 +2359,9 @@ func build_forensic_bundle_for_test(seed_value: int, constitution_hash: String, 
 		Array(constitution_summary.get("review_surface_lines", [])),
 		["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"]
 	)
-	var governance_hook_set := GOVERNANCE_SERVICE_SCRIPT.build_governance_hook_set(
-		{
+	var governance_state_for_bundle := Dictionary(governance_state).duplicate(true)
+	if governance_state_for_bundle.is_empty():
+		governance_state_for_bundle = {
 			"activation_state": {
 				"epoch": str(constitution_summary.get("activation_epoch", "inactive")),
 				"active_channels": Array(constitution_summary.get("activation_active_channels", [])).duplicate(true),
@@ -2244,7 +2373,9 @@ func build_forensic_bundle_for_test(seed_value: int, constitution_hash: String, 
 				"enabled": bool(constitution_summary.get("safe_mode_active", false)),
 				"summary_lines": Array(constitution_summary.get("safe_mode_lines", [])).duplicate(true)
 			}
-		},
+		}
+	var governance_hook_set := GOVERNANCE_SERVICE_SCRIPT.build_governance_hook_set(
+		governance_state_for_bundle,
 		constitution_summary,
 		explanation_packet
 	)
@@ -2257,7 +2388,9 @@ func build_forensic_bundle_for_test(seed_value: int, constitution_hash: String, 
 		governance_hook_set,
 		mutation_replay_signature,
 		event_log,
-		normalization_mode
+		normalization_mode,
+		Array(modulation_loadout).duplicate(true),
+		phase_extensions
 	)
 
 func _build_replay_identity(run_seed: int, constitution_hash: String, mutation_replay_signature: String, event_log: Node = null) -> Dictionary:
@@ -2280,8 +2413,21 @@ func _build_telemetry_summary(
 	timeline_private_events: Array,
 	explanation_packet: Dictionary,
 	governance_hook_set: Dictionary,
-	replay_identity: Dictionary
+	replay_identity: Dictionary,
+	normalization_mode: String = "default",
+	modulation_loadout: Array = [],
+	active_encounter_state: Dictionary = {},
+	pathology_state: Dictionary = {},
+	encounter_history: Array = [],
+	active_apex_state: Dictionary = {},
+	apex_history: Array = [],
+	local_aftermath: Dictionary = {},
+	world_aftermath_refs: Array = [],
+	phase9_extensions: Dictionary = {}
 ) -> Dictionary:
+	var governance_action_snapshot: Dictionary = Dictionary(phase9_extensions.get("governance_action_snapshot", {})).duplicate(true)
+	var encounter_manifest: Dictionary = Dictionary(phase9_extensions.get("encounter_manifest", {})).duplicate(true)
+	var apex_manifest: Dictionary = Dictionary(phase9_extensions.get("apex_manifest", {})).duplicate(true)
 	return {
 		"schema_name": "TelemetrySummary",
 		"schema_version": 1,
@@ -2294,7 +2440,25 @@ func _build_telemetry_summary(
 		"timeline_digest": str(replay_identity.get("timeline_digest", "")).strip_edges(),
 		"safe_mode_active": bool(governance_hook_set.get("safe_mode_active", false)),
 		"active_channel_count": Array(governance_hook_set.get("active_channels", [])).size(),
-		"drop_counts": Dictionary(Dictionary(explanation_packet.get("compression_profile", {})).get("drop_counts", {})).duplicate(true)
+		"drop_counts": Dictionary(Dictionary(explanation_packet.get("compression_profile", {})).get("drop_counts", {})).duplicate(true),
+		"normalization_mode": normalization_mode,
+		"equivalence_class_ids": PRODUCT_CATALOG_SCRIPT.equivalence_class_ids_for_loadout(modulation_loadout),
+		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(modulation_loadout),
+		"active_encounter_id": str(active_encounter_state.get("encounter_id", "")).strip_edges(),
+		"active_pathology_count": Array(pathology_state.get("active_family_ids", [])).size(),
+		"encounter_history_count": encounter_history.size(),
+		"active_regime_ids": _string_array(phase9_extensions.get("active_regime_ids", [])),
+		"active_lifecycle_state_ids": _string_array(phase9_extensions.get("active_lifecycle_state_ids", [])),
+		"encounter_manifest_ids": _string_array(encounter_manifest.get("encounter_ids", encounter_manifest.get("manifest_ids", []))),
+		"active_apex_id": str(active_apex_state.get("apex_id", "")).strip_edges(),
+		"apex_history_count": apex_history.size(),
+		"apex_manifest_ids": _string_array(apex_manifest.get("apex_ids", apex_manifest.get("manifest_ids", []))),
+		"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
+		"world_aftermath_count": world_aftermath_refs.size(),
+		"fairness_trigger_ids": _string_array(governance_action_snapshot.get("fairness_triggers", [])),
+		"dignity_trigger_ids": _string_array(governance_action_snapshot.get("dignity_triggers", [])),
+		"rollback_action": Dictionary(governance_action_snapshot.get("rollback_action", {})).duplicate(true),
+		"quarantine_action": Dictionary(governance_action_snapshot.get("quarantine_action", {})).duplicate(true)
 	}
 
 func _build_forensic_bundle(
@@ -2305,7 +2469,9 @@ func _build_forensic_bundle(
 	governance_hook_set: Dictionary,
 	mutation_replay_signature: String,
 	event_log: Node = null,
-	normalization_mode: String = "default"
+	normalization_mode: String = "default",
+	modulation_loadout: Array = [],
+	phase_extensions: Dictionary = {}
 ) -> Dictionary:
 	if event_log == null:
 		event_log = EventLog
@@ -2320,6 +2486,11 @@ func _build_forensic_bundle(
 		constitution_hash,
 		str(constitution_summary.get("constitution_version", constitution_summary.get("schema_version", ""))).strip_edges()
 	]
+	var normalized_modulation_loadout := Array(modulation_loadout).duplicate(true)
+	var top_encounter_manifest := Dictionary(phase_extensions.get("encounter_manifest", {})).duplicate(true)
+	var top_apex_manifest := Dictionary(phase_extensions.get("apex_manifest", {})).duplicate(true)
+	var top_local_aftermath := Dictionary(phase_extensions.get("local_aftermath", {})).duplicate(true)
+	var top_world_aftermath_refs := Array(phase_extensions.get("world_aftermath_refs", [])).duplicate(true)
 	var bundle := {
 		"schema_name": "ForensicBundleV1",
 		"bundle_schema_version": 1,
@@ -2337,12 +2508,72 @@ func _build_forensic_bundle(
 		"normalization_mode": normalization_mode,
 		"governance_hook_set": governance_hook_set.duplicate(true),
 		"explanation_packet_digest": str(explanation_packet.get("packet_digest", "")).strip_edges(),
-		"bundle_extensions": {}
+		"active_regime_ids": _string_array(phase_extensions.get("active_regime_ids", constitution_summary.get("active_regime_ids", []))),
+		"active_lifecycle_state_ids": _string_array(phase_extensions.get("active_lifecycle_state_ids", constitution_summary.get("lifecycle_state_ids", []))),
+		"equipped_modulation_loadout": normalized_modulation_loadout.duplicate(true),
+		"encounter_manifest": top_encounter_manifest.duplicate(true),
+		"apex_manifest": top_apex_manifest.duplicate(true),
+		"local_aftermath": top_local_aftermath.duplicate(true),
+		"world_aftermath_refs": top_world_aftermath_refs.duplicate(true),
+		"explanation_packet_outputs": {
+			"packet_id": str(explanation_packet.get("packet_id", "")).strip_edges(),
+			"packet_digest": str(explanation_packet.get("packet_digest", "")).strip_edges(),
+			"summary_lines": _string_array(explanation_packet.get("summary_lines", [])),
+			"operator_lines": _string_array(explanation_packet.get("operator_lines", [])),
+			"immediate_lines": _explanation_packet_lane_lines(Array(explanation_packet.get("immediate", []))),
+			"run_lines": _explanation_packet_lane_lines(Array(explanation_packet.get("run", []))),
+			"meta_lines": _explanation_packet_lane_lines(Array(explanation_packet.get("meta", [])))
+		},
+		"fairness_triggers": _string_array(Dictionary(phase_extensions.get("governance_action_snapshot", {})).get("fairness_triggers", [])),
+		"dignity_triggers": _string_array(Dictionary(phase_extensions.get("governance_action_snapshot", {})).get("dignity_triggers", [])),
+		"dominant_strategy_strain": Dictionary(Dictionary(phase_extensions.get("governance_action_snapshot", {})).get("dominant_strategy_strain", {})).duplicate(true),
+		"experiment_outcomes": Dictionary(phase_extensions.get("experiment_outcomes", {})).duplicate(true),
+		"rollback_action": Dictionary(Dictionary(phase_extensions.get("governance_action_snapshot", {})).get("rollback_action", {})).duplicate(true),
+		"quarantine_action": Dictionary(Dictionary(phase_extensions.get("governance_action_snapshot", {})).get("quarantine_action", {})).duplicate(true),
+		"bundle_extensions": {
+			"phase2_cosmetic_modulation": {
+				"equipped_modulation_loadout": normalized_modulation_loadout.duplicate(true),
+				"equivalence_class_ids": PRODUCT_CATALOG_SCRIPT.equivalence_class_ids_for_loadout(normalized_modulation_loadout),
+				"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(normalized_modulation_loadout)
+			},
+			"phase4_encounter_language": {
+				"encounter_manifest_ids": _string_array(constitution_summary.get("encounter_manifest_ids", [])),
+				"encounter_intent_ids": _string_array(constitution_summary.get("encounter_intent_ids", [])),
+				"encounter_topology_ids": _string_array(constitution_summary.get("encounter_topology_ids", [])),
+				"active_pathology_ids": _string_array(Dictionary(phase_extensions.get("pathology_state", {})).get("active_family_ids", constitution_summary.get("active_pathology_ids", []))),
+				"active_encounter_state": Dictionary(phase_extensions.get("active_encounter_state", {})).duplicate(true),
+				"encounter_history": Array(phase_extensions.get("encounter_history", [])).duplicate(true),
+				"encounter_manifest": top_encounter_manifest.duplicate(true),
+				"pathology_profile": Dictionary(phase_extensions.get("pathology_profile", {})).duplicate(true),
+				"pathology_state": Dictionary(phase_extensions.get("pathology_state", {})).duplicate(true)
+			},
+			"phase5_apex_aftermath": {
+				"apex_manifest_ids": _string_array(constitution_summary.get("apex_manifest_ids", [])),
+				"apex_class_ids": _string_array(constitution_summary.get("apex_class_ids", [])),
+				"apex_framework_profile": Dictionary(phase_extensions.get("apex_framework_profile", {})).duplicate(true),
+				"apex_manifest": top_apex_manifest.duplicate(true),
+				"peak_structure_profile": Dictionary(phase_extensions.get("peak_structure_profile", {})).duplicate(true),
+				"active_apex_state": Dictionary(phase_extensions.get("active_apex_state", {})).duplicate(true),
+				"apex_history": Array(phase_extensions.get("apex_history", [])).duplicate(true),
+				"local_aftermath": top_local_aftermath.duplicate(true),
+				"world_aftermath_refs": top_world_aftermath_refs.duplicate(true)
+			}
+		}
 	}
 	var digest_source := bundle.duplicate(true)
 	digest_source.erase("bundle_digest")
 	bundle["bundle_digest"] = _canonical_bundle_string(digest_source).md5_text()
 	return bundle
+
+func _explanation_packet_lane_lines(entries: Array) -> Array[String]:
+	var result: Array[String] = []
+	for entry_raw in entries:
+		var entry: Dictionary = Dictionary(entry_raw)
+		for field in ["trigger", "escalation", "consequence", "interpretation"]:
+			var line := str(entry.get(field, "")).strip_edges()
+			if not line.is_empty() and not result.has(line):
+				result.append(line)
+	return result
 
 func _canonical_bundle_string(value: Variant) -> String:
 	match typeof(value):
@@ -2368,6 +2599,32 @@ func _canonical_bundle_string(value: Variant) -> String:
 			return JSON.stringify(value)
 		_:
 			return str(value)
+
+func _build_world_aftermath_refs(local_aftermath: Dictionary, active_apex_state: Dictionary, constitution_summary: Dictionary) -> Array:
+	if local_aftermath.is_empty():
+		return []
+	var source_id := str(local_aftermath.get("source_id", "")).strip_edges()
+	var apex_id := str(active_apex_state.get("apex_id", source_id)).strip_edges()
+	var source_kind := str(local_aftermath.get("source_kind", "encounter")).strip_edges()
+	var tags := _string_array(local_aftermath.get("narrative_residue_tags", []))
+	var return_pressure_tags := _string_array(local_aftermath.get("residual_telegraph_tags", []))
+	var route_state := str(local_aftermath.get("immediate_route_state", "")).strip_edges()
+	var successor_hint_ids := _string_array(constitution_summary.get("apex_class_ids", []))
+	return [
+		{
+			"schema_name": "WorldAftermathRef",
+			"schema_version": 1,
+			"aftermath_id": "world_aftermath_%s" % source_id,
+			"source_id": source_id,
+			"source_kind": source_kind,
+			"apex_id": apex_id,
+			"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
+			"continuity_seed_tags": tags.slice(0, 3),
+			"return_pressure_tags": return_pressure_tags.slice(0, 4),
+			"route_state_hint": route_state,
+			"successor_hint_ids": successor_hint_ids.slice(0, 4)
+		}
+	]
 
 func _record_narrative_sample() -> void:
 	if tick_counter % NARRATIVE_SAMPLE_INTERVAL_TICKS != 0:
@@ -3165,6 +3422,12 @@ func _string_array(values: Variant) -> Array[String]:
 			if not text.is_empty() and not result.has(text):
 				result.append(text)
 	return result
+
+func _first_string(values: Variant, fallback: String = "") -> String:
+	var strings := _string_array(values)
+	if not strings.is_empty():
+		return strings[0]
+	return fallback
 
 func _build_run_stats(event_log: Node, local_peer_id: int) -> Dictionary:
 	var stats := {

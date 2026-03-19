@@ -188,7 +188,12 @@ static func _build_public_meta(trigger_type: String, trigger_context: Dictionary
 			return {
 				"species_id": str(trigger_context.get("species_id", "")),
 				"room_slot": int(trigger_context.get("room_slot", -1)),
-				"mode": str(trigger_context.get("mode", ""))
+				"mode": str(trigger_context.get("mode", "")),
+				"encounter_id": str(trigger_context.get("encounter_id", "")),
+				"intent_id": str(trigger_context.get("intent_id", "")),
+				"topology_id": str(trigger_context.get("topology_id", "")),
+				"anchored_pressures": _string_array(trigger_context.get("anchored_pressures", [])),
+				"pathology_family_ids": _string_array(trigger_context.get("pathology_family_ids", []))
 			}
 		"covenant_activated":
 			return {
@@ -234,8 +239,13 @@ static func _truth_state_delta_for_trigger(trigger_type: String, trigger_context
 			}
 		"species_escalation":
 			return {
-				"public_trace_classes": ["pressure_ecology", str(trigger_context.get("species_id", "")).strip_edges()],
-				"private_trace_classes": ["escalation"]
+				"public_trace_classes": _string_array(
+					["pressure_ecology", str(trigger_context.get("species_id", "")).strip_edges()]
+					+ _string_array(trigger_context.get("anchored_pressures", []))
+				),
+				"private_trace_classes": _string_array(
+					["escalation", str(trigger_context.get("intent_id", "")).strip_edges(), str(trigger_context.get("topology_id", "")).strip_edges()]
+				)
 			}
 		"covenant_activated":
 			return {
@@ -258,8 +268,11 @@ static func _surface_label_for_entry(trigger_type: String, public_meta: Dictiona
 		"species_escalation":
 			var species_id := str(public_meta.get("species_id", "")).strip_edges()
 			var mode := str(public_meta.get("mode", "")).strip_edges()
+			var encounter_id := str(public_meta.get("encounter_id", "")).strip_edges()
 			if species_id.is_empty():
 				return ""
+			if not encounter_id.is_empty():
+				return "%s:%s" % [species_id, encounter_id]
 			return "%s:%s" % [species_id, mode] if not mode.is_empty() else species_id
 		"covenant_activated", "transformation_threshold_crossed":
 			return str(public_meta.get("item_def_id", "")).strip_edges()

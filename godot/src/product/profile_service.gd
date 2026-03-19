@@ -9,6 +9,7 @@ const CRAWL_SERVICE_SCRIPT = preload("res://src/product/crawl_service.gd")
 const FRAMING_SERVICE_SCRIPT = preload("res://src/product/framing_service.gd")
 const ARCHIVE_SERVICE_SCRIPT = preload("res://src/product/archive_service.gd")
 const WORLD_MEMORY_SERVICE_SCRIPT = preload("res://src/product/world_memory_service.gd")
+const CIVILIZATION_STATE_SERVICE_SCRIPT = preload("res://src/product/civilization_state_service.gd")
 const WORDING_GUARD_SCRIPT = preload("res://src/product/narrative_wording_guard.gd")
 const PROFILE_PERSISTENCE_SCRIPT = preload("res://src/product/profile_persistence.gd")
 const PROFILE_PROGRESSION_SCRIPT = preload("res://src/product/profile_progression.gd")
@@ -49,6 +50,7 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 	var mastery_defaults := {}
 	for role_name in ROLE_SERVICE_SCRIPT.new().all_role_names():
 		mastery_defaults[role_name] = {"xp": 0, "level": 1, "runs": 0, "wins": 0}
+	var default_equipped: Dictionary = PRODUCT_CATALOG_SCRIPT.default_equipped(current_catalog)
 	return {
 		"schema_version": 3,
 		"account": {
@@ -78,8 +80,10 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 		},
 		"cosmetics": {
 			"owned": PRODUCT_CATALOG_SCRIPT.starter_owned_ids(current_catalog),
-			"equipped": PRODUCT_CATALOG_SCRIPT.default_equipped(current_catalog)
+			"equipped": default_equipped
 		},
+		"normalization_mode": "default",
+		"equipped_modulation_loadout": PRODUCT_CATALOG_SCRIPT.modulation_loadout_for_equipped(default_equipped, "default", current_catalog),
 		"achievements": {
 			"unlocked": [],
 			"last_unlocked": []
@@ -107,6 +111,8 @@ static func _base_default_profile(current_catalog: Dictionary) -> Dictionary:
 		"world_memory": WORLD_MEMORY_SERVICE_SCRIPT.default_state(),
 		"cookbook_state": _normalize_cookbook_state({}),
 		"governance_state": GOVERNANCE_SERVICE_SCRIPT.default_state(),
+		"legacy_tracks": [],
+		"reentry_hooks": [],
 		"narrative_progress": {
 			"layer": "public",
 			"core_reached": false,
@@ -185,6 +191,12 @@ static func normalize_profile(profile: Dictionary, catalog: Dictionary = {}) -> 
 		equipped[str(slot)] = str(Dictionary(cosmetics.get("equipped", {})).get(slot, ""))
 	cosmetics["equipped"] = equipped
 	normalized["cosmetics"] = cosmetics
+	normalized["normalization_mode"] = PRODUCT_CATALOG_SCRIPT.normalize_normalization_mode(str(normalized.get("normalization_mode", "default")), current_catalog)
+	normalized["equipped_modulation_loadout"] = PRODUCT_CATALOG_SCRIPT.modulation_loadout_for_equipped(
+		equipped,
+		str(normalized.get("normalization_mode", "default")),
+		current_catalog
+	)
 
 	var achievements_defaults: Dictionary = _base_default_profile(current_catalog).get("achievements", {})
 	var achievements: Dictionary = Dictionary(normalized.get("achievements", {}))
@@ -211,6 +223,8 @@ static func normalize_profile(profile: Dictionary, catalog: Dictionary = {}) -> 
 	normalized["world_memory"] = WORLD_MEMORY_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("world_memory", {})))
 	normalized["cookbook_state"] = _normalize_cookbook_state(Dictionary(normalized.get("cookbook_state", {})))
 	normalized["governance_state"] = GOVERNANCE_SERVICE_SCRIPT.normalize(Dictionary(normalized.get("governance_state", {})))
+	normalized["legacy_tracks"] = _normalize_legacy_tracks(Array(normalized.get("legacy_tracks", [])))
+	normalized["reentry_hooks"] = _normalize_reentry_hooks(Array(normalized.get("reentry_hooks", [])))
 	CRAWL_SERVICE_SCRIPT.normalize_profile_fields(normalized)
 	normalized["schema_version"] = 3
 	normalized["first_run_pending"] = bool(normalized.get("first_run_pending", true))
@@ -312,6 +326,17 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	)
 	next_profile["delvemind_experiment_state"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(experiment_state)
 	var crawl_result := CRAWL_SERVICE_SCRIPT.apply_run(next_profile, run_record, diagnostics, frame)
+	var continuity_world_aftermath_refs := CIVILIZATION_STATE_SERVICE_SCRIPT.build_world_aftermath_records({
+		"profile": next_profile,
+		"run_record": run_record,
+		"diagnostics": diagnostics,
+		"frame": frame,
+		"crawl_packet": Dictionary(crawl_result.get("crawl_packet", {}))
+	})
+	var legacy_track := _build_phase8_legacy_track(run_record, diagnostics, frame, Dictionary(crawl_result.get("crawl_packet", {})), continuity_world_aftermath_refs)
+	var reentry_hook := _build_phase8_reentry_hook(run_record, diagnostics, frame, legacy_track)
+	next_profile["legacy_tracks"] = _merge_front_dictionary_entries(Array(next_profile.get("legacy_tracks", [])), legacy_track, "track_id", 18)
+	next_profile["reentry_hooks"] = _merge_front_dictionary_entries(Array(next_profile.get("reentry_hooks", [])), reentry_hook, "hook_id", 18)
 	next_profile["cookbook_state"] = _advance_cookbook_state(
 		Dictionary(next_profile.get("cookbook_state", {})),
 		next_profile,
@@ -345,13 +370,14 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		}
 	)
 	next_profile["archive_state"] = archive_state
-	next_profile["governance_state"] = GOVERNANCE_SERVICE_SCRIPT.apply_post_run(
+	var governance_state := GOVERNANCE_SERVICE_SCRIPT.apply_post_run(
 		Dictionary(next_profile.get("governance_state", {})),
 		run_record,
 		diagnostics,
 		frame,
 		Dictionary(run_record.get("expedition_constitution_summary", {}))
 	)
+	next_profile["governance_state"] = governance_state
 	next_profile["narrative_progress"] = PROFILE_PROGRESSION_SCRIPT.advance_narrative_progress(
 		Dictionary(next_profile.get("narrative_progress", {})),
 		run_record,
@@ -369,6 +395,13 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	var manifested_experiment_ids := _to_string_array(run_record.get("manifested_experiment_ids", []))
 	var live_experiment_ids := _to_string_array(run_record.get("live_experiment_ids", []))
 	var live_hypothesis_ids := _to_string_array(run_record.get("live_hypothesis_ids", []))
+	var normalization_mode := str(run_record.get("normalization_mode", next_profile.get("normalization_mode", "default"))).strip_edges()
+	var equipped_modulation_loadout: Array = Array(run_record.get("equipped_modulation_loadout", next_profile.get("equipped_modulation_loadout", []))).duplicate(true)
+	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {})).duplicate(true)
+	var world_aftermath_refs: Array = continuity_world_aftermath_refs.duplicate(true)
+	var governance_action_snapshot := GOVERNANCE_SERVICE_SCRIPT.build_forensic_action_snapshot(governance_state)
+	var world_memory_snapshot_hash := _canonical_phase9_hash(world_memory)
+	var forensic_bundle_header := _build_phase9_forensic_bundle_header(run_record, world_memory_snapshot_hash, governance_action_snapshot)
 
 	var last_run := {
 		"seed": int(run_record.get("seed", 0)),
@@ -394,6 +427,9 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
 		"archive_preview": ARCHIVE_SERVICE_SCRIPT.build_archive_lines(next_profile),
 		"world_memory_lines": WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory),
+		"normalization_mode": normalization_mode,
+		"equipped_modulation_loadout": equipped_modulation_loadout.duplicate(true),
+		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(equipped_modulation_loadout),
 		"manifested_experiment_ids": manifested_experiment_ids.slice(0, 8),
 		"live_experiment_ids": live_experiment_ids.slice(0, 8),
 		"live_hypothesis_ids": live_hypothesis_ids.slice(0, 8),
@@ -402,7 +438,27 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).duplicate(),
 		"action_summary": Array(run_record.get("action_summary", [])).duplicate(),
-		"stats_lines": Array(run_record.get("stats_lines", [])).duplicate()
+		"stats_lines": Array(run_record.get("stats_lines", [])).duplicate(),
+		"legacy_track_id": str(legacy_track.get("track_id", "")).strip_edges(),
+		"legacy_track": legacy_track.duplicate(true),
+		"reentry_hook_id": str(reentry_hook.get("hook_id", "")).strip_edges(),
+		"reentry_hook": reentry_hook.duplicate(true),
+		"quiet_play_signals": _to_string_array(diagnostics.get("quiet_play_signals", [])),
+		"meaningful_non_action": str(diagnostics.get("meaningful_non_action", "")).strip_edges(),
+		"social_safety_flags": _to_string_array(diagnostics.get("social_safety_flags", [])),
+		"reputation_band": str(diagnostics.get("reputation_band", "")).strip_edges(),
+		"institutional_pressure_surface": Dictionary(diagnostics.get("institutional_pressure_surface", {})).duplicate(true),
+		"continuity_burden_score": int(diagnostics.get("continuity_burden_score", 0)),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"world_memory_snapshot_hash": world_memory_snapshot_hash,
+		"forensic_bundle_header": forensic_bundle_header.duplicate(true),
+		"rollback_action": Dictionary(governance_action_snapshot.get("rollback_action", {})).duplicate(true),
+		"quarantine_action": Dictionary(governance_action_snapshot.get("quarantine_action", {})).duplicate(true),
+		"fairness_trigger_ids": _to_string_array(governance_action_snapshot.get("fairness_triggers", [])),
+		"dignity_trigger_ids": _to_string_array(governance_action_snapshot.get("dignity_triggers", [])),
+		"dominant_strategy_strain": Dictionary(governance_action_snapshot.get("dominant_strategy_strain", {})).duplicate(true),
+		"experiment_outcomes": Dictionary(run_record.get("experiment_outcomes", {})).duplicate(true)
 	}
 	next_profile["last_run"] = last_run
 	next_profile["first_run_pending"] = false
@@ -423,6 +479,8 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"report_path": str(run_record.get("report_path", "")),
 		"diagnostics": diagnostics.duplicate(true),
 		"frame": frame.duplicate(true),
+		"normalization_mode": normalization_mode,
+		"equipped_modulation_loadout": equipped_modulation_loadout.duplicate(true),
 		"crawl_id": str(Dictionary(crawl_result.get("crawl_packet", {})).get("crawl_id", "")),
 		"crawl_title": str(Dictionary(crawl_result.get("crawl_packet", {})).get("title", "")),
 		"manifested_experiment_ids": manifested_experiment_ids.slice(0, 4),
@@ -430,7 +488,16 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"communication_summary": Dictionary(run_record.get("communication_summary", {})).duplicate(true),
 		"key_clues": Array(run_record.get("key_clues", [])).slice(0, 3),
 		"action_summary": Array(run_record.get("action_summary", [])).slice(0, 3),
-		"experiment_learning_lines": learning_public_lines.slice(0, 2)
+		"experiment_learning_lines": learning_public_lines.slice(0, 2),
+		"legacy_track_id": str(legacy_track.get("track_id", "")).strip_edges(),
+		"reentry_hook_id": str(reentry_hook.get("hook_id", "")).strip_edges(),
+		"quiet_play_signals": _to_string_array(diagnostics.get("quiet_play_signals", [])).slice(0, 2),
+		"social_safety_flags": _to_string_array(diagnostics.get("social_safety_flags", [])).slice(0, 3),
+		"reputation_band": str(diagnostics.get("reputation_band", "")).strip_edges(),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"world_memory_snapshot_hash": world_memory_snapshot_hash,
+		"forensic_bundle_header": forensic_bundle_header.duplicate(true)
 	}
 	var history: Array = Array(next_profile.get("run_history", []))
 	history.push_front(history_entry)
@@ -631,6 +698,15 @@ static func build_home_overview_lines(profile: Dictionary, session_overview: Dic
 	var learning_lines := _to_string_array(Dictionary(current.get("last_run", {})).get("experiment_learning_lines", []))
 	if not learning_lines.is_empty():
 		lines.append("Research: %s" % learning_lines[0])
+	var latest_legacy_track := _latest_legacy_track(current)
+	if not latest_legacy_track.is_empty():
+		lines.append("Legacy: %s" % str(latest_legacy_track.get("label", "")).strip_edges())
+	var latest_reentry_hook := _latest_reentry_hook(current)
+	if not latest_reentry_hook.is_empty():
+		lines.append("Reentry: %s" % str(latest_reentry_hook.get("prompt_line", "")).strip_edges())
+	var quiet_play_line := _first_string(_to_string_array(Dictionary(current.get("last_run", {})).get("quiet_play_signals", [])), "")
+	if not quiet_play_line.is_empty():
+		lines.append("Quiet play: %s" % quiet_play_line)
 	var carryover := str(last_frame.get("ritual_pressure", "")).strip_edges()
 	if carryover.is_empty():
 		carryover = str(Dictionary(current.get("active_crawl", {})).get("promise_pressure", "")).strip_edges()
@@ -1079,13 +1155,20 @@ static func build_last_run_diagnostic_lines(profile: Dictionary) -> Array[String
 		lines.append("Recovery: %s" % str(model.get("interruption_context", "Review only")))
 	else:
 		lines.append("Reopen cue: %s" % str(model.get("standout_reason", "Run review ready")))
+	var learning_lines := _to_string_array(last_run.get("experiment_learning_lines", []))
+	if not learning_lines.is_empty():
+		lines.append("Research: %s" % learning_lines[0])
+	var quiet_play_line := _first_string(_to_string_array(last_run.get("quiet_play_signals", [])), "")
+	if not quiet_play_line.is_empty():
+		lines.append("Quiet play: %s" % quiet_play_line)
+	var reentry_hook: Dictionary = Dictionary(last_run.get("reentry_hook", {}))
+	var reentry_line := str(reentry_hook.get("prompt_line", "")).strip_edges()
+	if not reentry_line.is_empty():
+		lines.append("Reentry: %s" % reentry_line)
 	var frame: Dictionary = Dictionary(last_run.get("frame", {}))
 	if not frame.is_empty():
 		lines.append("Broadcast: %s" % str(frame.get("broadcast_headline", "Run story ready")))
 		lines.append("Heat: %s" % FRAMING_SERVICE_SCRIPT.build_home_heat_line(frame))
-	var learning_lines := _to_string_array(last_run.get("experiment_learning_lines", []))
-	if not learning_lines.is_empty():
-		lines.append("Research: %s" % learning_lines[0])
 	return lines.slice(0, 5)
 
 static func build_continue_guidance_lines(profile: Dictionary, session_overview: Dictionary = {}) -> Array[String]:
@@ -1302,6 +1385,17 @@ static func build_cosmetic_detail_lines(profile: Dictionary, cosmetic_id: String
 	lines.append("Family: %s | Rarity: %s" % [str(cosmetic.get("family", "")).capitalize(), str(cosmetic.get("rarity", "common")).capitalize()])
 	lines.append("Source: %s" % PRODUCT_CATALOG_SCRIPT.describe_source(cosmetic))
 	lines.append("State: %s" % ["Equipped" if str(equipped.get(slot, "")) == cosmetic_id else ("Owned" if owned.has(cosmetic_id) else "Locked")])
+	lines.append("Route: %s" % str(cosmetic.get("acquisition_route", "unknown")).replace("_", " "))
+	var modulation_profile: Dictionary = Dictionary(cosmetic.get("modulation_profile", {}))
+	var equivalence_class_id := str(modulation_profile.get("equivalence_class_id", "")).strip_edges()
+	if not equivalence_class_id.is_empty():
+		var behavior: Dictionary = Dictionary(cosmetic.get("normalization_behavior", {}))
+		lines.append("Modulation: %s" % str(modulation_profile.get("summary_line", "Bounded zero-advantage modulation")))
+		lines.append("Equivalence class: %s" % equivalence_class_id)
+		lines.append("Normalization: default=%s | fairness=%s" % [
+			str(behavior.get("default", "allow")),
+			str(behavior.get("fairness_sensitive", "collapse_to_canonical"))
+		])
 	var palette: Dictionary = cosmetic.get("palette", {})
 	if not palette.is_empty():
 		lines.append("Palette: %s / %s" % [str(palette.get("border", "-")), str(palette.get("accent", "-"))])
@@ -1316,7 +1410,8 @@ static func build_settings_lines(profile: Dictionary, catalog: Dictionary = {}) 
 		"Controller Glyphs: %s" % ["On" if bool(settings.get("controller_glyphs", false)) else "Off"],
 		"Voice: %s" % _describe_voice_mode(str(settings.get("voice_mode", "off"))),
 		"Push-to-talk: %s" % ["On" if bool(settings.get("push_to_talk", true)) else "Off"],
-		"Mute Voice: %s" % ["On" if bool(settings.get("mute_voice", false)) else "Off"]
+		"Mute Voice: %s" % ["On" if bool(settings.get("mute_voice", false)) else "Off"],
+		"Normalization: %s" % _title_case(str(current.get("normalization_mode", "default")).replace("_", " "))
 	]
 
 static func build_settings_help_lines(profile: Dictionary) -> Array[String]:
@@ -1528,6 +1623,15 @@ static func _history_entry_key(entry: Dictionary) -> String:
 		str(entry.get("interruption_reason", ""))
 	]
 
+static func current_normalization_mode(profile: Dictionary, catalog: Dictionary = {}) -> String:
+	var current := normalize_profile(profile, PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog)
+	return str(current.get("normalization_mode", "default")).strip_edges()
+
+static func build_equipped_modulation_loadout(profile: Dictionary, catalog: Dictionary = {}) -> Array[Dictionary]:
+	var current_catalog := PRODUCT_CATALOG_SCRIPT.load_catalog() if catalog.is_empty() else catalog
+	var current := normalize_profile(profile, current_catalog)
+	return Array(current.get("equipped_modulation_loadout", [])).duplicate(true)
+
 static func _build_run_review_model(entry: Dictionary) -> Dictionary:
 	var diagnostics: Dictionary = Dictionary(entry.get("diagnostics", {}))
 	var tags := RUN_STORY_DIAGNOSTICS_SCRIPT.build_highlight_tags(diagnostics)
@@ -1585,6 +1689,8 @@ static func _build_run_review_model(entry: Dictionary) -> Dictionary:
 		"frame": frame,
 		"crawl_id": str(entry.get("crawl_id", "")),
 		"crawl_title": str(entry.get("crawl_title", "")),
+		"legacy_track": Dictionary(entry.get("legacy_track", {})).duplicate(true),
+		"reentry_hook": Dictionary(entry.get("reentry_hook", {})).duplicate(true),
 		"key_clues": key_clues,
 		"actions": actions
 	}
@@ -1693,6 +1799,10 @@ static func _format_run_review_digest_snippet(model: Dictionary) -> String:
 	]
 
 static func _format_run_review_reentry_snippet(model: Dictionary) -> String:
+	var reentry_hook: Dictionary = Dictionary(model.get("reentry_hook", {}))
+	var reentry_line := str(reentry_hook.get("prompt_line", "")).strip_edges()
+	if not reentry_line.is_empty():
+		return "%s | %s" % [str(model.get("summary_text", "Run complete")), reentry_line]
 	return "%s | %s" % [str(model.get("summary_text", "Run complete")), str(model.get("standout_reason", "Run review ready"))]
 
 static func _format_run_review_developer_summary_lines(model: Dictionary) -> Array[String]:
@@ -2644,6 +2754,161 @@ static func _merge_limited_strings(existing: Array, additions: Array, limit: int
 	if result.size() > limit:
 		return result.slice(0, limit)
 	return result
+
+static func _normalize_legacy_tracks(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var current := Dictionary(value).duplicate(true)
+		current["track_id"] = str(current.get("track_id", "")).strip_edges()
+		current["label"] = str(current.get("label", "")).strip_edges()
+		current["reputation_band"] = str(current.get("reputation_band", "measured_return")).strip_edges()
+		current["continuity_scars"] = _to_string_array(current.get("continuity_scars", []))
+		current["quiet_play_signals"] = _to_string_array(current.get("quiet_play_signals", []))
+		current["institutional_pressure_lines"] = _to_string_array(current.get("institutional_pressure_lines", []))
+		current["world_aftermath_ids"] = _to_string_array(current.get("world_aftermath_ids", []))
+		current["meaningful_non_action"] = str(current.get("meaningful_non_action", "")).strip_edges()
+		current["source_seed"] = int(current.get("source_seed", 0))
+		if not current["track_id"].is_empty():
+			result.append(current)
+	return result.slice(0, 18)
+
+static func _normalize_reentry_hooks(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var current := Dictionary(value).duplicate(true)
+		current["hook_id"] = str(current.get("hook_id", "")).strip_edges()
+		current["label"] = str(current.get("label", "")).strip_edges()
+		current["prompt_line"] = str(current.get("prompt_line", "")).strip_edges()
+		current["reputation_band"] = str(current.get("reputation_band", "measured_return")).strip_edges()
+		current["quiet_play_signals"] = _to_string_array(current.get("quiet_play_signals", []))
+		current["social_safety_flags"] = _to_string_array(current.get("social_safety_flags", []))
+		current["source_seed"] = int(current.get("source_seed", 0))
+		if not current["hook_id"].is_empty():
+			result.append(current)
+	return result.slice(0, 18)
+
+static func _merge_front_dictionary_entries(existing: Array, entry: Dictionary, key_field: String, limit: int) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var normalized_entry := Dictionary(entry).duplicate(true)
+	var key := str(normalized_entry.get(key_field, "")).strip_edges()
+	if key.is_empty():
+		for value in existing:
+			if value is Dictionary:
+				result.append(Dictionary(value).duplicate(true))
+		return result.slice(0, limit)
+	result.append(normalized_entry)
+	for value in existing:
+		if not (value is Dictionary):
+			continue
+		var current := Dictionary(value).duplicate(true)
+		if str(current.get(key_field, "")).strip_edges() == key:
+			continue
+		result.append(current)
+	return result.slice(0, limit)
+
+static func _build_phase8_legacy_track(run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary, crawl_packet: Dictionary, world_aftermath_refs: Array = []) -> Dictionary:
+	var source_seed := int(run_record.get("seed", 0))
+	var reputation_band := str(diagnostics.get("reputation_band", "measured_return")).strip_edges()
+	var quiet_play_signals := _to_string_array(diagnostics.get("quiet_play_signals", []))
+	var institutional_pressure_surface: Dictionary = Dictionary(diagnostics.get("institutional_pressure_surface", {}))
+	var continuity_scars: Array[String] = _to_string_array(Dictionary(crawl_packet).get("memorial_residue", []))
+	var world_aftermath_ids: Array[String] = []
+	var aftermath_records := Array(world_aftermath_refs if not world_aftermath_refs.is_empty() else run_record.get("world_aftermath_refs", []))
+	for aftermath_raw in aftermath_records:
+		var aftermath := Dictionary(aftermath_raw)
+		var aftermath_id := str(aftermath.get("aftermath_id", "")).strip_edges()
+		if not aftermath_id.is_empty() and not world_aftermath_ids.has(aftermath_id):
+			world_aftermath_ids.append(aftermath_id)
+		for scar in _to_string_array(aftermath.get("continuity_scars", [])):
+			if not continuity_scars.has(scar):
+				continuity_scars.append(scar)
+	var label := _first_string([
+		str(frame.get("challenge_attention", "")).strip_edges(),
+		str(frame.get("belief_line", "")).strip_edges(),
+		str(run_record.get("local_role", "")).strip_edges()
+	], "Return pressure remembered")
+	return {
+		"track_id": "legacy_%d" % source_seed,
+		"label": label,
+		"reputation_band": reputation_band,
+		"continuity_scars": continuity_scars.slice(0, 6),
+		"quiet_play_signals": quiet_play_signals.slice(0, 3),
+		"institutional_pressure_lines": _to_string_array(institutional_pressure_surface.get("claim_lines", [])) + _to_string_array(institutional_pressure_surface.get("interpretation_lines", [])),
+		"world_aftermath_ids": world_aftermath_ids.slice(0, 6),
+		"meaningful_non_action": str(diagnostics.get("meaningful_non_action", "")).strip_edges(),
+		"source_seed": source_seed
+	}
+
+static func _build_phase8_reentry_hook(run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary, legacy_track: Dictionary) -> Dictionary:
+	var source_seed := int(run_record.get("seed", 0))
+	var prompt_line := _first_string([
+		str(frame.get("challenge_attention", "")).strip_edges(),
+		str(frame.get("belief_line", "")).strip_edges(),
+		str(diagnostics.get("meaningful_non_action", "")).strip_edges(),
+		str(legacy_track.get("label", "")).strip_edges()
+	], "Reopen the last run through its lingering pressure")
+	return {
+		"hook_id": "reentry_%d" % source_seed,
+		"label": "Return through seed %d" % source_seed,
+		"prompt_line": prompt_line,
+		"reputation_band": str(diagnostics.get("reputation_band", "measured_return")).strip_edges(),
+		"quiet_play_signals": _to_string_array(diagnostics.get("quiet_play_signals", [])).slice(0, 2),
+		"social_safety_flags": _to_string_array(diagnostics.get("social_safety_flags", [])).slice(0, 4),
+		"source_seed": source_seed
+	}
+
+static func _latest_legacy_track(profile: Dictionary) -> Dictionary:
+	var tracks := _normalize_legacy_tracks(Array(profile.get("legacy_tracks", [])))
+	return Dictionary(tracks[0]).duplicate(true) if not tracks.is_empty() else {}
+
+static func _latest_reentry_hook(profile: Dictionary) -> Dictionary:
+	var hooks := _normalize_reentry_hooks(Array(profile.get("reentry_hooks", [])))
+	return Dictionary(hooks[0]).duplicate(true) if not hooks.is_empty() else {}
+
+static func _build_phase9_forensic_bundle_header(run_record: Dictionary, world_memory_snapshot_hash: String, governance_action_snapshot: Dictionary) -> Dictionary:
+	var forensic_bundle: Dictionary = Dictionary(run_record.get("forensic_bundle", {}))
+	var replay_identity: Dictionary = Dictionary(run_record.get("replay_identity", {}))
+	return {
+		"bundle_id": str(forensic_bundle.get("bundle_id", "")).strip_edges(),
+		"bundle_digest": str(forensic_bundle.get("bundle_digest", "")).strip_edges(),
+		"bundle_schema_version": int(forensic_bundle.get("bundle_schema_version", 0)),
+		"replay_id": str(replay_identity.get("replay_id", forensic_bundle.get("replay_id", ""))).strip_edges(),
+		"world_memory_snapshot_hash": world_memory_snapshot_hash,
+		"rollback_action": Dictionary(governance_action_snapshot.get("rollback_action", {})).duplicate(true),
+		"quarantine_action": Dictionary(governance_action_snapshot.get("quarantine_action", {})).duplicate(true),
+		"fairness_trigger_ids": _to_string_array(governance_action_snapshot.get("fairness_triggers", [])),
+		"dignity_trigger_ids": _to_string_array(governance_action_snapshot.get("dignity_triggers", [])),
+		"dominant_strategy_strain": Dictionary(governance_action_snapshot.get("dominant_strategy_strain", {})).duplicate(true),
+		"experiment_outcomes": Dictionary(run_record.get("experiment_outcomes", {})).duplicate(true)
+	}
+
+static func _canonical_phase9_hash(value: Variant) -> String:
+	return _canonical_phase9_string(value).md5_text()
+
+static func _canonical_phase9_string(value: Variant) -> String:
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var dict: Dictionary = value
+			var key_texts: Array[String] = []
+			var key_lookup: Dictionary = {}
+			for key in dict.keys():
+				var text := str(key)
+				key_texts.append(text)
+				key_lookup[text] = key
+			key_texts.sort()
+			var segments: Array[String] = []
+			for key_text in key_texts:
+				segments.append("%s:%s" % [key_text, _canonical_phase9_string(dict.get(key_lookup[key_text]))])
+			return "{%s}" % ",".join(segments)
+		TYPE_ARRAY:
+			var segments: Array[String] = []
+			for item in value:
+				segments.append(_canonical_phase9_string(item))
+			return "[%s]" % ",".join(segments)
+		TYPE_STRING:
+			return JSON.stringify(value)
+		_:
+			return str(value)
 
 static func _default_public_id(display_name: String) -> String:
 	return PROFILE_IDENTITY_STATE_SCRIPT.default_public_id(display_name)

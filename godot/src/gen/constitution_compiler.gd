@@ -96,6 +96,7 @@ static func compile(
 		Dictionary(world_model.get("cookbook_state_snapshot", {})),
 		Dictionary(world_model.get("world_memory_snapshot", {}))
 	)
+	var creative_governance := Dictionary(experimental_ontology_state.get("creative_governance", world_model.get("creative_governance", {}))).duplicate(true)
 	var cognitive_field_state := _build_cognitive_field_state(world_model, compiler_public_summary, theory_surface, run_identity)
 	var mind_projections := _build_mind_projections(compiler_public_summary, cognitive_field_state, run_identity)
 	var activation_state := GOVERNANCE_SERVICE_SCRIPT.normalize_activation_state(Dictionary(governance_state.get("activation_state", {})))
@@ -153,6 +154,25 @@ static func compile(
 			"residue_budget": 2
 		}
 	)
+	var market_regime_state := _build_market_regime_state(world_model, compiled_policy, compiler_public_summary, compiled_generation_surface)
+	var market_memory_state := _build_market_memory_state(world_model, market_regime_state)
+	var lifecycle_registry := _build_lifecycle_registry(market_regime_state, market_memory_state)
+	compiled_generation_surface["market_routing"] = _build_market_routing(compiled_generation_surface, market_regime_state, market_memory_state, lifecycle_registry)
+	compiler_public_summary = _apply_phase3_public_summary(compiler_public_summary, market_regime_state, lifecycle_registry)
+	var encounter_language_profile := _build_encounter_language_profile(compiled_generation_surface, compiler_public_summary)
+	var pathology_profile := _build_pathology_profile(market_regime_state, compiler_public_summary)
+	var pathology_state := _build_pathology_state(pathology_profile, market_regime_state)
+	var encounter_manifest := _build_encounter_manifest(pathology_profile, encounter_language_profile, compiled_generation_surface)
+	compiled_generation_surface["encounter_routing"] = _build_encounter_routing(compiled_generation_surface, encounter_manifest, pathology_state)
+	compiler_public_summary = _apply_phase4_public_summary(compiler_public_summary, encounter_manifest, pathology_state)
+	var apex_framework_profile := _build_apex_framework_profile(encounter_language_profile, encounter_manifest, pathology_profile, compiled_generation_surface, compiler_public_summary)
+	var apex_manifest := _build_apex_manifest(apex_framework_profile, encounter_manifest, pathology_profile, compiled_generation_surface, compiler_public_summary)
+	var peak_structure_profile := _build_peak_structure_profile(compiler_public_summary, compiled_generation_surface, apex_manifest)
+	compiled_generation_surface["apex_routing"] = _build_apex_routing(compiled_generation_surface, apex_manifest, peak_structure_profile)
+	compiler_public_summary = _apply_phase5_public_summary(compiler_public_summary, apex_manifest, peak_structure_profile)
+	lifecycle_registry = _expand_phase6_lifecycle_registry(lifecycle_registry, pathology_state, encounter_manifest, apex_manifest, peak_structure_profile)
+	compiled_generation_surface["market_routing"] = _build_market_routing(compiled_generation_surface, market_regime_state, market_memory_state, lifecycle_registry)
+	compiler_public_summary = _apply_phase3_public_summary(compiler_public_summary, market_regime_state, lifecycle_registry)
 	var lineage_registry := _build_compile_lineage_registry(experimental_ontology_state, theory_surface)
 	var doctrine_variant_id := _build_doctrine_variant_id(compiled_doctrine, compiled_generation_surface)
 	var compile_bound_failures := _compile_bound_failures(world_model, compiled_doctrine, compiled_policy, simulation, validation_violations, counter)
@@ -186,7 +206,14 @@ static func compile(
 			"pressure_line": str(public_doctrine.get("pressure_line", "")),
 			"world_goal": str(public_doctrine.get("world_goal", "")),
 			"archive_tone": str(compiled_generation_surface.get("archive_tone", "")),
-			"convergence_axis": str(compiled_generation_surface.get("convergence_axis", ""))
+			"convergence_axis": str(compiled_generation_surface.get("convergence_axis", "")),
+			"active_regime_ids": _string_array(market_regime_state.get("active_regime_ids", [])),
+			"lifecycle_state_ids": _string_array(lifecycle_registry.get("active_state_ids", [])),
+			"lifecycle_family_kinds": _lifecycle_family_kinds(lifecycle_registry),
+			"active_pathology_ids": _string_array(pathology_state.get("active_family_ids", [])),
+			"encounter_manifest_ids": _encounter_manifest_ids(encounter_manifest),
+			"apex_manifest_ids": _apex_manifest_ids(apex_manifest),
+			"apex_class_ids": _apex_class_ids(apex_manifest)
 		},
 		"narrative_pressure": {
 			"pressure_family": str(narrative_pressure_state.get("pressure_family", "")),
@@ -212,7 +239,28 @@ static func compile(
 				"evaluation_count": int(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("evaluation_count", 0)),
 				"bias_basis": Dictionary(Dictionary(experimental_ontology_state.get("learning_guidance", {})).get("bias_basis", {})).duplicate(true)
 			},
-			"learning_guidance_bias_trace": Dictionary(Dictionary(experimental_ontology_state.get("compiler_trace", {})).get("learning_guidance_bias_trace", {})).duplicate(true)
+			"learning_guidance_bias_trace": Dictionary(Dictionary(experimental_ontology_state.get("compiler_trace", {})).get("learning_guidance_bias_trace", {})).duplicate(true),
+			"creative_governance": {
+				"novelty_envelope": Dictionary(creative_governance.get("novelty_envelope", {})).duplicate(true),
+				"taste_profile": Dictionary(creative_governance.get("taste_profile", {})).duplicate(true),
+				"personality_band": str(creative_governance.get("personality_band", "")).strip_edges(),
+				"bounded_surface_ids": _string_array(creative_governance.get("bounded_surface_ids", [])),
+				"suppressed_patterns": _string_array(creative_governance.get("suppressed_patterns", [])),
+				"revive_candidates": _string_array(creative_governance.get("revive_candidates", []))
+			}
+		},
+		"encounter_language": {
+			"intent_ids": _string_array(_encounter_intent_ids(encounter_manifest)),
+			"topology_ids": _string_array(_encounter_topology_ids(encounter_manifest)),
+			"active_pathology_ids": _string_array(pathology_state.get("active_family_ids", [])),
+			"encounter_manifest_ids": _encounter_manifest_ids(encounter_manifest),
+			"anchored_pressures": _encounter_anchor_coverage(encounter_manifest)
+		},
+		"apex_framework": {
+			"apex_manifest_ids": _apex_manifest_ids(apex_manifest),
+			"apex_class_ids": _apex_class_ids(apex_manifest),
+			"resolution_classes": _apex_resolution_coverage(apex_manifest),
+			"peak_spacing_score": int(peak_structure_profile.get("peak_spacing_score", 0))
 		}
 	}
 	var compile_metadata := {
@@ -248,7 +296,23 @@ static func compile(
 		"experiment_compile_targets": _string_array(Dictionary(experimental_ontology_state.get("compile_outputs", {})).get("compile_targets", [])),
 		"experiment_learning_guidance": Dictionary(experimental_ontology_state.get("learning_guidance", {})).duplicate(true),
 		"experiment_learning_bias_trace": Dictionary(Dictionary(experimental_ontology_state.get("compiler_trace", {})).get("learning_guidance_bias_trace", {})).duplicate(true),
+		"creative_novelty_band": str(Dictionary(creative_governance.get("novelty_envelope", {})).get("active_band", "")).strip_edges(),
+		"creative_personality_band": str(creative_governance.get("personality_band", "")).strip_edges(),
+		"creative_bounded_surface_ids": _string_array(creative_governance.get("bounded_surface_ids", [])),
+		"creative_suppressed_patterns": _string_array(creative_governance.get("suppressed_patterns", [])),
 		"dominant_lineages": Array(ontology_routing.get("dominant_lineages", [])).duplicate(true),
+		"active_regime_ids": _string_array(market_regime_state.get("active_regime_ids", [])),
+		"lifecycle_state_ids": _string_array(lifecycle_registry.get("active_state_ids", [])),
+		"lifecycle_family_kinds": _lifecycle_family_kinds(lifecycle_registry),
+		"active_pathology_ids": _string_array(pathology_state.get("active_family_ids", [])),
+		"encounter_manifest_ids": _encounter_manifest_ids(encounter_manifest),
+		"encounter_intent_ids": _encounter_intent_ids(encounter_manifest),
+		"encounter_topology_ids": _encounter_topology_ids(encounter_manifest),
+		"encounter_anchor_categories": _encounter_anchor_coverage(encounter_manifest),
+		"apex_manifest_ids": _apex_manifest_ids(apex_manifest),
+		"apex_class_ids": _apex_class_ids(apex_manifest),
+		"apex_resolution_classes": _apex_resolution_coverage(apex_manifest),
+		"peak_spacing_score": int(peak_structure_profile.get("peak_spacing_score", 0)),
 		"required_generation_surface_keys": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_generation_surface_keys", [])).duplicate(true),
 		"required_symbolic_fields": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_symbolic_fields", [])).duplicate(true),
 		"validation_failures": Array(compiler_trace.get("validation_failures", [])).duplicate(true),
@@ -262,6 +326,7 @@ static func compile(
 		"ontology_snapshot": ontology_snapshot,
 		"narrative_pressure_state": narrative_pressure_state,
 		"experimental_ontology_state": experimental_ontology_state,
+		"creative_governance": creative_governance,
 		"doctrine_inheritance": inheritance,
 		"compiler_trace": compiler_trace,
 		"compile_metadata": compile_metadata,
@@ -273,6 +338,16 @@ static func compile(
 		"route_profile": route_profile,
 		"item_ecology_profile": item_ecology_profile,
 		"pressure_ecology_profile": pressure_ecology_profile,
+		"market_regime_state": market_regime_state,
+		"market_memory_state": market_memory_state,
+		"lifecycle_registry": lifecycle_registry,
+		"encounter_language_profile": encounter_language_profile,
+		"pathology_profile": pathology_profile,
+		"pathology_state": pathology_state,
+		"encounter_manifest": encounter_manifest,
+		"apex_framework_profile": apex_framework_profile,
+		"apex_manifest": apex_manifest,
+		"peak_structure_profile": peak_structure_profile,
 		"information_doctrine_profile": information_doctrine_profile,
 		"pacing_profile": pacing_profile,
 		"custody_profile": custody_profile,
@@ -338,6 +413,10 @@ static func validate_compile_output(bundle: Dictionary) -> Array[String]:
 	var experimental_trace: Dictionary = Dictionary(Dictionary(compiler_trace.get("experimental_ontology", {})).get("learning_guidance_bias_trace", {}))
 	if experimental_trace.is_empty():
 		failures.append("compiler trace missing experimental_ontology learning_guidance_bias_trace")
+	var creative_governance: Dictionary = Dictionary(bundle.get("creative_governance", {}))
+	for key in ["novelty_envelope", "taste_profile", "personality_band", "bounded_surface_ids", "suppressed_patterns", "revive_candidates"]:
+		if not creative_governance.has(key):
+			failures.append("compile output creative_governance missing %s" % key)
 	if not Array(compile_metadata.get("experiment_validation_failures", [])).is_empty():
 		failures.append_array(_string_array(compile_metadata.get("experiment_validation_failures", [])))
 	var fairness_bounds: Dictionary = Dictionary(bundle.get("fairness_bounds", {}))
@@ -345,6 +424,9 @@ static func validate_compile_output(bundle: Dictionary) -> Array[String]:
 		failures.append("fairness bounds must preserve runtime_non_mutation_required")
 	if not fairness_bounds.has("no_hidden_targeting_required") or not bool(fairness_bounds.get("no_hidden_targeting_required", false)):
 		failures.append("fairness bounds must preserve no_hidden_targeting_required")
+	failures.append_array(_validate_encounter_contracts(bundle))
+	failures.append_array(_validate_apex_contracts(bundle))
+	failures.append_array(_validate_phase6_lifecycle_registry(bundle))
 	if not Array(compile_metadata.get("fairness_bound_failures", [])).is_empty():
 		failures.append_array(_string_array(compile_metadata.get("fairness_bound_failures", [])))
 	for banned in ["peer_ids", "role_payload", "runtime_state", "event_log"]:
@@ -358,18 +440,39 @@ static func validate_compile_output(bundle: Dictionary) -> Array[String]:
 	return failures
 
 static func _build_cognitive_field_state(world_model: Dictionary, public_summary: Dictionary, theory_surface: Dictionary, run_identity: Dictionary = {}) -> Dictionary:
+	var creative_governance: Dictionary = Dictionary(world_model.get("creative_governance", {}))
 	var run_field_state: Dictionary = Dictionary(run_identity.get("cognitive_field_state", {}))
 	if not run_field_state.is_empty():
 		var current := run_field_state.duplicate(true)
+		var personality_band := str(current.get("personality_band", creative_governance.get("personality_band", "disciplined_curiosity"))).strip_edges()
+		if personality_band.is_empty():
+			personality_band = "disciplined_curiosity"
+		var novelty_band := str(Dictionary(creative_governance.get("novelty_envelope", {})).get("active_band", "anchored_core")).strip_edges()
+		var suppressed_patterns := _string_array(creative_governance.get("suppressed_patterns", []))
 		current["summary_lines"] = _string_array(
 			Array(current.get("summary_lines", []))
 			+ Array(theory_surface.get("lines", []))
 			+ Array(Dictionary(world_model.get("theory_surface", {})).get("chamber_lines", []))
 		).slice(0, 4)
+		current["self_interpretation_trace"] = _string_array(
+			Array(current.get("self_interpretation_trace", []))
+			+ [
+				"DelveMind is reading itself through %s." % personality_band.replace("_", " "),
+				"Novelty envelope remains at %s while theory surfaces stay bounded." % novelty_band.replace("_", " ")
+			]
+		).slice(0, 4)
+		current["unknown_space_markers"] = _string_array(
+			Array(current.get("unknown_space_markers", []))
+			+ (suppressed_patterns if not suppressed_patterns.is_empty() else ["unknown_space:bounded_frontier"])
+		)
+		current["personality_band"] = personality_band
 		return current
 	var dominant_forces := _string_array(public_summary.get("dominant_forces", []))
 	var dominant_domains := _string_array(public_summary.get("dominant_domains", []))
 	var theory_ids := _string_array(theory_surface.get("theory_ids", []))
+	var personality_band := str(creative_governance.get("personality_band", "disciplined_curiosity")).strip_edges()
+	var novelty_band := str(Dictionary(creative_governance.get("novelty_envelope", {})).get("active_band", "anchored_core")).strip_edges()
+	var suppressed_patterns := _string_array(creative_governance.get("suppressed_patterns", []))
 	return {
 		"schema_name": "CognitiveFieldState",
 		"schema_version": 1,
@@ -385,6 +488,12 @@ static func _build_cognitive_field_state(world_model: Dictionary, public_summary
 		},
 		"interaction_rules": ["dominant theory surfaces remain routed through public-safe summaries"],
 		"derived_mind_ids": _string_array(public_summary.get("dominant_minds", [])),
+		"personality_band": personality_band,
+		"self_interpretation_trace": _string_array([
+			"DelveMind is reading itself through %s." % personality_band.replace("_", " "),
+			"Novelty envelope remains at %s while theory surfaces stay bounded." % novelty_band.replace("_", " ")
+		]),
+		"unknown_space_markers": _string_array(suppressed_patterns if not suppressed_patterns.is_empty() else ["unknown_space:bounded_frontier"]),
 		"summary_lines": _string_array(Array(theory_surface.get("lines", [])) + ["field vectors are actively shaping doctrine pressure"])
 	}
 
@@ -399,19 +508,29 @@ static func _build_mind_projections(public_summary: Dictionary, cognitive_field_
 			"mind_id": mind_id,
 			"label": str(mind_state.get("label", mind_id)).strip_edges(),
 			"intensity": clampi(int(mind_state.get("intensity", 0)), 0, 8),
-			"derived_from_dimensions": _string_array(mind_state.get("derived_from_dimensions", Dictionary(cognitive_field_state.get("field_vectors", {})).keys()))
+			"derived_from_dimensions": _string_array(mind_state.get("derived_from_dimensions", Dictionary(cognitive_field_state.get("field_vectors", {})).keys())),
+			"personality_mode": str(mind_state.get("personality_mode", Dictionary(cognitive_field_state).get("personality_band", "disciplined_curiosity"))).strip_edges(),
+			"mind_projection_intent": str(mind_state.get("mind_projection_intent", "interpretive_projection")).strip_edges(),
+			"unknown_space_markers": _string_array(mind_state.get("unknown_space_markers", Dictionary(cognitive_field_state).get("unknown_space_markers", []))),
+			"self_interpretation_line": _first_string(Dictionary(cognitive_field_state).get("self_interpretation_trace", []), "")
 		})
 	if not projected.is_empty():
 		return projected
 	var projections: Array[Dictionary] = []
 	var dominant_minds := _string_array(public_summary.get("dominant_minds", []))
 	var dimensions := Dictionary(cognitive_field_state.get("field_vectors", {}))
+	var personality_band := str(cognitive_field_state.get("personality_band", "disciplined_curiosity")).strip_edges()
+	var unknown_space_markers := _string_array(cognitive_field_state.get("unknown_space_markers", []))
 	for mind_id in dominant_minds:
 		projections.append({
 			"mind_id": mind_id,
 			"label": mind_id.capitalize(),
 			"intensity": clampi(int(dimensions.get("judgment", 0)) + int(dimensions.get("memory", 0)), 0, 8),
-			"derived_from_dimensions": _string_array(dimensions.keys())
+			"derived_from_dimensions": _string_array(dimensions.keys()),
+			"personality_mode": personality_band,
+			"mind_projection_intent": "bounded_interpretation",
+			"unknown_space_markers": unknown_space_markers,
+			"self_interpretation_line": _first_string(cognitive_field_state.get("self_interpretation_trace", []), "")
 		})
 	return projections
 
@@ -498,6 +617,8 @@ static func _build_route_profile(generation_surface: Dictionary, ontology_routin
 		"relay_routing": Dictionary(generation_surface.get("relay_routing", {})).duplicate(true),
 		"cookbook_routing": Dictionary(generation_surface.get("cookbook_routing", {})).duplicate(true),
 		"civilization_routing": Dictionary(generation_surface.get("civilization_routing", {})).duplicate(true),
+		"market_routing": Dictionary(generation_surface.get("market_routing", {})).duplicate(true),
+		"encounter_routing": Dictionary(generation_surface.get("encounter_routing", {})).duplicate(true),
 		"route_bias_tags": _string_array(ontology_routing.get("route_bias_tags", []))
 	}
 
@@ -506,7 +627,9 @@ static func _build_item_ecology_profile(generation_surface: Dictionary, ontology
 		"item_ecology_bias": str(generation_surface.get("item_ecology_bias", "")),
 		"item_bias_tags": _string_array(ontology_routing.get("item_bias_tags", [])),
 		"archive_tone": str(public_summary.get("archive_tone", generation_surface.get("archive_tone", ""))),
-		"dominant_forces": _string_array(public_summary.get("dominant_forces", []))
+		"dominant_forces": _string_array(public_summary.get("dominant_forces", [])),
+		"market_regime_ids": _string_array(public_summary.get("active_regime_ids", [])),
+		"lifecycle_state_ids": _string_array(public_summary.get("lifecycle_state_ids", []))
 	}
 
 static func _build_pressure_ecology_profile(generation_surface: Dictionary, ontology_routing: Dictionary, simulation: Dictionary) -> Dictionary:
@@ -515,8 +638,304 @@ static func _build_pressure_ecology_profile(generation_surface: Dictionary, onto
 		"pressure_bias_tags": _string_array(ontology_routing.get("pressure_bias_tags", [])),
 		"pacing_profile": str(generation_surface.get("pacing_profile", "")),
 		"fairness_risk": int(simulation.get("fairness_risk", 0)),
-		"logic_risk": int(simulation.get("logic_risk", 0))
+		"logic_risk": int(simulation.get("logic_risk", 0)),
+		"market_lines": _string_array(Dictionary(generation_surface.get("market_routing", {})).get("market_lines", []))
 	}
+
+static func _build_market_regime_state(world_model: Dictionary, policy: Dictionary, public_summary: Dictionary, generation_surface: Dictionary) -> Dictionary:
+	var economy_model: Dictionary = Dictionary(world_model.get("economy_model", {}))
+	var cultural_model: Dictionary = Dictionary(world_model.get("cultural_model", {}))
+	var economy_policy: Dictionary = Dictionary(policy.get("economy", {}))
+	var ecology_policy: Dictionary = Dictionary(policy.get("ecology", {}))
+	var scorecard := {
+		"austerity": maxi(int(economy_policy.get("market_volatility", 0)), 0) + maxi(int(economy_policy.get("hoard_visibility", 0)), 0) + maxi(int(economy_model.get("extraction_debt", 0)), 0) / 2 + maxi(int(economy_model.get("hoard_heat", 0)), 0) / 2,
+		"prestige": maxi(int(economy_policy.get("prestige_pressure", 0)), 0) + maxi(int(cultural_model.get("legitimacy_pressure", 0)), 0) / 2 + maxi(int(cultural_model.get("witness_network_pressure", 0)), 0) / 2,
+		"recovery": maxi(int(economy_policy.get("scarcity_recovery", 0)), 0) + maxi(int(economy_model.get("recovery_credit", 0)), 0) / 2 + maxi(int(economy_model.get("recovery_appetite", 0)), 0),
+		"distortion": maxi(int(ecology_policy.get("anomaly_contamination", 0)), 0) + maxi(int(economy_model.get("distortion_heat", 0)), 0) / 2 + maxi(int(cultural_model.get("false_canon_pressure", 0)), 0) / 2,
+		"balanced": 1
+	}
+	var ordered_ids := _ordered_scorecard_ids(scorecard)
+	var primary_family := "balanced"
+	if not ordered_ids.is_empty():
+		primary_family = ordered_ids[0]
+	var active_regime_ids: Array[String] = []
+	match primary_family:
+		"austerity":
+			active_regime_ids.append("market_extraction_austerity")
+		"prestige":
+			active_regime_ids.append("market_prestige_showcase")
+		"recovery":
+			active_regime_ids.append("market_recovery_weave")
+		"distortion":
+			active_regime_ids.append("market_distortion_spike")
+		_:
+			active_regime_ids.append("market_balanced_exchange")
+	if ordered_ids.size() >= 2 and int(scorecard.get(ordered_ids[1], 0)) >= maxi(int(scorecard.get(primary_family, 0)) - 1, 1):
+		match str(ordered_ids[1]):
+			"austerity":
+				if not active_regime_ids.has("market_extraction_austerity"):
+					active_regime_ids.append("market_extraction_austerity")
+			"prestige":
+				if not active_regime_ids.has("market_prestige_showcase"):
+					active_regime_ids.append("market_prestige_showcase")
+			"recovery":
+				if not active_regime_ids.has("market_recovery_weave"):
+					active_regime_ids.append("market_recovery_weave")
+			"distortion":
+				if not active_regime_ids.has("market_distortion_spike"):
+					active_regime_ids.append("market_distortion_spike")
+	var summary_lines: Array[String] = []
+	if active_regime_ids.has("market_extraction_austerity"):
+		summary_lines.append("Extraction debt is tightening the route economy.")
+	if active_regime_ids.has("market_prestige_showcase"):
+		summary_lines.append("Prestige pressure is making high-visibility carriers matter more.")
+	if active_regime_ids.has("market_recovery_weave"):
+		summary_lines.append("Recovery credit is keeping scarcity from sealing the route shut.")
+	if active_regime_ids.has("market_distortion_spike"):
+		summary_lines.append("Distortion pressure is warping how value is being read.")
+	if summary_lines.is_empty():
+		summary_lines.append("Market pressure is staying within a balanced exchange band.")
+	return {
+		"regime_id": active_regime_ids[0],
+		"regime_family": primary_family,
+		"scarcity_band": _market_band(maxi(int(economy_policy.get("market_volatility", 0)), 0) + maxi(int(economy_model.get("extraction_debt", 0)), 0) / 2),
+		"prestige_band": _market_band(maxi(int(economy_policy.get("prestige_pressure", 0)), 0) + maxi(int(cultural_model.get("legitimacy_pressure", 0)), 0) / 2),
+		"carrier_risk_band": _market_band(maxi(int(economy_policy.get("carrier_risk_bias", 0)), 0) + maxi(int(economy_model.get("burden_tolerance", 0)), 0) / 2),
+		"anomaly_significance_band": _market_band(maxi(int(ecology_policy.get("anomaly_contamination", 0)), 0) + maxi(int(economy_model.get("distortion_heat", 0)), 0) / 2),
+		"institutional_pressure_band": _market_band(maxi(int(cultural_model.get("legitimacy_pressure", 0)), 0) + maxi(int(cultural_model.get("revision_pressure", 0)), 0) / 2),
+		"active_regime_ids": active_regime_ids,
+		"scorecard": scorecard,
+		"summary_lines": summary_lines.slice(0, 3),
+		"pressure_line": str(public_summary.get("pressure_line", generation_surface.get("archive_tone", ""))).strip_edges()
+	}
+
+static func _build_market_memory_state(world_model: Dictionary, market_regime_state: Dictionary) -> Dictionary:
+	var economy_model: Dictionary = Dictionary(world_model.get("economy_model", {}))
+	var lines := _string_array(market_regime_state.get("summary_lines", []))
+	return {
+		"active_regime_ids": _string_array(market_regime_state.get("active_regime_ids", [])),
+		"extraction_debt": int(economy_model.get("extraction_debt", 0)),
+		"hoard_heat": int(economy_model.get("hoard_heat", 0)),
+		"neglect_heat": int(economy_model.get("neglect_heat", 0)),
+		"distortion_heat": int(economy_model.get("distortion_heat", 0)),
+		"recovery_credit": int(economy_model.get("recovery_credit", 0)),
+		"prestige_climate": str(economy_model.get("prestige_climate", "")).strip_edges(),
+		"carrier_risk_band": str(market_regime_state.get("carrier_risk_band", "")).strip_edges(),
+		"lines": lines
+	}
+
+static func _build_lifecycle_registry(market_regime_state: Dictionary, market_memory_state: Dictionary) -> Dictionary:
+	var active_regime_ids := _string_array(market_regime_state.get("active_regime_ids", []))
+	var families: Array[Dictionary] = []
+	var extraction_debt := int(market_memory_state.get("extraction_debt", 0))
+	var hoard_heat := int(market_memory_state.get("hoard_heat", 0))
+	var recovery_credit := int(market_memory_state.get("recovery_credit", 0))
+	for regime_id in active_regime_ids:
+		var heat := clampi(extraction_debt + hoard_heat + 1, 0, 8)
+		var saturation := clampi(maxi(extraction_debt, hoard_heat), 0, 8)
+		var strain := clampi(abs(extraction_debt - recovery_credit) + int(market_memory_state.get("distortion_heat", 0)), 0, 8)
+		var state := "emerging"
+		if saturation >= 4:
+			state = "saturated"
+		elif heat >= 3:
+			state = "active"
+		elif recovery_credit >= extraction_debt and recovery_credit >= 2:
+			state = "cooling"
+		families.append({
+			"family_id": regime_id,
+			"family_kind": "market",
+			"state": state,
+			"heat": heat,
+			"saturation": saturation,
+			"strain": strain,
+			"cooling_tags": ["recovery_credit"] if recovery_credit >= extraction_debt else ["extraction_debt"],
+			"successor_hint": "market_recovery_weave" if regime_id == "market_extraction_austerity" else ("market_prestige_showcase" if regime_id == "market_balanced_exchange" else "market_balanced_exchange"),
+			"return_window": "near_horizon" if state in ["active", "cooling"] else "mid_horizon"
+		})
+	var lines: Array[String] = []
+	for family_raw in families:
+		var family: Dictionary = Dictionary(family_raw)
+		lines.append("%s is %s with %s strain." % [
+			str(family.get("family_id", "")).replace("_", " "),
+			str(family.get("state", "")),
+			_market_band(int(family.get("strain", 0)))
+		])
+	return {
+		"families": families,
+		"active_state_ids": active_regime_ids,
+		"lines": lines.slice(0, 3)
+	}
+
+static func _expand_phase6_lifecycle_registry(base_registry: Dictionary, pathology_state: Dictionary, encounter_manifest: Dictionary, apex_manifest: Dictionary, peak_structure_profile: Dictionary) -> Dictionary:
+	var current := Dictionary(base_registry).duplicate(true)
+	var family_index := {}
+	for family_raw in Array(current.get("families", [])):
+		var family := _normalize_phase6_lifecycle_family(Dictionary(family_raw))
+		var family_id := str(family.get("family_id", "")).strip_edges()
+		if not family_id.is_empty():
+			family_index[family_id] = family
+	for pathology_id in _string_array(pathology_state.get("active_family_ids", [])):
+		var spread_heat := clampi(int(pathology_state.get("spread_heat", 0)), 0, 8)
+		var recurrence_heat := clampi(int(pathology_state.get("recurrence_heat", 0)), 0, 8)
+		var family := _normalize_phase6_lifecycle_family({
+			"family_id": pathology_id,
+			"family_kind": "pathology",
+			"state": "saturated" if spread_heat >= 4 else ("active" if spread_heat >= 2 else "cooling"),
+			"heat": clampi(spread_heat + 1, 0, 8),
+			"saturation": clampi(maxi(spread_heat, recurrence_heat - 1), 0, 8),
+			"strain": clampi(abs(spread_heat - recurrence_heat), 0, 8),
+			"cooling_tags": ["remission", "suppression"],
+			"successor_hint": "%s_successor" % pathology_id,
+			"return_window": "near_horizon",
+			"dominance_strain": clampi(spread_heat + recurrence_heat - 1, 0, 8),
+			"throttle_state": "cooling" if spread_heat >= 4 else "open",
+			"resurrection_priority": clampi(recurrence_heat + 1, 0, 4)
+		})
+		family_index[pathology_id] = _merge_phase6_lifecycle_family(Dictionary(family_index.get(pathology_id, {})), family)
+	var encounter_counts := {}
+	var encounter_topology_hints := {}
+	for encounter_raw in Array(encounter_manifest.get("encounters", [])):
+		var encounter := Dictionary(encounter_raw)
+		var intent_id := str(encounter.get("intent_id", "")).strip_edges()
+		if intent_id.is_empty():
+			continue
+		encounter_counts[intent_id] = int(encounter_counts.get(intent_id, 0)) + 1
+		encounter_topology_hints[intent_id] = str(encounter.get("topology_id", encounter_topology_hints.get(intent_id, ""))).strip_edges()
+	for intent_id in encounter_counts.keys():
+		var count := int(encounter_counts.get(intent_id, 0))
+		var family_id := "encounter_%s" % str(intent_id)
+		var family := _normalize_phase6_lifecycle_family({
+			"family_id": family_id,
+			"family_kind": "encounter",
+			"state": "saturated" if count >= 3 else ("active" if count >= 1 else "cooling"),
+			"heat": clampi(count + 1, 0, 8),
+			"saturation": clampi(count, 0, 8),
+			"strain": clampi(count - 1, 0, 8),
+			"cooling_tags": ["resolution_diversity", "quiet_play"],
+			"successor_hint": str(encounter_topology_hints.get(intent_id, "encounter_successor")).strip_edges(),
+			"return_window": "near_horizon",
+			"dominance_strain": clampi(count + 1, 0, 8),
+			"throttle_state": "cooling" if count >= 3 else "open",
+			"resurrection_priority": clampi(4 - mini(count, 3), 0, 4)
+		})
+		family_index[family_id] = _merge_phase6_lifecycle_family(Dictionary(family_index.get(family_id, {})), family)
+	var apex_class_counts := {}
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		var apex := Dictionary(apex_raw)
+		var class_id := str(apex.get("apex_class_id", apex.get("class_id", ""))).strip_edges()
+		if class_id.is_empty():
+			continue
+		apex_class_counts[class_id] = int(apex_class_counts.get(class_id, 0)) + 1
+	for class_id in apex_class_counts.keys():
+		var count := int(apex_class_counts.get(class_id, 0))
+		var peak_spacing_score := clampi(int(peak_structure_profile.get("peak_spacing_score", 0)), 0, 4)
+		var family_id := "apex_%s" % str(class_id)
+		var family := _normalize_phase6_lifecycle_family({
+			"family_id": family_id,
+			"family_kind": "apex",
+			"state": "saturated" if count >= 2 and peak_spacing_score <= 2 else "active",
+			"heat": clampi(count + 2, 0, 8),
+			"saturation": clampi(count + maxi(0, 3 - peak_spacing_score), 0, 8),
+			"strain": clampi(maxi(0, 3 - peak_spacing_score), 0, 8),
+			"cooling_tags": ["peak_spacing", "aftermath_space"],
+			"successor_hint": "encounter_%s" % class_id,
+			"return_window": "mid_horizon",
+			"dominance_strain": clampi(count + maxi(0, 3 - peak_spacing_score), 0, 8),
+			"throttle_state": "cooling" if peak_spacing_score <= 2 else "open",
+			"resurrection_priority": clampi(peak_spacing_score, 0, 4)
+		})
+		family_index[family_id] = _merge_phase6_lifecycle_family(Dictionary(family_index.get(family_id, {})), family)
+	var families: Array[Dictionary] = []
+	for family_id in family_index.keys():
+		families.append(_normalize_phase6_lifecycle_family(Dictionary(family_index.get(family_id, {}))))
+	families.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_rank := int(a.get("heat", 0)) + int(a.get("saturation", 0)) + int(a.get("dominance_strain", 0))
+		var b_rank := int(b.get("heat", 0)) + int(b.get("saturation", 0)) + int(b.get("dominance_strain", 0))
+		if a_rank == b_rank:
+			return str(a.get("family_id", "")) < str(b.get("family_id", ""))
+		return a_rank > b_rank
+	)
+	current["families"] = families.slice(0, 12)
+	var active_state_ids: Array[String] = []
+	for family_raw in families:
+		var family := Dictionary(family_raw)
+		var family_id := str(family.get("family_id", "")).strip_edges()
+		if not family_id.is_empty() and not active_state_ids.has(family_id):
+			active_state_ids.append(family_id)
+	current["active_state_ids"] = active_state_ids.slice(0, 12)
+	var lines: Array[String] = []
+	for family_raw in families.slice(0, 4):
+		var family := Dictionary(family_raw)
+		lines.append("%s is %s with %s strain and %s throttle." % [
+			str(family.get("family_id", "")).replace("_", " "),
+			str(family.get("state", "active")),
+			_market_band(int(family.get("dominance_strain", family.get("strain", 0)))),
+			str(family.get("throttle_state", "open"))
+		])
+	current["lines"] = lines.slice(0, 4)
+	return current
+
+static func _merge_phase6_lifecycle_family(existing: Dictionary, incoming: Dictionary) -> Dictionary:
+	if existing.is_empty():
+		return incoming
+	var merged := existing.duplicate(true)
+	merged["state"] = str(incoming.get("state", merged.get("state", "emerging"))).strip_edges()
+	merged["heat"] = maxi(int(merged.get("heat", 0)), int(incoming.get("heat", 0)))
+	merged["saturation"] = maxi(int(merged.get("saturation", 0)), int(incoming.get("saturation", 0)))
+	merged["strain"] = maxi(int(merged.get("strain", 0)), int(incoming.get("strain", 0)))
+	merged["cooling_tags"] = _merge_arrays(_string_array(merged.get("cooling_tags", [])), _string_array(incoming.get("cooling_tags", [])))
+	merged["successor_hint"] = str(incoming.get("successor_hint", merged.get("successor_hint", ""))).strip_edges()
+	merged["return_window"] = str(incoming.get("return_window", merged.get("return_window", ""))).strip_edges()
+	merged["dominance_strain"] = maxi(int(merged.get("dominance_strain", 0)), int(incoming.get("dominance_strain", 0)))
+	merged["throttle_state"] = str(incoming.get("throttle_state", merged.get("throttle_state", "open"))).strip_edges()
+	merged["resurrection_priority"] = maxi(int(merged.get("resurrection_priority", 0)), int(incoming.get("resurrection_priority", 0)))
+	return merged
+
+static func _normalize_phase6_lifecycle_family(raw: Dictionary) -> Dictionary:
+	var family := Dictionary(raw).duplicate(true)
+	family["family_id"] = str(family.get("family_id", "")).strip_edges()
+	family["family_kind"] = str(family.get("family_kind", "market")).strip_edges()
+	family["state"] = str(family.get("state", "emerging")).strip_edges()
+	family["heat"] = clampi(int(family.get("heat", 0)), 0, 8)
+	family["saturation"] = clampi(int(family.get("saturation", 0)), 0, 8)
+	family["strain"] = clampi(int(family.get("strain", 0)), 0, 8)
+	family["cooling_tags"] = _string_array(family.get("cooling_tags", []))
+	family["successor_hint"] = str(family.get("successor_hint", "")).strip_edges()
+	family["return_window"] = str(family.get("return_window", "near_horizon")).strip_edges()
+	family["dominance_strain"] = clampi(int(family.get("dominance_strain", family.get("strain", 0))), 0, 8)
+	family["throttle_state"] = str(family.get("throttle_state", "open")).strip_edges()
+	if family["throttle_state"].is_empty():
+		family["throttle_state"] = "open"
+	family["resurrection_priority"] = clampi(int(family.get("resurrection_priority", 0)), 0, 4)
+	return family
+
+static func _lifecycle_family_kinds(lifecycle_registry: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	for family_raw in Array(lifecycle_registry.get("families", [])):
+		var family_kind := str(Dictionary(family_raw).get("family_kind", "")).strip_edges()
+		if not family_kind.is_empty() and not result.has(family_kind):
+			result.append(family_kind)
+	return result
+
+static func _build_market_routing(generation_surface: Dictionary, market_regime_state: Dictionary, market_memory_state: Dictionary, lifecycle_registry: Dictionary) -> Dictionary:
+	var current := Dictionary(generation_surface.get("market_routing", {})).duplicate(true)
+	current["market_volatility"] = int(current.get("market_volatility", 0))
+	current["prestige_pressure"] = int(current.get("prestige_pressure", 0))
+	current["hoard_visibility"] = int(current.get("hoard_visibility", 0))
+	current["scarcity_recovery"] = int(current.get("scarcity_recovery", 0))
+	current["carrier_risk_bias"] = int(current.get("carrier_risk_bias", 0))
+	current["extraction_debt"] = int(market_memory_state.get("extraction_debt", 0))
+	current["hoard_heat"] = int(market_memory_state.get("hoard_heat", 0))
+	current["neglect_heat"] = int(market_memory_state.get("neglect_heat", 0))
+	current["distortion_heat"] = int(market_memory_state.get("distortion_heat", 0))
+	current["recovery_credit"] = int(market_memory_state.get("recovery_credit", 0))
+	current["prestige_climate"] = str(market_memory_state.get("prestige_climate", "")).strip_edges()
+	current["carrier_risk_band"] = str(market_regime_state.get("carrier_risk_band", "")).strip_edges()
+	current["active_regime_ids"] = _string_array(market_regime_state.get("active_regime_ids", []))
+	current["lifecycle_state_ids"] = _string_array(lifecycle_registry.get("active_state_ids", []))
+	current["market_lines"] = _string_array(market_regime_state.get("summary_lines", []))
+	current["lifecycle_lines"] = _string_array(lifecycle_registry.get("lines", []))
+	return current
 
 static func _build_information_doctrine_profile(generation_surface: Dictionary, ontology_routing: Dictionary, public_summary: Dictionary, policy: Dictionary) -> Dictionary:
 	return {
@@ -589,6 +1008,631 @@ static func _build_public_summary(public_doctrine: Dictionary, generation_surfac
 		"surface_summary": Dictionary(surface_summary).duplicate(true),
 		"run_identity": run_identity.duplicate(true)
 	}
+
+static func _apply_phase3_public_summary(summary: Dictionary, market_regime_state: Dictionary, lifecycle_registry: Dictionary) -> Dictionary:
+	var next := summary.duplicate(true)
+	next["active_regime_ids"] = _string_array(market_regime_state.get("active_regime_ids", []))
+	next["lifecycle_state_ids"] = _string_array(lifecycle_registry.get("active_state_ids", []))
+	next["market_regime_lines"] = _string_array(market_regime_state.get("summary_lines", []))
+	next["lifecycle_lines"] = _string_array(lifecycle_registry.get("lines", []))
+	next["market_regime_id"] = str(market_regime_state.get("regime_id", "")).strip_edges()
+	next["market_regime_family"] = str(market_regime_state.get("regime_family", "")).strip_edges()
+	next["market_prestige_band"] = str(market_regime_state.get("prestige_band", "")).strip_edges()
+	next["market_carrier_risk_band"] = str(market_regime_state.get("carrier_risk_band", "")).strip_edges()
+	return next
+
+static func _build_encounter_language_profile(generation_surface: Dictionary, public_summary: Dictionary) -> Dictionary:
+	return {
+		"schema_name": "EncounterLanguageProfile",
+		"schema_version": 2,
+		"intent_taxonomy": [
+			{"intent_id": "pursuit", "anchor_category": "route_pressure"},
+			{"intent_id": "interdiction", "anchor_category": "custody_pressure"},
+			{"intent_id": "displacement", "anchor_category": "regroup_pressure"},
+			{"intent_id": "attrition", "anchor_category": "burden_pressure"},
+			{"intent_id": "exposure", "anchor_category": "evidence_pressure"},
+			{"intent_id": "custody_break", "anchor_category": "custody_pressure"},
+			{"intent_id": "rescue_inversion", "anchor_category": "regroup_pressure"},
+			{"intent_id": "contamination", "anchor_category": "evidence_pressure"},
+			{"intent_id": "siege", "anchor_category": "extraction_pressure"},
+			{"intent_id": "suppression", "anchor_category": "evidence_pressure"}
+		],
+		"topology_taxonomy": [
+			{"topology_id": "corridor_chase", "room_tags": ["traversal", "hazard"]},
+			{"topology_id": "threshold_hold", "room_tags": ["evidence", "hazard"]},
+			{"topology_id": "chamber_squeeze", "room_tags": ["hazard", "evidence"]},
+			{"topology_id": "carrier_intercept", "room_tags": ["traversal", "hazard"]},
+			{"topology_id": "split_room", "room_tags": ["traversal", "evidence"]},
+			{"topology_id": "relay_defense", "room_tags": ["traversal", "evidence"]},
+			{"topology_id": "moving_front", "room_tags": ["traversal", "hazard"]},
+			{"topology_id": "ambush_pocket", "room_tags": ["hazard"]},
+			{"topology_id": "pack_surround", "room_tags": ["hazard", "traversal"]},
+			{"topology_id": "extraction_lane", "room_tags": ["traversal", "hazard"]}
+		],
+		"role_vectors": ["carrier", "escort", "witness", "breaker", "decoy", "rescuer", "suppressor", "recoverer"],
+		"state_flow": ["foreshadow", "telegraph", "commit", "contest", "resolve", "residue"],
+		"consequence_classes": [
+			"health_loss",
+			"stability_loss",
+			"route_displacement",
+			"custody_disruption",
+			"evidence_exposure",
+			"resource_drain",
+			"pathology_spread",
+			"noise_witness_generation",
+			"regroup_pressure",
+			"aftermath_seed"
+		],
+		"expedition_pressure_categories": _encounter_anchor_categories(),
+		"readability_contract": {
+			"expedition_anchor_required": true,
+			"no_hidden_targeting_required": true,
+			"detached_genre_forbidden": true
+		},
+		"summary_lines": _merge_arrays(
+			[
+				"Encounters remain anchored to expedition pressure instead of detached action scoring.",
+				"Ecology escalation stays legible through telegraph and consequence class."
+			],
+			_string_array(public_summary.get("encounter_lines", []))
+		).slice(0, 3),
+		"pacing_profile": str(generation_surface.get("pacing_profile", public_summary.get("pacing_profile", ""))).strip_edges()
+	}
+
+static func _build_pathology_profile(market_regime_state: Dictionary, _public_summary: Dictionary) -> Dictionary:
+	var regime_ids := _string_array(market_regime_state.get("active_regime_ids", []))
+	return {
+		"schema_name": "PathologyProfile",
+		"schema_version": 2,
+		"families": [
+			{
+				"family_id": "pathology_haunt_pressure",
+				"spread_mode": "echo pursuit",
+				"adaptation_tags": ["artifact_focus", "route_focus"],
+				"suppression_tags": ["escort_cover", "recovery_geometry"],
+				"recurrence_affinity": "steady",
+				"regime_affinity": regime_ids.duplicate(),
+				"public_signals": ["ghost pressure", "artifact watched"],
+				"linked_species_ids": ["ghost"],
+				"encounter_ids": ["enc_ghost_corridor_pursuit"]
+			},
+			{
+				"family_id": "pathology_predator_pack",
+				"spread_mode": "carrier intercept",
+				"adaptation_tags": ["burden_focus", "room_isolation"],
+				"suppression_tags": ["escort_rotation", "regroup_cover"],
+				"recurrence_affinity": "elevated",
+				"regime_affinity": regime_ids.duplicate(),
+				"public_signals": ["predator rush", "predator marked"],
+				"linked_species_ids": ["predator"],
+				"encounter_ids": ["enc_predator_carrier_intercept", "enc_predator_pack_surround"]
+			},
+			{
+				"family_id": "pathology_protocol_interdiction",
+				"spread_mode": "witness clamp",
+				"adaptation_tags": ["inspection_focus", "custody_pressure"],
+				"suppression_tags": ["clean relay", "quiet regroup"],
+				"recurrence_affinity": "steady",
+				"regime_affinity": regime_ids.duplicate(),
+				"public_signals": ["protocol sweep", "protocol watched"],
+				"linked_species_ids": ["protocol_watch"],
+				"encounter_ids": ["enc_protocol_threshold_hold", "enc_protocol_extraction_interdict"]
+			},
+			{
+				"family_id": "pathology_echo_lure",
+				"spread_mode": "echo displacement",
+				"adaptation_tags": ["misdirection", "split attention"],
+				"suppression_tags": ["counter_reading", "stable route"],
+				"recurrence_affinity": "elevated",
+				"regime_affinity": regime_ids.duplicate(),
+				"public_signals": ["echo lure", "echo pressure"],
+				"linked_species_ids": ["echo_lure"],
+				"encounter_ids": ["enc_echo_split_displacement"]
+			}
+		]
+	}
+
+static func _build_pathology_state(pathology_profile: Dictionary, market_regime_state: Dictionary) -> Dictionary:
+	var regime_ids := _string_array(market_regime_state.get("active_regime_ids", []))
+	var active_family_ids: Array[String] = []
+	for family_raw in Array(pathology_profile.get("families", [])):
+		var family := Dictionary(family_raw)
+		var family_id := str(family.get("family_id", "")).strip_edges()
+		if family_id.is_empty():
+			continue
+		if active_family_ids.size() < 2 or regime_ids.has("market_distortion_spike") or family_id == "pathology_protocol_interdiction":
+			active_family_ids.append(family_id)
+	return {
+		"schema_name": "PathologyState",
+		"schema_version": 2,
+		"active_family_ids": active_family_ids,
+		"spread_heat": clampi(active_family_ids.size(), 0, 8),
+		"remission_state": "watchful" if not active_family_ids.is_empty() else "contained",
+		"recurrence_heat": active_family_ids.size(),
+		"suppression_state": "watchful",
+		"mutation_tags": active_family_ids.duplicate(),
+		"summary_lines": [
+			"Pathology pressure is being routed through live ecology instead of detached combat layers."
+		]
+	}
+
+static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_language_profile: Dictionary, generation_surface: Dictionary) -> Dictionary:
+	var pressure_verbs := _string_array(generation_surface.get("pressure_verbs", []))
+	var pacing_profile := str(generation_surface.get("pacing_profile", "")).strip_edges()
+	var encounters: Array[Dictionary] = [
+		{
+			"encounter_id": "enc_ghost_corridor_pursuit",
+			"species_id": "ghost",
+			"mode_ids": ["pursuit"],
+			"intent_id": "pursuit",
+			"topology_id": "corridor_chase",
+			"anchored_pressures": ["route_pressure", "extraction_pressure"],
+			"role_vectors": ["carrier", "escort", "decoy"],
+			"telegraph_channels": ["position_shadow", "noise_trace", "hazard_pulse"],
+			"consequence_classes": ["route_displacement", "stability_loss", "aftermath_seed"],
+			"pathology_family_ids": ["pathology_haunt_pressure"],
+			"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true),
+			"room_tags": ["traversal", "hazard"],
+			"hazard_tags": ["none", "push", "collapse"],
+			"fairness_bounds": {"expedition_anchor_required": true, "no_hidden_targeting_required": true, "detached_genre_forbidden": true},
+			"public_trace_class": "pressure_ecology",
+			"private_trace_class": "escalation",
+			"summary_lines": ["Ghost pursuit is pulling the route toward extraction pressure."]
+		},
+		{
+			"encounter_id": "enc_predator_carrier_intercept",
+			"species_id": "predator",
+			"mode_ids": ["pursuit", "ambush"],
+			"intent_id": "interdiction",
+			"topology_id": "carrier_intercept",
+			"anchored_pressures": ["custody_pressure", "burden_pressure"],
+			"role_vectors": ["carrier", "escort", "breaker"],
+			"telegraph_channels": ["hazard_pulse", "position_shadow"],
+			"consequence_classes": ["custody_disruption", "stability_loss", "resource_drain"],
+			"pathology_family_ids": ["pathology_predator_pack"],
+			"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true),
+			"room_tags": ["traversal", "hazard"],
+			"hazard_tags": ["none", "push", "collapse"],
+			"fairness_bounds": {"expedition_anchor_required": true, "no_hidden_targeting_required": true, "detached_genre_forbidden": true},
+			"public_trace_class": "pressure_ecology",
+			"private_trace_class": "escalation",
+			"summary_lines": ["Predator intercept is testing who can carry through pressure."]
+		},
+		{
+			"encounter_id": "enc_predator_pack_surround",
+			"species_id": "predator",
+			"mode_ids": ["pack"],
+			"intent_id": "suppression",
+			"topology_id": "pack_surround",
+			"anchored_pressures": ["regroup_pressure", "burden_pressure"],
+			"role_vectors": ["carrier", "escort", "decoy", "rescuer"],
+			"telegraph_channels": ["hazard_pulse", "noise_trace"],
+			"consequence_classes": ["route_displacement", "pathology_spread", "regroup_pressure"],
+			"pathology_family_ids": ["pathology_predator_pack"],
+			"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true),
+			"room_tags": ["hazard", "traversal"],
+			"hazard_tags": ["push", "spikes", "collapse"],
+			"fairness_bounds": {"expedition_anchor_required": true, "no_hidden_targeting_required": true, "detached_genre_forbidden": true},
+			"public_trace_class": "pressure_ecology",
+			"private_trace_class": "escalation",
+			"summary_lines": ["Predator pack pressure is forcing regroup decisions under load."]
+		},
+		{
+			"encounter_id": "enc_protocol_threshold_hold",
+			"species_id": "protocol_watch",
+			"mode_ids": ["inspection", "containment"],
+			"intent_id": "suppression",
+			"topology_id": "threshold_hold",
+			"anchored_pressures": ["evidence_pressure", "custody_pressure"],
+			"role_vectors": ["carrier", "witness", "breaker", "recoverer"],
+			"telegraph_channels": ["noise_trace", "hazard_pulse"],
+			"consequence_classes": ["evidence_exposure", "route_displacement", "resource_drain"],
+			"pathology_family_ids": ["pathology_protocol_interdiction"],
+			"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true),
+			"room_tags": ["evidence", "hazard"],
+			"hazard_tags": ["none", "collapse", "spikes"],
+			"fairness_bounds": {"expedition_anchor_required": true, "no_hidden_targeting_required": true, "detached_genre_forbidden": true},
+			"public_trace_class": "pressure_ecology",
+			"private_trace_class": "escalation",
+			"summary_lines": ["Protocol watch is turning the threshold into a public answer test."]
+		},
+		{
+			"encounter_id": "enc_protocol_extraction_interdict",
+			"species_id": "protocol_watch",
+			"mode_ids": ["interdiction"],
+			"intent_id": "interdiction",
+			"topology_id": "extraction_lane",
+			"anchored_pressures": ["extraction_pressure", "custody_pressure"],
+			"role_vectors": ["carrier", "escort", "rescuer", "suppressor"],
+			"telegraph_channels": ["hazard_pulse", "noise_trace"],
+			"consequence_classes": ["custody_disruption", "regroup_pressure", "aftermath_seed"],
+			"pathology_family_ids": ["pathology_protocol_interdiction"],
+			"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true),
+			"room_tags": ["traversal", "hazard"],
+			"hazard_tags": ["none", "push", "collapse"],
+			"fairness_bounds": {"expedition_anchor_required": true, "no_hidden_targeting_required": true, "detached_genre_forbidden": true},
+			"public_trace_class": "pressure_ecology",
+			"private_trace_class": "escalation",
+			"summary_lines": ["Protocol interdiction is tightening the extraction lane."]
+		},
+		{
+			"encounter_id": "enc_echo_split_displacement",
+			"species_id": "echo_lure",
+			"mode_ids": ["lure", "anomaly_echo"],
+			"intent_id": "displacement",
+			"topology_id": "split_room",
+			"anchored_pressures": ["route_pressure", "regroup_pressure"],
+			"role_vectors": ["decoy", "recoverer", "escort"],
+			"telegraph_channels": ["noise_trace", "hazard_pulse"],
+			"consequence_classes": ["route_displacement", "noise_witness_generation", "pathology_spread"],
+			"pathology_family_ids": ["pathology_echo_lure"],
+			"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true),
+			"room_tags": ["traversal", "evidence"],
+			"hazard_tags": ["none", "push"],
+			"fairness_bounds": {"expedition_anchor_required": true, "no_hidden_targeting_required": true, "detached_genre_forbidden": true},
+			"public_trace_class": "pressure_ecology",
+			"private_trace_class": "escalation",
+			"summary_lines": ["Echo lure pressure is splitting the route into false answers."]
+		}
+	]
+	var summary_lines: Array[String] = []
+	for encounter_raw in encounters:
+		summary_lines = _merge_arrays(summary_lines, _string_array(Dictionary(encounter_raw).get("summary_lines", [])))
+	for family_raw in Array(pathology_profile.get("families", [])):
+		summary_lines = _merge_arrays(summary_lines, _string_array(Dictionary(family_raw).get("public_signals", [])))
+	if not pressure_verbs.is_empty():
+		summary_lines = _merge_arrays(summary_lines, ["Pressure verbs shaping encounters: %s." % ", ".join(pressure_verbs.slice(0, 3))])
+	if not pacing_profile.is_empty():
+		summary_lines = _merge_arrays(summary_lines, ["Encounter pacing is being read through %s." % pacing_profile.replace("_", " ")])
+	return {
+		"schema_name": "EncounterManifest",
+		"schema_version": 2,
+		"encounters": encounters,
+		"summary_lines": summary_lines.slice(0, 3)
+	}
+
+static func _build_encounter_routing(generation_surface: Dictionary, encounter_manifest: Dictionary, pathology_state: Dictionary) -> Dictionary:
+	var current := Dictionary(generation_surface.get("encounter_routing", {})).duplicate(true)
+	current["active_pathology_ids"] = _string_array(pathology_state.get("active_family_ids", []))
+	current["encounter_manifest_ids"] = _encounter_manifest_ids(encounter_manifest)
+	current["encounter_intent_ids"] = _encounter_intent_ids(encounter_manifest)
+	current["encounter_topology_ids"] = _encounter_topology_ids(encounter_manifest)
+	current["anchored_pressures"] = _encounter_anchor_coverage(encounter_manifest)
+	current["encounter_lines"] = _string_array(encounter_manifest.get("summary_lines", []))
+	current["pathology_lines"] = _string_array(pathology_state.get("summary_lines", []))
+	current["branch_family"] = str(generation_surface.get("branch_family", "")).strip_edges()
+	return current
+
+static func _apply_phase4_public_summary(summary: Dictionary, encounter_manifest: Dictionary, pathology_state: Dictionary) -> Dictionary:
+	var next := summary.duplicate(true)
+	next["active_pathology_ids"] = _string_array(pathology_state.get("active_family_ids", []))
+	next["pathology_lines"] = _string_array(pathology_state.get("summary_lines", []))
+	next["encounter_lines"] = _string_array(encounter_manifest.get("summary_lines", []))
+	next["encounter_manifest_ids"] = _encounter_manifest_ids(encounter_manifest)
+	next["encounter_intent_ids"] = _encounter_intent_ids(encounter_manifest)
+	next["encounter_topology_ids"] = _encounter_topology_ids(encounter_manifest)
+	return next
+
+static func _build_apex_framework_profile(encounter_language_profile: Dictionary, encounter_manifest: Dictionary, pathology_profile: Dictionary, generation_surface: Dictionary, public_summary: Dictionary) -> Dictionary:
+	var summary_lines := _merge_arrays(
+		[
+			"Apex pressure escalates encounter language without detaching from expedition logic.",
+			"Primary apex resolution remains objective-driven and readable."
+		],
+		_string_array(public_summary.get("apex_lines", []))
+	)
+	summary_lines = _merge_arrays(summary_lines, _string_array(encounter_manifest.get("summary_lines", [])))
+	for family_raw in Array(pathology_profile.get("families", [])):
+		summary_lines = _merge_arrays(summary_lines, _string_array(Dictionary(family_raw).get("public_signals", [])))
+	return {
+		"schema_name": "ApexFrameworkProfile",
+		"schema_version": 2,
+		"origin_taxonomy": ["ecology", "pathology", "institution", "market", "hybrid"],
+		"function_taxonomy": ["pursuit", "siege", "duel", "burden_break", "interceptor", "packmind", "witness_trial", "extraction_trial"],
+		"arena_taxonomy": ["corridor", "chamber_cluster", "threshold_lattice", "moving_route", "carrier_gauntlet", "public_stage"],
+		"class_taxonomy": ["pursuit_apex", "siege_apex", "duel_apex", "interceptor_apex", "packmind_apex", "burden_apex", "witness_trial_apex", "extraction_trial_apex", "relay_breaker_apex"],
+		"phase_model": ["announce", "shape", "commit", "crisis", "reversal", "resolution", "aftermath"],
+		"resolution_set": ["evade", "outlast", "escort_through", "split_and_recover", "bait_and_redirect", "expose", "contain", "appease", "break_route_cleanly", "sacrifice_for_return", "complete_objective_under_pressure"],
+		"readability_contract": {
+			"announce_required": true,
+			"commit_required": true,
+			"resolution_required": true,
+			"no_hp_sponge_primary_resolution": true,
+			"detached_boss_minigame_forbidden": true,
+			"expedition_anchor_required": true
+		},
+		"summary_lines": summary_lines.slice(0, 3),
+		"pacing_profile": str(generation_surface.get("pacing_profile", public_summary.get("pacing_profile", ""))).strip_edges(),
+		"linked_encounter_count": Array(encounter_manifest.get("encounters", [])).size(),
+		"state_flow": Array(encounter_language_profile.get("state_flow", [])).duplicate(true)
+	}
+
+static func _build_apex_manifest(apex_framework_profile: Dictionary, encounter_manifest: Dictionary, _pathology_profile: Dictionary, generation_surface: Dictionary, public_summary: Dictionary) -> Dictionary:
+	var pacing_profile := str(generation_surface.get("pacing_profile", public_summary.get("pacing_profile", ""))).strip_edges()
+	var apexes: Array[Dictionary] = [
+		{
+			"apex_id": "apex_ghost_threshold_trial",
+			"apex_class_id": "witness_trial_apex",
+			"species_id": "ghost",
+			"linked_encounter_ids": ["enc_ghost_corridor_pursuit"],
+			"origin": "ecology",
+			"function": "witness_trial",
+			"arena": "threshold_lattice",
+			"phase_model": Array(apex_framework_profile.get("phase_model", [])).duplicate(true),
+			"resolution_classes": ["expose", "contain", "complete_objective_under_pressure"],
+			"consequence_strata": ["local_state", "world_memory_state"],
+			"telegraph_profile": {"channels": ["hazard_pulse", "noise_trace"], "minimum_readability_floor": 2},
+			"anchored_pressures": ["route_pressure", "evidence_pressure"],
+			"local_aftermath_tags": ["threshold_residue", "evidence_exposure", "route_pressure"],
+			"world_aftermath_tags": ["residue_record", "institutional_response", "continuity_scar"],
+			"summary_lines": ["Ghost threshold pressure is forcing the crew to prove the route in public."]
+		},
+		{
+			"apex_id": "apex_predator_packmind",
+			"apex_class_id": "packmind_apex",
+			"species_id": "predator",
+			"linked_encounter_ids": ["enc_predator_pack_surround", "enc_predator_carrier_intercept"],
+			"origin": "pathology",
+			"function": "packmind",
+			"arena": "carrier_gauntlet",
+			"phase_model": Array(apex_framework_profile.get("phase_model", [])).duplicate(true),
+			"resolution_classes": ["outlast", "bait_and_redirect", "escort_through", "break_route_cleanly"],
+			"consequence_strata": ["local_state", "run_state", "world_memory_state"],
+			"telegraph_profile": {"channels": ["hazard_pulse", "noise_trace"], "minimum_readability_floor": 2},
+			"anchored_pressures": ["custody_pressure", "burden_pressure", "regroup_pressure"],
+			"local_aftermath_tags": ["carrier_strain", "pack_residue", "resource_drain"],
+			"world_aftermath_tags": ["world_mutation", "prestige_climate_delta", "return_pressure"],
+			"summary_lines": ["Predator packmind pressure is converging on the carrier path without detaching from the expedition."]
+		},
+		{
+			"apex_id": "apex_protocol_extraction_trial",
+			"apex_class_id": "extraction_trial_apex",
+			"species_id": "protocol_watch",
+			"linked_encounter_ids": ["enc_protocol_threshold_hold", "enc_protocol_extraction_interdict"],
+			"origin": "institution",
+			"function": "extraction_trial",
+			"arena": "public_stage",
+			"phase_model": Array(apex_framework_profile.get("phase_model", [])).duplicate(true),
+			"resolution_classes": ["appease", "contain", "complete_objective_under_pressure", "split_and_recover"],
+			"consequence_strata": ["local_state", "run_state", "world_memory_state"],
+			"telegraph_profile": {"channels": ["hazard_pulse", "noise_trace"], "minimum_readability_floor": 2},
+			"anchored_pressures": ["extraction_pressure", "custody_pressure", "evidence_pressure"],
+			"local_aftermath_tags": ["public_trace", "custody_residue", "regroup_pressure"],
+			"world_aftermath_tags": ["institutional_response", "successor_claim", "residue_record"],
+			"summary_lines": ["Protocol extraction pressure is turning the return lane into a readable public trial."]
+		}
+	]
+	var summary_lines := _merge_arrays(_string_array(public_summary.get("apex_lines", [])), _string_array(Dictionary(encounter_manifest).get("summary_lines", [])))
+	for apex_raw in apexes:
+		summary_lines = _merge_arrays(summary_lines, _string_array(Dictionary(apex_raw).get("summary_lines", [])))
+	if not pacing_profile.is_empty():
+		summary_lines = _merge_arrays(summary_lines, ["Apex pacing is being staged through %s." % pacing_profile.replace("_", " ")])
+	return {
+		"schema_name": "ApexManifest",
+		"schema_version": 2,
+		"apexes": apexes,
+		"summary_lines": summary_lines.slice(0, 3)
+	}
+
+static func _build_peak_structure_profile(public_summary: Dictionary, generation_surface: Dictionary, apex_manifest: Dictionary) -> Dictionary:
+	var pacing_profile := str(generation_surface.get("pacing_profile", public_summary.get("pacing_profile", ""))).strip_edges()
+	var apex_count := Array(apex_manifest.get("apexes", [])).size()
+	var summary_lines := _merge_arrays(
+		[
+			"Peak structure keeps spectacle spaced around readable aftermath.",
+			"Apex escalation remains subordinate to burden, custody, and return."
+		],
+		_string_array(public_summary.get("peak_structure_lines", []))
+	)
+	return {
+		"schema_name": "PeakStructureProfile",
+		"schema_version": 2,
+		"emotional_band": "charged" if pacing_profile in ["volatile", "escalating"] else "measured",
+		"peak_spacing_score": clampi(2 + apex_count, 0, 5),
+		"spectacle_window_profile": ["announce_window", "crisis_window", "aftermath_window"],
+		"burden_unification_score": clampi(apex_count, 1, 4),
+		"summary_lines": summary_lines.slice(0, 3)
+	}
+
+static func _build_apex_routing(generation_surface: Dictionary, apex_manifest: Dictionary, peak_structure_profile: Dictionary) -> Dictionary:
+	var current := Dictionary(generation_surface.get("apex_routing", {})).duplicate(true)
+	current["apex_manifest_ids"] = _apex_manifest_ids(apex_manifest)
+	current["apex_class_ids"] = _apex_class_ids(apex_manifest)
+	current["apex_lines"] = _string_array(apex_manifest.get("summary_lines", []))
+	current["peak_structure_lines"] = _string_array(peak_structure_profile.get("summary_lines", []))
+	current["peak_spacing_score"] = int(peak_structure_profile.get("peak_spacing_score", 0))
+	current["primary_apex_id"] = _first_string(current.get("apex_manifest_ids", []), "")
+	current["branch_family"] = str(generation_surface.get("branch_family", "")).strip_edges()
+	return current
+
+static func _apply_phase5_public_summary(summary: Dictionary, apex_manifest: Dictionary, peak_structure_profile: Dictionary) -> Dictionary:
+	var next := summary.duplicate(true)
+	next["apex_manifest_ids"] = _apex_manifest_ids(apex_manifest)
+	next["apex_class_ids"] = _apex_class_ids(apex_manifest)
+	next["apex_lines"] = _string_array(apex_manifest.get("summary_lines", []))
+	next["peak_structure_lines"] = _string_array(peak_structure_profile.get("summary_lines", []))
+	return next
+
+static func _validate_encounter_contracts(bundle: Dictionary) -> Array[String]:
+	var failures: Array[String] = []
+	var encounter_language_profile: Dictionary = Dictionary(bundle.get("encounter_language_profile", {}))
+	var encounter_manifest: Dictionary = Dictionary(bundle.get("encounter_manifest", {}))
+	var pathology_profile: Dictionary = Dictionary(bundle.get("pathology_profile", {}))
+	var pathology_state: Dictionary = Dictionary(bundle.get("pathology_state", {}))
+	var allowed_pressures := _string_array(encounter_language_profile.get("expedition_pressure_categories", _encounter_anchor_categories()))
+	if allowed_pressures.is_empty():
+		failures.append("encounter language profile must expose expedition pressure categories")
+	var active_family_ids := _string_array(pathology_state.get("active_family_ids", []))
+	var known_family_ids: Array[String] = []
+	for family_raw in Array(pathology_profile.get("families", [])):
+		var family := Dictionary(family_raw)
+		var family_id := str(family.get("family_id", "")).strip_edges()
+		if not family_id.is_empty():
+			known_family_ids.append(family_id)
+	for family_id in active_family_ids:
+		if not known_family_ids.has(family_id):
+			failures.append("pathology state references unknown family %s" % family_id)
+	for encounter_raw in Array(encounter_manifest.get("encounters", [])):
+		var encounter := Dictionary(encounter_raw)
+		var encounter_id := str(encounter.get("encounter_id", "")).strip_edges()
+		if encounter_id.is_empty():
+			failures.append("encounter manifest entries require encounter_id")
+			continue
+		var anchored_pressures := _string_array(encounter.get("anchored_pressures", []))
+		if anchored_pressures.is_empty():
+			failures.append("encounter %s must declare anchored_pressures" % encounter_id)
+		for pressure_id in anchored_pressures:
+			if not allowed_pressures.has(pressure_id):
+				failures.append("encounter %s declares invalid anchored pressure %s" % [encounter_id, pressure_id])
+		if _string_array(encounter.get("consequence_classes", [])).is_empty():
+			failures.append("encounter %s must declare consequence_classes" % encounter_id)
+		if _string_array(encounter.get("role_vectors", [])).is_empty():
+			failures.append("encounter %s must declare role_vectors" % encounter_id)
+		var fairness_bounds := Dictionary(encounter.get("fairness_bounds", {}))
+		if not bool(fairness_bounds.get("detached_genre_forbidden", false)):
+			failures.append("encounter %s must preserve detached_genre_forbidden" % encounter_id)
+	return failures
+
+static func _validate_apex_contracts(bundle: Dictionary) -> Array[String]:
+	var failures: Array[String] = []
+	var apex_framework_profile: Dictionary = Dictionary(bundle.get("apex_framework_profile", {}))
+	var apex_manifest: Dictionary = Dictionary(bundle.get("apex_manifest", {}))
+	var class_taxonomy := _string_array(apex_framework_profile.get("class_taxonomy", []))
+	var phase_model := _string_array(apex_framework_profile.get("phase_model", []))
+	var resolution_set := _string_array(apex_framework_profile.get("resolution_set", []))
+	var readability_contract := Dictionary(apex_framework_profile.get("readability_contract", {}))
+	if class_taxonomy.is_empty():
+		failures.append("apex framework profile must expose class_taxonomy")
+	if phase_model.is_empty():
+		failures.append("apex framework profile must expose phase_model")
+	if resolution_set.is_empty():
+		failures.append("apex framework profile must expose resolution_set")
+	if not bool(readability_contract.get("detached_boss_minigame_forbidden", false)):
+		failures.append("apex framework profile must preserve detached_boss_minigame_forbidden")
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		var apex := Dictionary(apex_raw)
+		var apex_id := str(apex.get("apex_id", "")).strip_edges()
+		if apex_id.is_empty():
+			failures.append("apex manifest entries require apex_id")
+			continue
+		var apex_class_id := str(apex.get("apex_class_id", "")).strip_edges()
+		if apex_class_id.is_empty() or not class_taxonomy.has(apex_class_id):
+			failures.append("apex %s must declare apex_class_id from class_taxonomy" % apex_id)
+		var linked_encounter_ids := _string_array(apex.get("linked_encounter_ids", []))
+		if linked_encounter_ids.is_empty():
+			failures.append("apex %s must link back to at least one encounter id" % apex_id)
+		var phases := _string_array(apex.get("phase_model", []))
+		for required_phase in ["announce", "commit", "resolution", "aftermath"]:
+			if not phases.has(required_phase):
+				failures.append("apex %s must preserve %s in phase_model" % [apex_id, required_phase])
+		var resolutions := _string_array(apex.get("resolution_classes", []))
+		if resolutions.is_empty():
+			failures.append("apex %s must declare resolution_classes" % apex_id)
+		for resolution_id in resolutions:
+			if not resolution_set.has(resolution_id):
+				failures.append("apex %s declares invalid resolution class %s" % [apex_id, resolution_id])
+		if resolutions.size() == 1 and resolutions.has("outlast"):
+			failures.append("apex %s must not collapse to a single outlast/HP-sponge resolution" % apex_id)
+		var telegraph_profile := Dictionary(apex.get("telegraph_profile", {}))
+		if _string_array(telegraph_profile.get("channels", [])).is_empty():
+			failures.append("apex %s must declare telegraph_profile channels" % apex_id)
+		if _string_array(apex.get("anchored_pressures", [])).is_empty():
+			failures.append("apex %s must preserve expedition pressure anchors" % apex_id)
+	return failures
+
+static func _validate_phase6_lifecycle_registry(bundle: Dictionary) -> Array[String]:
+	var failures: Array[String] = []
+	var lifecycle_registry: Dictionary = Dictionary(bundle.get("lifecycle_registry", {}))
+	var families := Array(lifecycle_registry.get("families", []))
+	if families.is_empty():
+		failures.append("lifecycle registry must expose at least one family")
+		return failures
+	var family_kinds := _lifecycle_family_kinds(lifecycle_registry)
+	var has_non_market := false
+	for family_raw in families:
+		var family := Dictionary(family_raw)
+		if not family.has("dominance_strain"):
+			failures.append("lifecycle family %s missing dominance_strain" % str(family.get("family_id", "")))
+		if not family.has("throttle_state"):
+			failures.append("lifecycle family %s missing throttle_state" % str(family.get("family_id", "")))
+		if not family.has("resurrection_priority"):
+			failures.append("lifecycle family %s missing resurrection_priority" % str(family.get("family_id", "")))
+		if str(family.get("family_kind", "market")).strip_edges() != "market":
+			has_non_market = true
+	var pathology_ids := _string_array(Dictionary(bundle.get("pathology_state", {})).get("active_family_ids", []))
+	var encounter_ids := _encounter_manifest_ids(Dictionary(bundle.get("encounter_manifest", {})))
+	var apex_ids := _apex_manifest_ids(Dictionary(bundle.get("apex_manifest", {})))
+	if (not pathology_ids.is_empty() or not encounter_ids.is_empty() or not apex_ids.is_empty()) and not has_non_market:
+		failures.append("expanded lifecycle registry must include non-market family kinds once pathology, encounter, or apex systems are active")
+	if not family_kinds.has("market"):
+		failures.append("expanded lifecycle registry must preserve market family kinds")
+	return failures
+
+static func _encounter_manifest_ids(encounter_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for encounter_raw in Array(encounter_manifest.get("encounters", [])):
+		var encounter_id := str(Dictionary(encounter_raw).get("encounter_id", "")).strip_edges()
+		if not encounter_id.is_empty() and not ids.has(encounter_id):
+			ids.append(encounter_id)
+	return ids
+
+static func _encounter_intent_ids(encounter_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for encounter_raw in Array(encounter_manifest.get("encounters", [])):
+		var intent_id := str(Dictionary(encounter_raw).get("intent_id", "")).strip_edges()
+		if not intent_id.is_empty() and not ids.has(intent_id):
+			ids.append(intent_id)
+	return ids
+
+static func _encounter_topology_ids(encounter_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for encounter_raw in Array(encounter_manifest.get("encounters", [])):
+		var topology_id := str(Dictionary(encounter_raw).get("topology_id", "")).strip_edges()
+		if not topology_id.is_empty() and not ids.has(topology_id):
+			ids.append(topology_id)
+	return ids
+
+static func _encounter_anchor_coverage(encounter_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for encounter_raw in Array(encounter_manifest.get("encounters", [])):
+		for pressure_id in _string_array(Dictionary(encounter_raw).get("anchored_pressures", [])):
+			if not ids.has(pressure_id):
+				ids.append(pressure_id)
+	return ids
+
+static func _encounter_anchor_categories() -> Array[String]:
+	return [
+		"custody_pressure",
+		"route_pressure",
+		"regroup_pressure",
+		"extraction_pressure",
+		"evidence_pressure",
+		"burden_pressure"
+	]
+
+static func _apex_manifest_ids(apex_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		var apex_id := str(Dictionary(apex_raw).get("apex_id", "")).strip_edges()
+		if not apex_id.is_empty() and not ids.has(apex_id):
+			ids.append(apex_id)
+	return ids
+
+static func _apex_class_ids(apex_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		var class_id := str(Dictionary(apex_raw).get("apex_class_id", "")).strip_edges()
+		if not class_id.is_empty() and not ids.has(class_id):
+			ids.append(class_id)
+	return ids
+
+static func _apex_resolution_coverage(apex_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		for resolution_id in _string_array(Dictionary(apex_raw).get("resolution_classes", [])):
+			if not ids.has(resolution_id):
+				ids.append(resolution_id)
+	return ids
 
 static func _apply_experiment_generation_weighting(generation_surface: Dictionary, experimental_ontology_state: Dictionary) -> Dictionary:
 	var weighting: Dictionary = Dictionary(Dictionary(experimental_ontology_state.get("compile_outputs", {})).get("constitution_weighting", {}))
@@ -707,6 +1751,26 @@ static func _pressure_weighted_scalar(base_text: String, pressure_text: String, 
 	if major_score >= 3 or (major_score >= 2 and support_score >= 2):
 		return hint
 	return _preferred_scalar(base_text, hint)
+
+static func _ordered_scorecard_ids(scorecard: Dictionary) -> Array[String]:
+	var ids := _string_array(scorecard.keys())
+	ids.sort_custom(func(a: String, b: String) -> bool:
+		var a_score := int(scorecard.get(a, 0))
+		var b_score := int(scorecard.get(b, 0))
+		if a_score == b_score:
+			return a < b
+		return a_score > b_score
+	)
+	return ids
+
+static func _market_band(score: int) -> String:
+	if score >= 5:
+		return "dominant"
+	if score >= 3:
+		return "elevated"
+	if score >= 1:
+		return "steady"
+	return "suppressed"
 
 static func _contains_key(value: Variant, banned_key: String) -> bool:
 	match typeof(value):

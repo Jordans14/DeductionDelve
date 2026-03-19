@@ -24,12 +24,13 @@ static func build_model(profile: Dictionary, session_context: Dictionary) -> Dic
 		"social_model": _social_model(profile, recent_runs, active_crawl, gameplay_snapshot),
 		"route_model": _route_model(recent_runs, active_crawl, gameplay_snapshot),
 		"ecology_model": _ecology_model(recent_runs, gameplay_snapshot),
-		"economy_model": _economy_model(recent_runs, gameplay_snapshot),
+		"economy_model": _economy_model(recent_runs, gameplay_snapshot, world_memory),
 		"cultural_model": _cultural_model(world_memory, archive_state, crawl_history, cookbook_state),
 		"epoch_model": _epoch_model(world_memory),
 		"doctrine_model": _doctrine_model(recent_runs, archive_state, world_memory),
 		"session_model": _session_model(session_context, gameplay_snapshot),
 		"experiment_state": experiment_state,
+		"creative_governance": _creative_governance_model(experiment_state),
 		"governance_state": governance_state,
 		"theory_surface": theory_surface,
 		"experiment_lines": DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.build_world_lines(experiment_state),
@@ -41,6 +42,31 @@ static func build_model(profile: Dictionary, session_context: Dictionary) -> Dic
 		"world_focus": str(Dictionary(world_memory.get("fascination", {})).get("current_focus", "")),
 		"world_phase": str(Dictionary(world_memory.get("fascination", {})).get("phase", "")),
 		"archive_legends": Array(archive_state.get("legends", [])).size()
+	}
+
+static func _creative_governance_model(experiment_state: Dictionary) -> Dictionary:
+	var learning_state: Dictionary = Dictionary(experiment_state.get("learning_state", {}))
+	var guidance: Dictionary = Dictionary(learning_state.get("compiler_guidance", {}))
+	var novelty_occupancy := clampi(_string_array(guidance.get("revive_candidates", [])).size() + _string_array(guidance.get("synthesis_candidates", [])).size(), 0, 6)
+	var active_band := "disciplined_frontier"
+	if novelty_occupancy <= 1:
+		active_band = "anchored_core"
+	elif novelty_occupancy >= 5:
+		active_band = "wide_frontier"
+	return {
+		"novelty_envelope": {
+			"active_band": active_band,
+			"occupancy": novelty_occupancy
+		},
+		"taste_profile": {
+			"preferred_topologies": _string_array(guidance.get("preferred_topologies", [])),
+			"preferred_horizons": _string_array(guidance.get("preferred_horizons", [])),
+			"preferred_media": _string_array(guidance.get("preferred_media", []))
+		},
+		"personality_band": "revivalist_curiosity" if not _string_array(guidance.get("revive_candidates", [])).is_empty() else "disciplined_curiosity",
+		"bounded_surface_ids": ["constitution", "archive", "framing"],
+		"suppressed_patterns": _string_array(guidance.get("suppressed_topologies", [])),
+		"revive_candidates": _string_array(guidance.get("revive_candidates", []))
 	}
 
 static func _recent_runs(run_history: Array, limit: int) -> Array[Dictionary]:
@@ -156,7 +182,7 @@ static func _ecology_model(recent_runs: Array[Dictionary], gameplay_snapshot: Di
 		"stalking_preference": stalking_preference
 	}
 
-static func _economy_model(recent_runs: Array[Dictionary], gameplay_snapshot: Dictionary) -> Dictionary:
+static func _economy_model(recent_runs: Array[Dictionary], gameplay_snapshot: Dictionary, world_memory: Dictionary) -> Dictionary:
 	var fallback_dependence := 0
 	var austerity_tolerance := 0
 	var burden_tolerance := 0
@@ -171,11 +197,24 @@ static func _economy_model(recent_runs: Array[Dictionary], gameplay_snapshot: Di
 			burden_tolerance += 1
 		if int(diagnostics.get("recovery_score", 0)) >= 2:
 			recovery_appetite += 1
+	var market_memory_state: Dictionary = Dictionary(world_memory.get("market_memory_state", {}))
+	var lifecycle_registry: Dictionary = Dictionary(world_memory.get("lifecycle_registry", {}))
 	return {
 		"fallback_dependence": fallback_dependence + _string_array(gameplay_snapshot.get("resource_pressure", [])).size(),
 		"austerity_tolerance": austerity_tolerance,
 		"burden_tolerance": burden_tolerance,
-		"recovery_appetite": recovery_appetite
+		"recovery_appetite": recovery_appetite,
+		"extraction_debt": int(market_memory_state.get("extraction_debt", 0)),
+		"hoard_heat": int(market_memory_state.get("hoard_heat", 0)),
+		"neglect_heat": int(market_memory_state.get("neglect_heat", 0)),
+		"distortion_heat": int(market_memory_state.get("distortion_heat", 0)),
+		"recovery_credit": int(market_memory_state.get("recovery_credit", 0)),
+		"prestige_climate": str(market_memory_state.get("prestige_climate", "")).strip_edges(),
+		"carrier_risk_band": str(market_memory_state.get("carrier_risk_band", "")).strip_edges(),
+		"active_regime_ids": _string_array(market_memory_state.get("active_regime_ids", [])),
+		"market_lines": _string_array(market_memory_state.get("lines", [])),
+		"lifecycle_state_ids": _string_array(lifecycle_registry.get("active_state_ids", [])),
+		"lifecycle_lines": _string_array(lifecycle_registry.get("lines", []))
 	}
 
 static func _cultural_model(world_memory: Dictionary, archive_state: Dictionary, crawl_history: Array, cookbook_state: Dictionary) -> Dictionary:
@@ -191,6 +230,8 @@ static func _cultural_model(world_memory: Dictionary, archive_state: Dictionary,
 	var silence_doctrine: Dictionary = Dictionary(world_memory.get("silence_doctrine", {}))
 	var cookbook_shadow: Dictionary = Dictionary(world_memory.get("cookbook_shadow", {}))
 	var crawl_network_state: Dictionary = Dictionary(world_memory.get("crawl_network_state", {}))
+	var market_memory_state: Dictionary = Dictionary(world_memory.get("market_memory_state", {}))
+	var lifecycle_registry: Dictionary = Dictionary(world_memory.get("lifecycle_registry", {}))
 	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(world_memory)
 	var field_climate: Dictionary = Dictionary(world_memory.get("cognitive_field_climate", {}))
 	return {
@@ -275,10 +316,21 @@ static func _cultural_model(world_memory: Dictionary, archive_state: Dictionary,
 		"cookbook_redirection_lines": _string_array(cookbook_shadow.get("redirection_lines", [])),
 		"faction_count": Array(civilization_surface.get("faction_ids", [])).size(),
 		"regime_count": Array(civilization_surface.get("regime_ids", [])).size(),
+		"market_regime_count": Array(civilization_surface.get("market_regime_ids", [])).size(),
+		"lifecycle_state_count": Array(civilization_surface.get("lifecycle_state_ids", [])).size(),
 		"world_mutation_count": Array(civilization_surface.get("world_mutation_ids", [])).size(),
 		"literacy_depth": Array(civilization_surface.get("literacy_track_ids", [])).size(),
 		"civilization_lines": _string_array(civilization_surface.get("lines", [])),
+		"market_regime_lines": _string_array(civilization_surface.get("market_regime_lines", [])),
+		"lifecycle_lines": _string_array(civilization_surface.get("lifecycle_lines", [])),
 		"cognitive_field_lines": _string_array(field_climate.get("summary_lines", [])),
+		"active_regime_ids": _string_array(civilization_surface.get("market_regime_ids", [])),
+		"lifecycle_state_ids": _string_array(civilization_surface.get("lifecycle_state_ids", [])),
+		"extraction_debt": int(market_memory_state.get("extraction_debt", 0)),
+		"hoard_heat": int(market_memory_state.get("hoard_heat", 0)),
+		"recovery_credit": int(market_memory_state.get("recovery_credit", 0)),
+		"market_memory_lines": _string_array(market_memory_state.get("lines", [])),
+		"lifecycle_registry_lines": _string_array(lifecycle_registry.get("lines", [])),
 		"relay_memory_pressure": int(crawl_network_state.get("relay_stress", 0)),
 		"witness_network_pressure": int(crawl_network_state.get("witness_pressure", 0)),
 		"relay_bottleneck_pressure": int(crawl_network_state.get("bottleneck_pressure", 0)),

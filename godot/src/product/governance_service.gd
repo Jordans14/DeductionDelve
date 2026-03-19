@@ -27,7 +27,16 @@ static func default_state() -> Dictionary:
 		"fairness_trigger_records": [],
 		"dignity_trigger_records": [],
 		"normalization_records": [],
-		"rollback_candidates": []
+		"rollback_candidates": [],
+		"saturation_reports": [],
+		"dominance_strain_reports": [],
+		"throttle_records": [],
+		"fairness_veto_registry": [],
+		"dignity_veto_registry": [],
+		"rollback_registry": [],
+		"exploit_absorption_reports": [],
+		"meta_collapse_reports": [],
+		"resurrection_priority": _default_resurrection_priority()
 	}
 
 static func normalize(state: Dictionary) -> Dictionary:
@@ -48,6 +57,15 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["dignity_trigger_records"] = _normalize_reports(Array(current.get("dignity_trigger_records", [])))
 	current["normalization_records"] = _normalize_reports(Array(current.get("normalization_records", [])))
 	current["rollback_candidates"] = _normalize_reports(Array(current.get("rollback_candidates", [])))
+	current["saturation_reports"] = _normalize_reports(Array(current.get("saturation_reports", [])))
+	current["dominance_strain_reports"] = _normalize_reports(Array(current.get("dominance_strain_reports", [])))
+	current["throttle_records"] = _normalize_reports(Array(current.get("throttle_records", [])))
+	current["fairness_veto_registry"] = _normalize_reports(Array(current.get("fairness_veto_registry", [])))
+	current["dignity_veto_registry"] = _normalize_reports(Array(current.get("dignity_veto_registry", [])))
+	current["rollback_registry"] = _normalize_reports(Array(current.get("rollback_registry", [])))
+	current["exploit_absorption_reports"] = _normalize_reports(Array(current.get("exploit_absorption_reports", [])))
+	current["meta_collapse_reports"] = _normalize_reports(Array(current.get("meta_collapse_reports", [])))
+	current["resurrection_priority"] = _normalize_resurrection_priority(Dictionary(current.get("resurrection_priority", {})))
 	return current
 
 static func normalize_activation_state(raw: Dictionary) -> Dictionary:
@@ -229,8 +247,13 @@ static func build_governance_hook_set(governance_state: Dictionary, constitution
 			"fairness": _report_ids(Array(current.get("fairness_trigger_records", []))),
 			"dignity": _report_ids(Array(current.get("dignity_trigger_records", []))),
 			"normalization": _report_ids(Array(current.get("normalization_records", []))),
-			"rollback": _report_ids(Array(current.get("rollback_candidates", [])))
+			"rollback": _report_ids(Array(current.get("rollback_candidates", []))),
+			"throttle": _report_ids(Array(current.get("throttle_records", []))),
+			"fairness_veto": _report_ids(Array(current.get("fairness_veto_registry", []))),
+			"dignity_veto": _report_ids(Array(current.get("dignity_veto_registry", []))),
+			"meta_collapse": _report_ids(Array(current.get("meta_collapse_reports", [])))
 		},
+		"resurrection_candidates": _slice_strings(Dictionary(current.get("resurrection_priority", {})).get("candidate_ids", []), 6),
 		"summary_lines": _slice_strings([
 			_first_non_empty([
 				_first_string(activation_state.get("activation_lines", []), ""),
@@ -243,6 +266,27 @@ static func build_governance_hook_set(governance_state: Dictionary, constitution
 			]),
 			_first_string(packet.get("summary_lines", []), "")
 		], 3)
+	}
+
+static func build_forensic_action_snapshot(governance_state: Dictionary) -> Dictionary:
+	var current := normalize(governance_state)
+	var fairness_triggers := _report_ids(Array(current.get("fairness_trigger_records", [])))
+	if fairness_triggers.is_empty():
+		fairness_triggers = _report_ids(Array(current.get("fairness_veto_registry", [])))
+	var dignity_triggers := _report_ids(Array(current.get("dignity_trigger_records", [])))
+	if dignity_triggers.is_empty():
+		dignity_triggers = _report_ids(Array(current.get("dignity_veto_registry", [])))
+	var dominant_strategy_strain := {
+		"report_ids": _report_ids(Array(current.get("dominance_strain_reports", []))),
+		"meta_collapse_ids": _report_ids(Array(current.get("meta_collapse_reports", []))),
+		"summary_lines": _summary_lines_for_reports(Array(current.get("dominance_strain_reports", [])), 2)
+	}
+	return {
+		"fairness_triggers": fairness_triggers,
+		"dignity_triggers": dignity_triggers,
+		"rollback_action": _forensic_action_record(Array(current.get("rollback_registry", [])), "rollback_review"),
+		"quarantine_action": _forensic_action_record(Array(current.get("quarantine_registry", [])), "quarantined"),
+		"dominant_strategy_strain": dominant_strategy_strain
 	}
 
 static func build_explanation_packet(source: Dictionary, summary_lines: Array = [], operator_lines: Array = [], play_routing_tags: Array = [], lane_entries: Dictionary = {}, options: Dictionary = {}) -> Dictionary:
@@ -309,17 +353,55 @@ static func build_explanation_packet(source: Dictionary, summary_lines: Array = 
 	packet["packet_digest"] = _canonical_string(digest_source).md5_text()
 	return packet
 
+static func _forensic_action_record(reports: Array, fallback_status: String) -> Dictionary:
+	var normalized := _dict_array(reports)
+	if normalized.is_empty():
+		return {}
+	var first_report: Dictionary = Dictionary(normalized[0]).duplicate(true)
+	return {
+		"report_id": str(first_report.get("report_id", first_report.get("entry_id", first_report.get("decision_id", first_report.get("reflection_id", ""))))).strip_edges(),
+		"status": str(first_report.get("status", fallback_status)).strip_edges(),
+		"summary_lines": _summary_lines_for_reports(normalized, 2)
+	}
+
+static func _summary_lines_for_reports(reports: Array, limit: int) -> Array[String]:
+	var result: Array[String] = []
+	for report_raw in _dict_array(reports):
+		var report := Dictionary(report_raw)
+		var line := _first_string(report.get("summary_lines", []), "")
+		if line.is_empty():
+			line = str(report.get("status", "")).strip_edges()
+		if not line.is_empty() and not result.has(line):
+			result.append(line)
+		if result.size() >= limit:
+			break
+	return result
+
 static func build_review_surface(governance_state: Dictionary) -> Dictionary:
 	var current := normalize(governance_state)
 	var lines: Array[String] = []
-	for report_key in ["stability_reports", "anti_bottleneck_reports", "play_routing_reports", "court_decisions", "meta_reflection_reports"]:
+	for report_key in [
+		"stability_reports",
+		"anti_bottleneck_reports",
+		"play_routing_reports",
+		"court_decisions",
+		"meta_reflection_reports",
+		"saturation_reports",
+		"dominance_strain_reports",
+		"throttle_records",
+		"exploit_absorption_reports",
+		"meta_collapse_reports",
+		"fairness_veto_registry",
+		"dignity_veto_registry"
+	]:
 		var reports := _dict_array(current.get(report_key, []))
 		if not reports.is_empty():
 			lines.append(_first_string(Dictionary(reports[0]).get("summary_lines", []), "review report present"))
 	if bool(Dictionary(current.get("safe_mode_state", {})).get("enabled", false)):
 		lines.append(_first_string(Dictionary(current.get("safe_mode_state", {})).get("summary_lines", []), "safe mode remains active"))
+	lines = _slice_strings(lines + _string_array(Dictionary(current.get("resurrection_priority", {})).get("summary_lines", [])), MAX_LINES)
 	return {
-		"lines": _slice_strings(lines, MAX_LINES),
+		"lines": lines,
 		"active_channels": _string_array(Dictionary(current.get("activation_state", {})).get("active_channels", [])),
 		"dormant_channels": _string_array(Dictionary(current.get("activation_state", {})).get("dormant_channels", []))
 	}
@@ -354,12 +436,99 @@ static func apply_post_run(governance_state: Dictionary, run_record: Dictionary,
 		"summary_lines": _string_array(constitution_summary.get("safe_mode_lines", []))
 	})
 	var theory_statuses := _string_array(diagnostics.get("theory_statuses", []))
+	var expedition_constitution: Dictionary = Dictionary(run_record.get("expedition_constitution", {}))
+	var lifecycle_registry: Dictionary = Dictionary(expedition_constitution.get("lifecycle_registry", {})).duplicate(true)
+	var lifecycle_families := _sorted_lifecycle_families(lifecycle_registry, constitution_summary)
+	var fairness_flags := _string_array(diagnostics.get("fairness_flags", []))
+	var dignity_flags := _string_array(diagnostics.get("dignity_flags", []))
+	var saturation_reports: Array[Dictionary] = []
+	var dominance_strain_reports: Array[Dictionary] = []
+	var throttle_records: Array[Dictionary] = []
+	var exploit_absorption_reports: Array[Dictionary] = []
+	var meta_collapse_reports: Array[Dictionary] = []
+	var fairness_veto_registry: Array[Dictionary] = []
+	var dignity_veto_registry: Array[Dictionary] = []
+	var rollback_registry: Array[Dictionary] = []
+	var rollback_candidates: Array[Dictionary] = []
 	var contradiction_records: Array[Dictionary] = []
 	if theory_statuses.has("rival") or theory_statuses.has("cookbook") or theory_statuses.has("anomaly"):
 		contradiction_records.append({
 			"record_id": "run_contradiction_%s" % str(run_record.get("seed", 0)),
 			"status": "active",
 			"summary_lines": ["the completed run preserved visible contradiction between active doctrine carriers"]
+		})
+	for family_raw in lifecycle_families:
+		var family: Dictionary = Dictionary(family_raw)
+		var family_id := str(family.get("family_id", "")).strip_edges()
+		if family_id.is_empty():
+			continue
+		var saturation := int(family.get("saturation", 0))
+		var strain := maxi(int(family.get("strain", 0)), int(family.get("dominance_strain", 0)))
+		var successor_hint := str(family.get("successor_hint", "")).strip_edges()
+		if saturation >= 4:
+			saturation_reports.append({
+				"report_id": "saturation_%s_%s" % [family_id, str(run_record.get("seed", 0))],
+				"status": "cooling",
+				"summary_lines": ["%s is saturating hard enough to require cooling before the next constitution" % family_id.replace("_", " ")]
+			})
+			throttle_records.append({
+				"report_id": "throttle_%s_%s" % [family_id, str(run_record.get("seed", 0))],
+				"status": "cooling",
+				"summary_lines": ["throttle %s through cooling and successor drift" % family_id.replace("_", " ")]
+			})
+		if strain >= 4:
+			dominance_strain_reports.append({
+				"report_id": "dominance_%s_%s" % [family_id, str(run_record.get("seed", 0))],
+				"status": "warning",
+				"summary_lines": ["%s is pulling too much doctrine weight for one family line" % family_id.replace("_", " ")]
+			})
+			exploit_absorption_reports.append({
+				"report_id": "absorb_%s_%s" % [family_id, str(run_record.get("seed", 0))],
+				"status": "cooling",
+				"summary_lines": ["exploit absorption is redirecting %s toward %s" % [
+					family_id.replace("_", " "),
+					successor_hint.replace("_", " ") if not successor_hint.is_empty() else "a cooler successor weave"
+				]]
+			})
+	if lifecycle_families.size() >= 3:
+		var dominant_family: Dictionary = Dictionary(lifecycle_families[0])
+		var dominant_kind := str(dominant_family.get("family_kind", "")).strip_edges()
+		var same_kind_count := 0
+		for family_raw in lifecycle_families:
+			if str(Dictionary(family_raw).get("family_kind", "")).strip_edges() == dominant_kind:
+				same_kind_count += 1
+		if (same_kind_count >= 2 or maxi(int(dominant_family.get("strain", 0)), int(dominant_family.get("dominance_strain", 0))) >= 5) and maxi(int(dominant_family.get("strain", 0)), int(dominant_family.get("dominance_strain", 0))) >= 4:
+			meta_collapse_reports.append({
+				"report_id": "meta_collapse_%s_%s" % [dominant_kind, str(run_record.get("seed", 0))],
+				"status": "warning",
+				"summary_lines": ["meta collapse risk is rising because %s families are monopolizing the current doctrine climate" % dominant_kind.replace("_", " ")]
+			})
+	if int(diagnostics.get("consensus_risk", 0)) >= 3 and fairness_flags.is_empty():
+		fairness_flags.append("consensus_pressure")
+	if int(diagnostics.get("spectacle_pressure", 0)) >= 3 and dignity_flags.is_empty():
+		dignity_flags.append("spectacle_burden")
+	for fairness_flag in fairness_flags:
+		fairness_veto_registry.append({
+			"report_id": "fairness_veto_%s_%s" % [fairness_flag, str(run_record.get("seed", 0))],
+			"status": "warning",
+			"summary_lines": ["fairness veto review is holding on %s" % fairness_flag.replace("_", " ")]
+		})
+	for dignity_flag in dignity_flags:
+		dignity_veto_registry.append({
+			"report_id": "dignity_veto_%s_%s" % [dignity_flag, str(run_record.get("seed", 0))],
+			"status": "warning",
+			"summary_lines": ["dignity veto review is holding on %s" % dignity_flag.replace("_", " ")]
+		})
+	if not fairness_veto_registry.is_empty() or not dignity_veto_registry.is_empty() or not meta_collapse_reports.is_empty():
+		rollback_candidates.append({
+			"report_id": "rollback_candidate_%s" % str(run_record.get("seed", 0)),
+			"status": "warning",
+			"summary_lines": ["rollback review is open while veto or meta-collapse pressure remains unresolved"]
+		})
+		rollback_registry.append({
+			"report_id": "rollback_registry_%s" % str(run_record.get("seed", 0)),
+			"status": "cooling",
+			"summary_lines": ["rollback registry captured the current doctrine surface before promotion continues"]
 		})
 	current["activation_state"] = activation_state
 	current["safe_mode_state"] = safe_mode_state
@@ -399,6 +568,18 @@ static func apply_post_run(governance_state: Dictionary, run_record: Dictionary,
 			"meta reflection retained cumulative doctrine memory without rewriting run truth"
 		])]
 	})
+	current["saturation_reports"] = _normalize_reports(saturation_reports + Array(current.get("saturation_reports", [])))
+	current["dominance_strain_reports"] = _normalize_reports(dominance_strain_reports + Array(current.get("dominance_strain_reports", [])))
+	current["throttle_records"] = _normalize_reports(throttle_records + Array(current.get("throttle_records", [])))
+	current["exploit_absorption_reports"] = _normalize_reports(exploit_absorption_reports + Array(current.get("exploit_absorption_reports", [])))
+	current["meta_collapse_reports"] = _normalize_reports(meta_collapse_reports + Array(current.get("meta_collapse_reports", [])))
+	current["fairness_trigger_records"] = _normalize_reports(fairness_veto_registry + Array(current.get("fairness_trigger_records", [])))
+	current["dignity_trigger_records"] = _normalize_reports(dignity_veto_registry + Array(current.get("dignity_trigger_records", [])))
+	current["fairness_veto_registry"] = _normalize_reports(fairness_veto_registry + Array(current.get("fairness_veto_registry", [])))
+	current["dignity_veto_registry"] = _normalize_reports(dignity_veto_registry + Array(current.get("dignity_veto_registry", [])))
+	current["rollback_candidates"] = _normalize_reports(rollback_candidates + Array(current.get("rollback_candidates", [])))
+	current["rollback_registry"] = _normalize_reports(rollback_registry + Array(current.get("rollback_registry", [])))
+	current["resurrection_priority"] = _normalize_resurrection_priority(_build_resurrection_priority(lifecycle_families))
 	return normalize(current)
 
 static func _default_activation_state() -> Dictionary:
@@ -417,6 +598,14 @@ static func _default_safe_mode_state() -> Dictionary:
 		"reason": "",
 		"fallback_constitution_id": "",
 		"cooling_tags": ["theory", "cookbook", "world_mutation"],
+		"summary_lines": []
+	}
+
+static func _default_resurrection_priority() -> Dictionary:
+	return {
+		"schema_name": "ResurrectionPriority",
+		"schema_version": 1,
+		"candidate_ids": [],
 		"summary_lines": []
 	}
 
@@ -450,6 +639,55 @@ static func _prepend_report(entries: Array, entry: Dictionary) -> Array[Dictiona
 	var next := _dict_array(entries)
 	next.push_front(entry)
 	return _normalize_reports(next)
+
+static func _normalize_resurrection_priority(raw: Dictionary) -> Dictionary:
+	var current := _default_resurrection_priority()
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["candidate_ids"] = _slice_strings(current.get("candidate_ids", []), 8)
+	current["summary_lines"] = _slice_strings(current.get("summary_lines", []), MAX_LINES)
+	return current
+
+static func _sorted_lifecycle_families(lifecycle_registry: Dictionary, constitution_summary: Dictionary) -> Array[Dictionary]:
+	var families := _dict_array(lifecycle_registry.get("families", []))
+	if families.is_empty():
+		var fallback_id := _first_string(constitution_summary.get("lifecycle_state_ids", []), "market_balanced_exchange")
+		families.append({
+			"family_id": fallback_id,
+			"family_kind": "market",
+			"state": "emerging",
+			"heat": 1,
+			"saturation": 1,
+			"strain": 0,
+			"dominance_strain": 0,
+			"successor_hint": fallback_id,
+			"return_window": "near_horizon"
+		})
+	families.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_rank := int(a.get("heat", 0)) + int(a.get("saturation", 0)) + maxi(int(a.get("strain", 0)), int(a.get("dominance_strain", 0)))
+		var b_rank := int(b.get("heat", 0)) + int(b.get("saturation", 0)) + maxi(int(b.get("strain", 0)), int(b.get("dominance_strain", 0)))
+		if a_rank == b_rank:
+			return str(a.get("family_id", "")) < str(b.get("family_id", ""))
+		return a_rank > b_rank
+	)
+	return families
+
+static func _build_resurrection_priority(lifecycle_families: Array[Dictionary]) -> Dictionary:
+	var candidate_ids: Array[String] = []
+	for family_raw in lifecycle_families:
+		var family: Dictionary = Dictionary(family_raw)
+		var family_id := str(family.get("family_id", "")).strip_edges()
+		if family_id.is_empty():
+			continue
+		var state := str(family.get("state", "emerging")).strip_edges()
+		if state in ["cooling", "dormant", "recurring"]:
+			candidate_ids.append(family_id)
+		elif int(family.get("resurrection_priority", 0)) >= 3:
+			candidate_ids.append(family_id)
+	return {
+		"candidate_ids": candidate_ids.slice(0, 6),
+		"summary_lines": ["resurrection priority is tracking %s for later return" % candidate_ids[0].replace("_", " ")] if not candidate_ids.is_empty() else []
+	}
 
 static func _string_array(values: Variant) -> Array[String]:
 	var result: Array[String] = []

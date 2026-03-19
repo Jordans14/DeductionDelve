@@ -63,9 +63,20 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var explanation_meta_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_meta_lines", [])), 3)
 	var review_surface_lines := _take_unique(_string_array(expedition_constitution_summary.get("review_surface_lines", [])), 3)
 	var signal_budget_lines := _take_unique(_string_array(expedition_constitution_summary.get("signal_budget_lines", [])), 3)
+	var apex_manifest_ids := _take_unique(_string_array(expedition_constitution_summary.get("apex_manifest_ids", [])), 4)
+	var apex_class_ids := _take_unique(_string_array(expedition_constitution_summary.get("apex_class_ids", [])), 4)
+	var apex_lines := _take_unique(_string_array(expedition_constitution_summary.get("apex_lines", [])), 3)
+	var peak_structure_lines := _take_unique(_string_array(expedition_constitution_summary.get("peak_structure_lines", [])), 3)
+	var active_apex_state: Dictionary = Dictionary(run_record.get("active_apex_state", {}))
+	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {}))
+	var world_aftermath_refs := _dict_array(run_record.get("world_aftermath_refs", []))
 	var mutation_surface_lines := _mutation_surface_lines(Dictionary(run_record.get("mutation_public_summary", {})))
 	var replay_id := str(Dictionary(run_record.get("replay_identity", {})).get("replay_id", Dictionary(run_record.get("forensic_bundle", {})).get("replay_id", ""))).strip_edges()
 	var forensic_bundle_digest := str(Dictionary(run_record.get("forensic_bundle", {})).get("bundle_digest", "")).strip_edges()
+	var normalization_mode := str(run_record.get("normalization_mode", Dictionary(run_record.get("telemetry_summary", {})).get("normalization_mode", "default"))).strip_edges()
+	var modulation_class_ids := _take_unique(_string_array(Dictionary(run_record.get("telemetry_summary", {})).get("equivalence_class_ids", [])), 4)
+	var suppressed_modulation_count := int(Dictionary(run_record.get("telemetry_summary", {})).get("suppressed_modulation_count", 0))
+	var equipped_modulation_loadout := _dict_array(run_record.get("equipped_modulation_loadout", []))
 	var gameplay_model := _local_gameplay_model(run_record, gameplay_snapshot)
 	var group_gameplay_model := _group_gameplay_model(gameplay_snapshot)
 	var branch_summary: Dictionary = _branch_summary(run_record)
@@ -200,6 +211,60 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		anomaly_copy["score"] = clampi(int(anomaly_copy.get("score", 0)) + mini(gameplay_anomaly_hooks.size(), 2) + (1 if not inhabitant_pressure.is_empty() else 0), 0, 8)
 		anomaly_copy["signals"] = _take_unique(_string_array(anomaly_copy.get("signals", [])) + gameplay_anomaly_hooks + inhabitant_pressure, 5)
 		anomaly_sensitivity = anomaly_copy
+	var quiet_play_signals := _quiet_play_signals(
+		communication,
+		recovery_score,
+		confrontation_score,
+		clue_beats,
+		burden_score,
+		gameplay_resource_pressure,
+		gameplay_model_pressure,
+		group_fault_lines
+	)
+	var meaningful_non_action := _meaningful_non_action(
+		communication,
+		confrontation_score,
+		pressure_beats,
+		clue_beats,
+		burden_score,
+		quiet_play_signals,
+		gameplay_resource_pressure,
+		gameplay_model_pressure
+	)
+	var social_safety_flags := _social_safety_flags(
+		quiet_play_signals,
+		meaningful_non_action,
+		atmosphere,
+		expectation_breaks,
+		interrupted
+	)
+	var rescue_answer := str(belief_state.get("rescue_answer", "")).strip_edges()
+	var fault_line := str(belief_state.get("fault_line", "")).strip_edges()
+	var reputation_band := _reputation_band(
+		recovery_score,
+		confrontation_score,
+		burden_score,
+		quiet_play_signals,
+		group_fault_lines,
+		build_stability,
+		risk_profile
+	)
+	var institutional_pressure_surface := _institutional_pressure_surface(
+		doctrine_world_goal,
+		branch_reputation_drift,
+		fault_line,
+		rescue_answer,
+		group_fault_lines,
+		reputation_band,
+		quiet_play_signals
+	)
+	var continuity_burden_score := _continuity_burden_score(
+		burden_score,
+		Array(world_aftermath_refs).size(),
+		int(not local_aftermath.is_empty()),
+		peak_structure_lines,
+		spectacle_pressure
+	)
 	return {
 		"route_commits": route_commits,
 		"pressure_beats": pressure_beats,
@@ -302,8 +367,19 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"explanation_meta_lines": explanation_meta_lines,
 		"review_surface_lines": review_surface_lines,
 		"signal_budget_lines": signal_budget_lines,
+		"apex_manifest_ids": apex_manifest_ids,
+		"apex_class_ids": apex_class_ids,
+		"apex_lines": apex_lines,
+		"peak_structure_lines": peak_structure_lines,
+		"active_apex_id": str(active_apex_state.get("apex_id", "")).strip_edges(),
+		"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
+		"world_aftermath_ids": _dict_values_to_string_array(world_aftermath_refs, "aftermath_id"),
 		"replay_id": replay_id,
 		"forensic_bundle_digest": forensic_bundle_digest,
+		"normalization_mode": normalization_mode,
+		"modulation_class_ids": modulation_class_ids,
+		"suppressed_modulation_count": suppressed_modulation_count,
+		"equipped_modulation_loadout": equipped_modulation_loadout.duplicate(true),
 		"build_identity": build_identity,
 		"build_stability": build_stability,
 		"risk_profile": risk_profile,
@@ -329,6 +405,12 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"artifact_cultural_association": artifact_cultural_association,
 		"branch_caution_markers": branch_caution_markers,
 		"branch_reputation_drift": branch_reputation_drift,
+		"quiet_play_signals": quiet_play_signals,
+		"meaningful_non_action": meaningful_non_action,
+		"social_safety_flags": social_safety_flags,
+		"reputation_band": reputation_band,
+		"institutional_pressure_surface": institutional_pressure_surface.duplicate(true),
+		"continuity_burden_score": continuity_burden_score,
 		"belief_state": belief_state,
 		"counterfactual_pressure": counterfactual_pressure,
 		"consensus_risk": consensus_risk,
@@ -405,10 +487,22 @@ static func _public_safe_constitution_summary(raw: Dictionary) -> Dictionary:
 		"explanation_meta_lines": _string_array(public_summary.get("explanation_meta_lines", raw.get("explanation_meta_lines", []))),
 		"review_surface_lines": _string_array(public_summary.get("review_surface_lines", raw.get("review_surface_lines", []))),
 		"signal_budget_lines": _string_array(public_summary.get("signal_budget_lines", raw.get("signal_budget_lines", []))),
+		"apex_manifest_ids": _string_array(public_summary.get("apex_manifest_ids", raw.get("apex_manifest_ids", []))),
+		"apex_class_ids": _string_array(public_summary.get("apex_class_ids", raw.get("apex_class_ids", []))),
+		"apex_lines": _string_array(public_summary.get("apex_lines", raw.get("apex_lines", []))),
+		"peak_structure_lines": _string_array(public_summary.get("peak_structure_lines", raw.get("peak_structure_lines", []))),
 		"surface_summary": {
 			"lines": _string_array(surface_summary.get("lines", []))
 		}
 	}
+
+static func _dict_values_to_string_array(values: Array[Dictionary], key: String) -> Array[String]:
+	var result: Array[String] = []
+	for entry in values:
+		var text := str(Dictionary(entry).get(key, "")).strip_edges()
+		if not text.is_empty() and not result.has(text):
+			result.append(text)
+	return result
 
 static func _public_safe_delve_directive(raw: Dictionary) -> Dictionary:
 	return _public_safe_constitution_summary(raw)
@@ -1957,6 +2051,89 @@ static func _revisit_score(spectacle_windows: Array[String], pressure_persistenc
 	if str(branch_summary.get("challenge_texture", "")) == "high ceremony":
 		value += 1
 	return clampi(value, 0, 8)
+
+static func _quiet_play_signals(communication: Dictionary, recovery_score: int, confrontation_score: int, clue_beats: int, burden_score: int, resource_pressure: Array[String], model_pressure: Array[String], group_fault_lines: Array[String]) -> Array[String]:
+	var result: Array[String] = []
+	if int(communication.get("total", 0)) <= 1 and confrontation_score <= 1:
+		if clue_beats >= 1:
+			result.append("quiet observation kept the answer legible")
+		if burden_score >= 1 or recovery_score >= 1:
+			result.append("quiet burden handling still changed the route")
+		if not resource_pressure.is_empty():
+			result.append("quiet pressure management carried material value")
+		if not model_pressure.is_empty():
+			result.append("quiet play still surfaced a readable answer shape")
+		if not group_fault_lines.is_empty():
+			result.append("silence carried social information without spectacle")
+	return _saturation_adjusted_strings(result, 4)
+
+static func _meaningful_non_action(communication: Dictionary, confrontation_score: int, pressure_beats: int, clue_beats: int, burden_score: int, quiet_play_signals: Array[String], resource_pressure: Array[String], model_pressure: Array[String]) -> String:
+	if int(communication.get("total", 0)) == 0 and confrontation_score == 0:
+		if pressure_beats >= 1 or clue_beats >= 1 or burden_score >= 1:
+			return "non-performative restraint still changed what the run meant"
+		if not resource_pressure.is_empty() or not model_pressure.is_empty():
+			return "holding position without spectacle still carried pressure meaning"
+	if not quiet_play_signals.is_empty():
+		return quiet_play_signals[0]
+	return ""
+
+static func _social_safety_flags(quiet_play_signals: Array[String], meaningful_non_action: String, atmosphere: String, expectation_breaks: Array[String], interrupted: bool) -> Array[String]:
+	var result: Array[String] = []
+	if not quiet_play_signals.is_empty():
+		result.append("quiet_play_viable")
+	if not meaningful_non_action.is_empty():
+		result.append("non_performative_viable")
+	if atmosphere.find("humiliat") == -1 and atmosphere.find("ugly") == -1:
+		result.append("no_public_shaming")
+	if expectation_breaks.size() <= 1:
+		result.append("all_ages_readable")
+	if interrupted:
+		result.append("review_safe_reentry")
+	return _take_unique(result, 5)
+
+static func _reputation_band(recovery_score: int, confrontation_score: int, burden_score: int, quiet_play_signals: Array[String], group_fault_lines: Array[String], build_stability: int, risk_profile: String) -> String:
+	if recovery_score >= confrontation_score + 1 and burden_score >= 1:
+		return "trusted_return"
+	if not quiet_play_signals.is_empty() and group_fault_lines.is_empty():
+		return "steady_witness"
+	if confrontation_score >= recovery_score + 2 or risk_profile == "performative":
+		return "contested_presence"
+	if build_stability <= 2 or not group_fault_lines.is_empty():
+		return "watched_burden"
+	return "measured_return"
+
+static func _institutional_pressure_surface(doctrine_world_goal: String, branch_reputation_drift: String, fault_line: String, rescue_answer: String, group_fault_lines: Array[String], reputation_band: String, quiet_play_signals: Array[String]) -> Dictionary:
+	var claim_lines := _take_unique([
+		doctrine_world_goal,
+		branch_reputation_drift
+	], 3)
+	var interpretation_lines := _take_unique([
+		fault_line,
+		rescue_answer
+	] + group_fault_lines, 3)
+	var quiet_lines := _take_unique(quiet_play_signals, 2)
+	var pressure_band := "watchful"
+	if not branch_reputation_drift.is_empty() or not group_fault_lines.is_empty():
+		pressure_band = "contested"
+	elif reputation_band in ["trusted_return", "steady_witness"]:
+		pressure_band = "settling"
+	return {
+		"pressure_band": pressure_band,
+		"claim_lines": claim_lines,
+		"interpretation_lines": interpretation_lines,
+		"quiet_play_lines": quiet_lines
+	}
+
+static func _continuity_burden_score(burden_score: int, world_aftermath_count: int, has_local_aftermath: int, peak_structure_lines: Array[String], spectacle_pressure: int) -> int:
+	return clampi(
+		burden_score
+		+ world_aftermath_count
+		+ has_local_aftermath
+		+ mini(peak_structure_lines.size(), 2)
+		+ mini(spectacle_pressure, 2),
+		0,
+		8
+	)
 
 static func _pair_label(pair_key: String) -> String:
 	var bits := pair_key.split(":")

@@ -1,5 +1,30 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "normalization_modes": [
+    "default",
+    "fairness_sensitive",
+    "all_ages",
+    "forensic_replay"
+  ],
+  "modulation_equivalence_classes": [
+    {
+      "id": "notebook_guidance_focus",
+      "member_ids": [
+        "theme_amber_fieldnotes",
+        "theme_cobalt_archive"
+      ],
+      "canonical_member_id": "theme_amber_fieldnotes",
+      "allowed_axes": [
+        "explanation_lane_bias"
+      ],
+      "timing_surface": "guidance_focus_v1",
+      "information_surface": "guidance_focus_v1",
+      "reward_surface": "guidance_focus_v1",
+      "risk_surface": "guidance_focus_v1",
+      "consequence_class": "guidance_focus",
+      "fairness_impact_score": 0
+    }
+  ],
   "cosmetic_categories": [
     "title",
     "banner",
@@ -40,6 +65,23 @@
       "rarity": "common",
       "source": {
         "type": "starter"
+      },
+      "modulation_profile": {
+        "equivalence_class_id": "notebook_guidance_focus",
+        "variant_id": "neutral_focus",
+        "allowed_axis": "explanation_lane_bias",
+        "preferred_explanation_lane": "",
+        "summary_line": "Keeps the briefing on the neutral explanation order.",
+        "timing_surface": "guidance_focus_v1",
+        "information_surface": "guidance_focus_v1",
+        "reward_surface": "guidance_focus_v1",
+        "risk_surface": "guidance_focus_v1",
+        "consequence_class": "guidance_focus",
+        "fairness_impact_score": 0,
+        "intel_delta": 0,
+        "power_delta": 0,
+        "reward_delta": 0,
+        "timing_delta": 0
       },
       "palette": {
         "panel_bg": "#221A14",
@@ -82,6 +124,23 @@
       "source": {
         "type": "account_level",
         "level": 4
+      },
+      "modulation_profile": {
+        "equivalence_class_id": "notebook_guidance_focus",
+        "variant_id": "run_focus",
+        "allowed_axis": "explanation_lane_bias",
+        "preferred_explanation_lane": "run",
+        "summary_line": "Front-loads run-layer explanation without changing the underlying information surface.",
+        "timing_surface": "guidance_focus_v1",
+        "information_surface": "guidance_focus_v1",
+        "reward_surface": "guidance_focus_v1",
+        "risk_surface": "guidance_focus_v1",
+        "consequence_class": "guidance_focus",
+        "fairness_impact_score": 0,
+        "intel_delta": 0,
+        "power_delta": 0,
+        "reward_delta": 0,
+        "timing_delta": 0
       },
       "palette": {
         "panel_bg": "#111A24",

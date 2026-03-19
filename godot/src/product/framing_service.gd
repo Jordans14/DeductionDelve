@@ -28,6 +28,11 @@ static func build_run_frame(run_record: Dictionary, diagnostics: Dictionary, pro
 	var anomaly_pull := _anomaly_pull(diagnostics, profile)
 	var doctrine_line := _doctrine_line(diagnostics, profile)
 	var governance_line := _governance_line(diagnostics, profile)
+	var quiet_play_line := _quiet_play_line(diagnostics)
+	var reentry_line := _reentry_line(diagnostics, profile)
+	var social_safety_line := _social_safety_line(diagnostics)
+	var institutional_line := _institutional_line(diagnostics)
+	var reputation_line := _reputation_line(diagnostics)
 	var delve_trace := _delve_trace(diagnostics, profile)
 	var commentary_lanes := _commentary_lanes(diagnostics, profile, status_valence, commentary_style)
 	var counter_readings := _counter_readings(diagnostics, profile, status_valence)
@@ -64,6 +69,11 @@ static func build_run_frame(run_record: Dictionary, diagnostics: Dictionary, pro
 		"doctrine_world_goal": guard_text(doctrine_world_goal),
 		"doctrine_line": guard_text(doctrine_line),
 		"governance_line": guard_text(governance_line),
+		"quiet_play_line": guard_text(quiet_play_line),
+		"reentry_line": guard_text(reentry_line),
+		"social_safety_line": guard_text(social_safety_line),
+		"institutional_line": guard_text(institutional_line),
+		"reputation_line": guard_text(reputation_line),
 		"build_line": guard_text(build_line),
 		"resource_line": guard_text(resource_line),
 		"inhabitant_line": guard_text(inhabitant_line),
@@ -99,6 +109,12 @@ static func build_focus_lines(frame: Dictionary) -> Array[String]:
 	var governance_line := str(frame.get("governance_line", "")).strip_edges()
 	if not governance_line.is_empty():
 		lines.append("Governance: %s" % governance_line)
+	var quiet_play_line := str(frame.get("quiet_play_line", "")).strip_edges()
+	if not quiet_play_line.is_empty():
+		lines.append("Quiet play: %s" % quiet_play_line)
+	var institutional_line := str(frame.get("institutional_line", "")).strip_edges()
+	if not institutional_line.is_empty():
+		lines.append("Institution: %s" % institutional_line)
 	var build_line := str(frame.get("build_line", "")).strip_edges()
 	if not build_line.is_empty():
 		lines.append("Build pull: %s" % build_line)
@@ -150,6 +166,12 @@ static func build_archive_preview_lines(frame: Dictionary) -> Array[String]:
 	var governance_line := str(frame.get("governance_line", "")).strip_edges()
 	if not governance_line.is_empty():
 		lines.append("Pressure line: %s" % governance_line)
+	var reentry_line := str(frame.get("reentry_line", "")).strip_edges()
+	if not reentry_line.is_empty():
+		lines.append("Reentry: %s" % reentry_line)
+	var quiet_play_line := str(frame.get("quiet_play_line", "")).strip_edges()
+	if not quiet_play_line.is_empty():
+		lines.append("Quiet play: %s" % quiet_play_line)
 	var anomaly_pull := str(frame.get("anomaly_pull", "")).strip_edges()
 	if not anomaly_pull.is_empty():
 		lines.append("Uneasy pull: %s" % anomaly_pull)
@@ -1209,6 +1231,37 @@ static func _narrative_hooks(diagnostics: Dictionary, status_valence: String) ->
 	if hooks.is_empty():
 		hooks.append("%s pressure" % status_valence.to_lower())
 	return hooks
+
+static func _quiet_play_line(diagnostics: Dictionary) -> String:
+	return _first_string(_string_array(diagnostics.get("quiet_play_signals", [])), "")
+
+static func _reentry_line(diagnostics: Dictionary, profile: Dictionary) -> String:
+	for hook_raw in Array(profile.get("reentry_hooks", [])):
+		var hook := Dictionary(hook_raw)
+		var prompt := str(hook.get("prompt_line", "")).strip_edges()
+		if not prompt.is_empty():
+			return prompt
+	var meaningful_non_action := str(diagnostics.get("meaningful_non_action", "")).strip_edges()
+	if not meaningful_non_action.is_empty():
+		return meaningful_non_action
+	return _first_string(_string_array(diagnostics.get("anticipation_hooks", [])), "")
+
+static func _social_safety_line(diagnostics: Dictionary) -> String:
+	var flags := _string_array(diagnostics.get("social_safety_flags", []))
+	if flags.has("quiet_play_viable") and flags.has("non_performative_viable"):
+		return "quiet and non-performative play both remain valid"
+	if flags.has("quiet_play_viable"):
+		return "quiet play remains fully readable here"
+	if flags.has("no_public_shaming"):
+		return "public framing avoids humiliation pressure"
+	return ""
+
+static func _institutional_line(diagnostics: Dictionary) -> String:
+	return _first_string(_string_array(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("claim_lines", [])), "")
+
+static func _reputation_line(diagnostics: Dictionary) -> String:
+	var reputation_band := str(diagnostics.get("reputation_band", "")).strip_edges()
+	return reputation_band.replace("_", " ") if not reputation_band.is_empty() else ""
 
 static func _compression_quality(diagnostics: Dictionary) -> int:
 	return clampi(

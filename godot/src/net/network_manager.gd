@@ -373,6 +373,18 @@ func get_authoritative_room_chain_snapshot() -> Array:
 func get_current_delve_public_summary() -> Dictionary:
 	return get_current_expedition_constitution_summary()
 
+func get_current_encounter_manifest() -> Dictionary:
+	return Dictionary(_effective_constitution().get("encounter_manifest", {})).duplicate(true)
+
+func get_current_pathology_profile() -> Dictionary:
+	return Dictionary(_effective_constitution().get("pathology_profile", {})).duplicate(true)
+
+func get_current_apex_framework_profile() -> Dictionary:
+	return Dictionary(_effective_constitution().get("apex_framework_profile", {})).duplicate(true)
+
+func get_current_apex_manifest() -> Dictionary:
+	return Dictionary(_effective_constitution().get("apex_manifest", {})).duplicate(true)
+
 func get_current_delve_surface_value(group_name: String, surface_name: String) -> int:
 	var control_surfaces: Dictionary = Dictionary(_effective_constitution().get("control_surfaces", {}))
 	return int(Dictionary(control_surfaces.get(group_name, {})).get(surface_name, 0))
@@ -1037,7 +1049,13 @@ func host_start_run(
 			"constitution": current_expedition_constitution,
 			"constitution_hash": current_constitution_hash,
 			"constitution_summary": get_current_expedition_constitution_summary(),
-			"generation_surface": get_current_generation_contract()
+			"generation_surface": get_current_generation_contract(),
+			"encounter_history": [],
+			"active_encounter_state": {},
+			"pathology_state": Dictionary(current_expedition_constitution.get("pathology_state", {})).duplicate(true),
+			"apex_history": [],
+			"active_apex_state": {},
+			"local_aftermath": {}
 		})
 	var event_log := _event_log()
 	if event_log != null:
@@ -1596,9 +1614,27 @@ func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: D
 	var build_identities: Array[String] = []
 	var resource_pressure: Array[String] = []
 	var inhabitant_pressure: Array[String] = []
+	var pathology_state := get_pathology_state()
+	var active_encounter_state := get_active_encounter_state()
+	var active_apex_state := get_active_apex_state()
 	var ghost_active := bool(ghost_state.get("active", false))
 	if ghost_active:
 		inhabitant_pressure.append("ghost pressure")
+	for family_id in _string_array(pathology_state.get("active_family_ids", [])):
+		var family_label := family_id.replace("pathology_", "").replace("_", " ")
+		var pathology_signal := "%s pressure" % family_label
+		if not inhabitant_pressure.has(pathology_signal):
+			inhabitant_pressure.append(pathology_signal)
+	var active_encounter_id := str(active_encounter_state.get("encounter_id", "")).strip_edges()
+	if not active_encounter_id.is_empty():
+		var encounter_signal := "%s active" % active_encounter_id.replace("enc_", "").replace("_", " ")
+		if not inhabitant_pressure.has(encounter_signal):
+			inhabitant_pressure.append(encounter_signal)
+	var active_apex_id := str(active_apex_state.get("apex_id", "")).strip_edges()
+	if not active_apex_id.is_empty():
+		var apex_signal := "%s apex" % active_apex_id.replace("apex_", "").replace("_", " ")
+		if not inhabitant_pressure.has(apex_signal):
+			inhabitant_pressure.append(apex_signal)
 	for peer_id in peer_ids:
 		var item_def_ids := _item_def_ids_for_peer(peer_id)
 		item_def_ids.sort()
@@ -1656,6 +1692,9 @@ func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: D
 		"build_identities": build_identities,
 		"resource_pressure": resource_pressure,
 		"inhabitant_pressure": inhabitant_pressure,
+		"active_pathology_ids": _string_array(pathology_state.get("active_family_ids", [])),
+		"active_encounter_state": active_encounter_state.duplicate(true),
+		"active_apex_state": active_apex_state.duplicate(true),
 		"relationship_model": relationship_model,
 		"group_model": group_model
 	}
@@ -1931,6 +1970,285 @@ func get_predator_state() -> Dictionary:
 
 func get_protocol_watch_state() -> Dictionary:
 	return protocol_watch_state.duplicate(true)
+
+func get_active_encounter_state() -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	return Dictionary(run_state.active_encounter_state).duplicate(true)
+
+func get_encounter_history() -> Array:
+	var run_state := _run_state()
+	if run_state == null:
+		return []
+	return Array(run_state.encounter_history).duplicate(true)
+
+func get_pathology_state() -> Dictionary:
+	var run_state := _run_state()
+	if run_state != null and not Dictionary(run_state.pathology_state).is_empty():
+		return Dictionary(run_state.pathology_state).duplicate(true)
+	return Dictionary(_effective_constitution().get("pathology_state", {})).duplicate(true)
+
+func get_active_apex_state() -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	return Dictionary(run_state.active_apex_state).duplicate(true)
+
+func get_apex_history() -> Array:
+	var run_state := _run_state()
+	if run_state == null:
+		return []
+	return Array(run_state.apex_history).duplicate(true)
+
+func get_local_aftermath() -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	return Dictionary(run_state.local_aftermath).duplicate(true)
+
+func _resolve_encounter_definition(species_id: String, mode: String = "") -> Dictionary:
+	var manifest: Dictionary = get_current_encounter_manifest()
+	var fallback: Dictionary = {}
+	for encounter_raw in Array(manifest.get("encounters", [])):
+		var encounter: Dictionary = Dictionary(encounter_raw).duplicate(true)
+		if str(encounter.get("species_id", "")).strip_edges() != species_id:
+			continue
+		if fallback.is_empty():
+			fallback = encounter
+		var mode_ids := _string_array(encounter.get("mode_ids", []))
+		if not mode.strip_edges().is_empty() and (mode_ids.has(mode) or str(encounter.get("intent_id", "")).strip_edges() == mode):
+			return encounter
+	return fallback
+
+func _resolve_apex_definition(species_id: String, encounter_id: String = "", mode: String = "") -> Dictionary:
+	var manifest: Dictionary = get_current_apex_manifest()
+	var fallback: Dictionary = {}
+	for apex_raw in Array(manifest.get("apexes", [])):
+		var apex: Dictionary = Dictionary(apex_raw).duplicate(true)
+		if str(apex.get("species_id", "")).strip_edges() != species_id:
+			continue
+		if fallback.is_empty():
+			fallback = apex
+		var linked_encounter_ids := _string_array(apex.get("linked_encounter_ids", []))
+		if not encounter_id.strip_edges().is_empty() and linked_encounter_ids.has(encounter_id):
+			return apex
+		if not mode.strip_edges().is_empty():
+			var apex_function := str(apex.get("function", "")).strip_edges()
+			var class_id := str(apex.get("apex_class_id", "")).strip_edges()
+			if apex_function == mode or class_id.find(mode) != -1:
+				return apex
+	return fallback
+
+func _seed_runtime_pathology_state() -> Dictionary:
+	var seeded := get_pathology_state()
+	if seeded.is_empty():
+		seeded = {
+			"schema_name": "PathologyState",
+			"schema_version": 2,
+			"active_family_ids": [],
+			"spread_heat": 0,
+			"remission_state": "contained",
+			"recurrence_heat": 0,
+			"suppression_state": "watchful",
+			"mutation_tags": [],
+			"summary_lines": []
+		}
+	return seeded
+
+func _finalize_active_encounter_state(reason: String) -> void:
+	var run_state := _run_state()
+	if run_state == null:
+		return
+	var active := Dictionary(run_state.active_encounter_state).duplicate(true)
+	if active.is_empty():
+		return
+	var local_aftermath := _finalize_active_apex_state(reason, active)
+	active["state"] = "resolved"
+	active["resolved_tick"] = current_server_tick
+	active["resolution_reason"] = reason
+	var history: Array = Array(run_state.encounter_history).duplicate(true)
+	if not history.is_empty():
+		var last_index := history.size() - 1
+		var last_entry := Dictionary(history[last_index]).duplicate(true)
+		if str(last_entry.get("signature", "")).strip_edges() == str(active.get("signature", "")).strip_edges():
+			history[last_index] = active
+		else:
+			history.append(active)
+	else:
+		history.append(active)
+	run_state.encounter_history = history
+	run_state.active_encounter_state = {}
+	if local_aftermath.is_empty():
+		run_state.local_aftermath = _build_local_aftermath_record(active, {}, reason)
+
+func _apply_runtime_encounter_state(species_id: String, room_slot: int, target_peer_id: int, mode: String = "") -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	var encounter := _resolve_encounter_definition(species_id, mode)
+	if encounter.is_empty():
+		return {}
+	var signature := "%s:%s:%d:%d" % [
+		str(encounter.get("encounter_id", "")).strip_edges(),
+		mode,
+		room_slot,
+		target_peer_id
+	]
+	var active := Dictionary(run_state.active_encounter_state).duplicate(true)
+	if str(active.get("signature", "")).strip_edges() != signature and not active.is_empty():
+		_finalize_active_encounter_state("superseded")
+	var next_state := {
+		"signature": signature,
+		"encounter_id": str(encounter.get("encounter_id", "")).strip_edges(),
+		"species_id": species_id,
+		"intent_id": str(encounter.get("intent_id", "")).strip_edges(),
+		"topology_id": str(encounter.get("topology_id", "")).strip_edges(),
+		"anchored_pressures": _string_array(encounter.get("anchored_pressures", [])),
+		"role_vectors": _string_array(encounter.get("role_vectors", [])),
+		"consequence_classes": _string_array(encounter.get("consequence_classes", [])),
+		"pathology_family_ids": _string_array(encounter.get("pathology_family_ids", [])),
+		"state_flow": _string_array(encounter.get("state_flow", [])),
+		"room_slot": room_slot,
+		"target_peer_id": target_peer_id,
+		"mode": mode,
+		"state": "commit",
+		"activated_tick": current_server_tick
+	}
+	run_state.active_encounter_state = next_state.duplicate(true)
+	var history: Array = Array(run_state.encounter_history).duplicate(true)
+	if history.is_empty() or str(Dictionary(history[history.size() - 1]).get("signature", "")).strip_edges() != signature:
+		history.append(next_state.duplicate(true))
+	run_state.encounter_history = history
+	var pathology_state := _seed_runtime_pathology_state()
+	pathology_state["active_family_ids"] = _merge_arrays(
+		Array(pathology_state.get("active_family_ids", [])),
+		Array(next_state.get("pathology_family_ids", []))
+	)
+	pathology_state["spread_heat"] = maxi(int(pathology_state.get("spread_heat", 0)), Array(pathology_state.get("active_family_ids", [])).size())
+	pathology_state["recurrence_heat"] = maxi(int(pathology_state.get("recurrence_heat", 0)), Array(next_state.get("pathology_family_ids", [])).size())
+	pathology_state["mutation_tags"] = _merge_arrays(
+		Array(pathology_state.get("mutation_tags", [])),
+		Array(next_state.get("pathology_family_ids", []))
+	)
+	pathology_state["remission_state"] = "watchful" if not Array(pathology_state.get("active_family_ids", [])).is_empty() else "contained"
+	pathology_state["summary_lines"] = _merge_arrays(
+		Array(pathology_state.get("summary_lines", [])),
+		Array(encounter.get("summary_lines", []))
+	).slice(0, 3)
+	run_state.pathology_state = pathology_state
+	_apply_runtime_apex_state(species_id, room_slot, target_peer_id, next_state, mode)
+	return encounter
+
+func _clear_runtime_encounter_state_for_species(species_id: String, reason: String = "resolved") -> void:
+	var run_state := _run_state()
+	if run_state == null:
+		return
+	var active := Dictionary(run_state.active_encounter_state)
+	if str(active.get("species_id", "")).strip_edges() != species_id:
+		return
+	_finalize_active_encounter_state(reason)
+
+func _apply_runtime_apex_state(species_id: String, room_slot: int, target_peer_id: int, encounter_state: Dictionary, mode: String = "") -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	var encounter_id := str(encounter_state.get("encounter_id", "")).strip_edges()
+	var apex := _resolve_apex_definition(species_id, encounter_id, mode)
+	if apex.is_empty():
+		return {}
+	var signature := "%s:%s:%d:%d" % [
+		str(apex.get("apex_id", "")).strip_edges(),
+		mode,
+		room_slot,
+		target_peer_id
+	]
+	var active := Dictionary(run_state.active_apex_state).duplicate(true)
+	if str(active.get("signature", "")).strip_edges() != signature and not active.is_empty():
+		_finalize_active_apex_state("superseded", encounter_state)
+	var next_state := {
+		"signature": signature,
+		"apex_id": str(apex.get("apex_id", "")).strip_edges(),
+		"apex_class_id": str(apex.get("apex_class_id", "")).strip_edges(),
+		"species_id": species_id,
+		"linked_encounter_id": encounter_id,
+		"origin": str(apex.get("origin", "")).strip_edges(),
+		"function": str(apex.get("function", "")).strip_edges(),
+		"arena": str(apex.get("arena", "")).strip_edges(),
+		"anchored_pressures": _string_array(apex.get("anchored_pressures", [])),
+		"phase_model": _string_array(apex.get("phase_model", [])),
+		"resolution_classes": _string_array(apex.get("resolution_classes", [])),
+		"telegraph_channels": _string_array(Dictionary(apex.get("telegraph_profile", {})).get("channels", [])),
+		"room_slot": room_slot,
+		"target_peer_id": target_peer_id,
+		"mode": mode,
+		"state": "announce",
+		"activated_tick": current_server_tick
+	}
+	run_state.active_apex_state = next_state.duplicate(true)
+	var history: Array = Array(run_state.apex_history).duplicate(true)
+	if history.is_empty() or str(Dictionary(history[history.size() - 1]).get("signature", "")).strip_edges() != signature:
+		history.append(next_state.duplicate(true))
+	run_state.apex_history = history
+	return apex
+
+func _finalize_active_apex_state(reason: String, encounter_state: Dictionary = {}) -> Dictionary:
+	var run_state := _run_state()
+	if run_state == null:
+		return {}
+	var active := Dictionary(run_state.active_apex_state).duplicate(true)
+	if active.is_empty():
+		return {}
+	active["state"] = "aftermath"
+	active["resolved_tick"] = current_server_tick
+	active["resolution_reason"] = reason
+	var history: Array = Array(run_state.apex_history).duplicate(true)
+	if not history.is_empty():
+		var last_index := history.size() - 1
+		var last_entry := Dictionary(history[last_index]).duplicate(true)
+		if str(last_entry.get("signature", "")).strip_edges() == str(active.get("signature", "")).strip_edges():
+			history[last_index] = active
+		else:
+			history.append(active)
+	else:
+		history.append(active)
+	run_state.apex_history = history
+	var local_aftermath := _build_local_aftermath_record(encounter_state, active, reason)
+	run_state.local_aftermath = local_aftermath
+	run_state.active_apex_state = {}
+	return local_aftermath
+
+func _build_local_aftermath_record(encounter_state: Dictionary, apex_state: Dictionary, reason: String) -> Dictionary:
+	var source_kind := "apex" if not apex_state.is_empty() else "encounter"
+	var source_id := str(apex_state.get("apex_id", encounter_state.get("encounter_id", ""))).strip_edges()
+	var room_slot := int(apex_state.get("room_slot", encounter_state.get("room_slot", -1)))
+	var anchored_pressures := _merge_arrays(
+		Array(encounter_state.get("anchored_pressures", [])),
+		Array(apex_state.get("anchored_pressures", []))
+	)
+	var consequence_classes := _merge_arrays(
+		Array(encounter_state.get("consequence_classes", [])),
+		Array(apex_state.get("resolution_classes", []))
+	)
+	var custody_state_delta := "contested" if anchored_pressures.has("custody_pressure") else "stable"
+	var evidence_state_delta := "exposed" if anchored_pressures.has("evidence_pressure") else "contained"
+	var resource_state_delta := "strained" if consequence_classes.has("resource_drain") or anchored_pressures.has("burden_pressure") else "stable"
+	var immediate_route_state := "rerouted" if anchored_pressures.has("route_pressure") or anchored_pressures.has("extraction_pressure") else "held"
+	return {
+		"schema_name": "LocalAftermath",
+		"schema_version": 1,
+		"aftermath_id": "local_aftermath_%s_%d" % [source_id, maxi(current_server_tick, 0)],
+		"source_id": source_id,
+		"source_kind": source_kind,
+		"affected_room_slots": [room_slot] if room_slot >= 0 else [],
+		"immediate_route_state": immediate_route_state,
+		"custody_state_delta": custody_state_delta,
+		"evidence_state_delta": evidence_state_delta,
+		"resource_state_delta": resource_state_delta,
+		"residual_telegraph_tags": _merge_arrays(Array(encounter_state.get("anchored_pressures", [])), Array(apex_state.get("telegraph_channels", []))),
+		"narrative_residue_tags": _merge_arrays(Array(encounter_state.get("pathology_family_ids", [])), Array(apex_state.get("anchored_pressures", []))),
+		"resolution_reason": reason
+	}
 
 func get_tool_counts_for_peer(peer_id: int) -> Dictionary:
 	var counts: Dictionary = tool_inventory_by_peer.get(peer_id, {})
@@ -2783,6 +3101,7 @@ func _host_use_item(requester_id: int, item_id: int, room_slot: int) -> void:
 			})
 			if _role_name_for_peer(requester_id) in [ROLE_SERVICE_SCRIPT.ROLE_VEIL, ROLE_SERVICE_SCRIPT.ROLE_MURMUR]:
 				_note_role_custody_pressure(requester_id, 0, 0, 1, 1)
+			_note_species_escalation_mutation("echo_lure", lure_room, requester_id, "lure")
 			broadcast_hazard_pulse(lure_room, -1, "echo_lure")
 			_broadcast_item_state()
 			_refresh_transformation_thresholds_for_peer(requester_id, lure_room)
@@ -2997,6 +3316,22 @@ func _pick_meta_fields(meta: Dictionary, allowed_keys: Array[String]) -> Diction
 			result[key] = meta[key]
 	return result
 
+func _string_array(values: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if values is Array:
+		for value in values:
+			var text := str(value).strip_edges()
+			if not text.is_empty() and not result.has(text):
+				result.append(text)
+	return result
+
+func _merge_arrays(base: Array, extra: Array) -> Array:
+	var result: Array[String] = _string_array(base)
+	for value in _string_array(extra):
+		if not result.has(value):
+			result.append(value)
+	return result
+
 func _artifact_room_slot(artifact: Dictionary) -> int:
 	var owner_peer := int(artifact.get("owner_peer_id", 0))
 	if owner_peer != 0:
@@ -3143,6 +3478,7 @@ func advance_ghost_pressure_for_test(tick: int, peer_rooms: Dictionary, peer_pos
 	return result
 
 func advance_runtime_ecology_for_test(tick: int, peer_rooms: Dictionary, peer_positions: Dictionary, peer_list: Array[int], extraction_slot_value: int, carried_by_peer: Dictionary = {}) -> Dictionary:
+	var run_state := _run_state()
 	var prev_host := is_host
 	var prev_run_active := run_active
 	var prev_tick := current_server_tick
@@ -3163,6 +3499,19 @@ func advance_runtime_ecology_for_test(tick: int, peer_rooms: Dictionary, peer_po
 	var prev_capture := _capture_events_for_test
 	var prev_public_events := _captured_public_events_for_test.duplicate(true)
 	var prev_private_events := _captured_private_events_for_test.duplicate(true)
+	var prev_encounter_history: Array = []
+	var prev_active_encounter_state: Dictionary = {}
+	var prev_pathology_state: Dictionary = {}
+	var prev_apex_history: Array = []
+	var prev_active_apex_state: Dictionary = {}
+	var prev_local_aftermath: Dictionary = {}
+	if run_state != null:
+		prev_encounter_history = Array(run_state.encounter_history).duplicate(true)
+		prev_active_encounter_state = Dictionary(run_state.active_encounter_state).duplicate(true)
+		prev_pathology_state = Dictionary(run_state.pathology_state).duplicate(true)
+		prev_apex_history = Array(run_state.apex_history).duplicate(true)
+		prev_active_apex_state = Dictionary(run_state.active_apex_state).duplicate(true)
+		prev_local_aftermath = Dictionary(run_state.local_aftermath).duplicate(true)
 	is_host = true
 	run_active = true
 	current_server_tick = tick
@@ -3186,6 +3535,12 @@ func advance_runtime_ecology_for_test(tick: int, peer_rooms: Dictionary, peer_po
 		"ghost_state": ghost_state.duplicate(true),
 		"predator_state": predator_state.duplicate(true),
 		"protocol_watch_state": protocol_watch_state.duplicate(true),
+		"active_encounter_state": get_active_encounter_state(),
+		"pathology_state": get_pathology_state(),
+		"encounter_history": get_encounter_history(),
+		"active_apex_state": get_active_apex_state(),
+		"apex_history": get_apex_history(),
+		"local_aftermath": get_local_aftermath(),
 		"public": _captured_public_events_for_test.duplicate(true),
 		"private": _captured_private_events_for_test.duplicate(true)
 	}
@@ -3206,6 +3561,13 @@ func advance_runtime_ecology_for_test(tick: int, peer_rooms: Dictionary, peer_po
 	predator_state = prev_predator_state
 	protocol_watch_state = prev_protocol_watch_state
 	echo_lure_state = prev_echo_lure_state
+	if run_state != null:
+		run_state.encounter_history = prev_encounter_history
+		run_state.active_encounter_state = prev_active_encounter_state
+		run_state.pathology_state = prev_pathology_state
+		run_state.apex_history = prev_apex_history
+		run_state.active_apex_state = prev_active_apex_state
+		run_state.local_aftermath = prev_local_aftermath
 	_capture_events_for_test = prev_capture
 	_captured_public_events_for_test = prev_public_events
 	_captured_private_events_for_test = prev_private_events
@@ -3270,6 +3632,7 @@ func _clear_local_extraction_window_state() -> void:
 	local_extraction_window_duration_ticks = 0
 
 func _clear_ghost_state() -> void:
+	_clear_runtime_encounter_state_for_species("ghost", "ghost_cleared")
 	ghost_state = {
 		"active": false,
 		"position": GHOST_OFFSCREEN_POS,
@@ -3283,6 +3646,7 @@ func _clear_role_custody_state() -> void:
 	counterfeit_heat_by_peer.clear()
 
 func _clear_predator_state() -> void:
+	_clear_runtime_encounter_state_for_species("predator", "predator_cleared")
 	predator_state = {
 		"active": false,
 		"room_slot": -1,
@@ -3293,6 +3657,7 @@ func _clear_predator_state() -> void:
 	}
 
 func _clear_protocol_watch_state() -> void:
+	_clear_runtime_encounter_state_for_species("protocol_watch", "protocol_watch_cleared")
 	protocol_watch_state = {
 		"active": false,
 		"room_slot": -1,
@@ -3303,6 +3668,7 @@ func _clear_protocol_watch_state() -> void:
 	}
 
 func _clear_echo_lure_state() -> void:
+	_clear_runtime_encounter_state_for_species("echo_lure", "echo_lure_cleared")
 	echo_lure_state = {
 		"active": false,
 		"owner_peer_id": -1,
@@ -3349,6 +3715,8 @@ func _advance_ghost_pressure() -> void:
 		ghost_state = next_state
 		_broadcast_ghost_state()
 	var room_slot := int(player_room_by_peer.get(target_peer_id, -1))
+	if room_slot >= 0:
+		_note_species_escalation_mutation("ghost", room_slot, target_peer_id, "pursuit")
 	if room_slot >= 0 and next_pos.distance_to(target_pos) <= _current_ghost_hit_radius():
 		broadcast_hazard_pulse(room_slot, -1, "ghost_pressure")
 
@@ -3823,7 +4191,15 @@ func _note_species_escalation_mutation(species_id: String, room_slot: int, targe
 	var run_state := _run_state()
 	if run_state == null:
 		return
-	var signature := "%s:%d:%d:%s" % [species_id, room_slot, target_peer_id, mode]
+	var encounter := _apply_runtime_encounter_state(species_id, room_slot, target_peer_id, mode)
+	var active_apex_state := get_active_apex_state()
+	var signature := "%s:%d:%d:%s:%s" % [
+		species_id,
+		room_slot,
+		target_peer_id,
+		mode,
+		str(encounter.get("encounter_id", "")).strip_edges()
+	]
 	if str(Dictionary(run_state.mutation_caps_state).get("last_species_escalation_signature", "")) == signature:
 		return
 	var applied := _apply_constitution_mutation("species_escalation", {
@@ -3831,7 +4207,14 @@ func _note_species_escalation_mutation(species_id: String, room_slot: int, targe
 		"species_id": species_id,
 		"room_slot": room_slot,
 		"actor_peer_id": target_peer_id,
-		"mode": mode
+		"mode": mode,
+		"encounter_id": str(encounter.get("encounter_id", "")).strip_edges(),
+		"intent_id": str(encounter.get("intent_id", "")).strip_edges(),
+		"topology_id": str(encounter.get("topology_id", "")).strip_edges(),
+		"anchored_pressures": _string_array(encounter.get("anchored_pressures", [])),
+		"pathology_family_ids": _string_array(encounter.get("pathology_family_ids", [])),
+		"apex_id": str(active_apex_state.get("apex_id", "")).strip_edges(),
+		"apex_class_id": str(active_apex_state.get("apex_class_id", "")).strip_edges()
 	})
 	if not applied.is_empty():
 		run_state.mutation_caps_state["last_species_escalation_signature"] = signature

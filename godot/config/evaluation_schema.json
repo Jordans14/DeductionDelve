@@ -22,9 +22,12 @@
     "ontological_productivity",
     "narrative_resonance",
     "fairness_stability",
+    "dignity_stability",
+    "cognitive_budget_stability",
     "readability",
     "replay_distinctiveness",
-    "long_horizon_branch_value"
+    "long_horizon_branch_value",
+    "meta_health"
   ],
   "allowed_outcomes": [
     "strengthen_hypothesis",

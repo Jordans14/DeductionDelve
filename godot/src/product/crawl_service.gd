@@ -76,6 +76,11 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 	var artifact_cultural_association := str(diagnostics.get("artifact_cultural_association", "")).strip_edges()
 	var branch_caution_markers := _string_array(diagnostics.get("branch_caution_markers", []))
 	var branch_reputation_drift := str(diagnostics.get("branch_reputation_drift", "")).strip_edges()
+	var quiet_play_signals := _string_array(diagnostics.get("quiet_play_signals", []))
+	var meaningful_non_action := str(diagnostics.get("meaningful_non_action", "")).strip_edges()
+	var social_safety_flags := _string_array(diagnostics.get("social_safety_flags", []))
+	var reputation_band := str(diagnostics.get("reputation_band", "")).strip_edges()
+	var institutional_pressure_surface: Dictionary = Dictionary(diagnostics.get("institutional_pressure_surface", {}))
 	var belief_lines := _string_array([
 		str(belief_state.get("rescue_answer", "")),
 		str(belief_state.get("fault_line", "")),
@@ -282,6 +287,30 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 		([doctrine_world_goal] if not doctrine_world_goal.is_empty() else []) + ([governance_line] if not governance_line.is_empty() else []),
 		6
 	)
+	active_crawl["quiet_play_signals"] = _merge_limited(Array(active_crawl.get("quiet_play_signals", [])), quiet_play_signals, 6)
+	active_crawl["social_safety_flags"] = _merge_limited(Array(active_crawl.get("social_safety_flags", [])), social_safety_flags, 6)
+	if not meaningful_non_action.is_empty():
+		active_crawl["meaningful_non_action"] = meaningful_non_action
+	if not reputation_band.is_empty():
+		active_crawl["reputation_bands"] = _merge_limited(Array(active_crawl.get("reputation_bands", [])), [reputation_band], 4)
+	var current_institutional_pressure: Dictionary = Dictionary(active_crawl.get("institutional_pressure_surface", {})).duplicate(true)
+	current_institutional_pressure["pressure_band"] = str(institutional_pressure_surface.get("pressure_band", current_institutional_pressure.get("pressure_band", ""))).strip_edges()
+	current_institutional_pressure["claim_lines"] = _merge_limited(
+		Array(current_institutional_pressure.get("claim_lines", [])),
+		Array(institutional_pressure_surface.get("claim_lines", [])),
+		4
+	)
+	current_institutional_pressure["interpretation_lines"] = _merge_limited(
+		Array(current_institutional_pressure.get("interpretation_lines", [])),
+		Array(institutional_pressure_surface.get("interpretation_lines", [])),
+		4
+	)
+	current_institutional_pressure["quiet_play_lines"] = _merge_limited(
+		Array(current_institutional_pressure.get("quiet_play_lines", [])),
+		Array(institutional_pressure_surface.get("quiet_play_lines", [])),
+		4
+	)
+	active_crawl["institutional_pressure_surface"] = current_institutional_pressure
 	active_crawl["build_memory"] = _merge_limited(
 		Array(active_crawl.get("build_memory", [])),
 		([build_identity] if not build_identity.is_empty() else []) + ([build_pressure] if not build_pressure.is_empty() else []) + _build_memory_lines(build_scores),
@@ -400,6 +429,12 @@ static func build_active_crawl_lines(profile: Dictionary) -> Array[String]:
 				carryover_lines.append("Doctrine: %s" % doctrine)
 			if not governance.is_empty():
 				carryover_lines.append("Governance: %s" % governance)
+			var quiet_play := _first_string(_string_array(latest.get("quiet_play_signals", [])), "")
+			if not quiet_play.is_empty():
+				carryover_lines.append("Quiet play: %s" % quiet_play)
+			var reputation_band := str(latest.get("reputation_band", "")).strip_edges()
+			if not reputation_band.is_empty():
+				carryover_lines.append("Reputation: %s" % reputation_band.replace("_", " "))
 		return FRAMING_SERVICE_SCRIPT.guard_lines(carryover_lines)
 	var lines: Array[String] = []
 	lines.append("Current crawl: %s" % str(active_crawl.get("title", "Active crawl")))
@@ -417,6 +452,18 @@ static func build_active_crawl_lines(profile: Dictionary) -> Array[String]:
 	var residue := _string_array(active_crawl.get("residue", []))
 	if not residue.is_empty():
 		lines.append("Residue: %s" % residue[0])
+	var quiet_play_line := _first_string(_string_array(active_crawl.get("quiet_play_signals", [])), "")
+	if not quiet_play_line.is_empty():
+		lines.append("Quiet play: %s" % quiet_play_line)
+	var meaningful_non_action := str(active_crawl.get("meaningful_non_action", "")).strip_edges()
+	if not meaningful_non_action.is_empty():
+		lines.append("Still mattered: %s" % meaningful_non_action)
+	var institutional_claim := _first_string(_string_array(Dictionary(active_crawl.get("institutional_pressure_surface", {})).get("claim_lines", [])), "")
+	if not institutional_claim.is_empty():
+		lines.append("Institution: %s" % institutional_claim)
+	var reputation_band := _first_string(_string_array(active_crawl.get("reputation_bands", [])), "")
+	if not reputation_band.is_empty():
+		lines.append("Reputation: %s" % reputation_band.replace("_", " "))
 	var memorial := _string_array(active_crawl.get("memorial_residue", []))
 	if not memorial.is_empty():
 		lines.append("Memorial pull: %s" % memorial[0])

@@ -683,6 +683,14 @@ static func _build_dimensions(experiment: Dictionary, _hypothesis: Dictionary, r
 	fairness_stability -= mini(consensus_risk, 2)
 	fairness_stability -= 1 if build_stability == "unstable" else 0
 	fairness_stability -= 1 if interrupted else 0
+	var dignity_stability := 4
+	dignity_stability -= 1 if int(diagnostics.get("spectacle_pressure", 0)) >= 3 else 0
+	dignity_stability -= 1 if int(diagnostics.get("confrontation_score", 0)) >= 3 else 0
+	dignity_stability -= 1 if interrupted and story_tone in ["Chaotic", "Charged"] else 0
+	var cognitive_budget_stability := 4
+	cognitive_budget_stability -= 1 if story_density >= 10 else 0
+	cognitive_budget_stability -= 1 if legend_density >= 10 else 0
+	cognitive_budget_stability -= 1 if not constitution_surface_lines.is_empty() and not experiment_surface_lines.is_empty() and story_density >= 8 else 0
 	var readability := 0
 	readability += 1 if not experiment_surface_lines.is_empty() else 0
 	readability += 1 if not constitution_surface_lines.is_empty() else 0
@@ -698,15 +706,22 @@ static func _build_dimensions(experiment: Dictionary, _hypothesis: Dictionary, r
 	long_horizon_branch_value += 1 if str(experiment.get("state", "")).strip_edges() in ["recurring", "dormant", "archival", "foundational"] else 0
 	long_horizon_branch_value += 1 if legend_density >= 6 or revisit_score >= 2 else 0
 	long_horizon_branch_value += 1 if not _string_array(experiment.get("branch_ids", [])).is_empty() or not _string_array(experiment.get("synthesis_sources", [])).is_empty() else 0
+	var meta_health := 4
+	meta_health -= 1 if int(diagnostics.get("consensus_risk", 0)) >= 3 else 0
+	meta_health -= 1 if int(diagnostics.get("spectacle_pressure", 0)) >= 3 else 0
+	meta_health -= 1 if int(diagnostics.get("revisit_score", 0)) <= 0 and int(diagnostics.get("retellability_score", 0)) <= 1 else 0
 	return {
 		"hypothesis_yield": clampi(hypothesis_yield, 0, 4),
 		"cultural_richness": clampi(cultural_richness, 0, 4),
 		"ontological_productivity": clampi(ontological_productivity, 0, 4),
 		"narrative_resonance": clampi(narrative_resonance, 0, 4),
 		"fairness_stability": clampi(fairness_stability, 0, 4),
+		"dignity_stability": clampi(dignity_stability, 0, 4),
+		"cognitive_budget_stability": clampi(cognitive_budget_stability, 0, 4),
 		"readability": clampi(readability, 0, 4),
 		"replay_distinctiveness": clampi(replay_distinctiveness, 0, 4),
-		"long_horizon_branch_value": clampi(long_horizon_branch_value, 0, 4)
+		"long_horizon_branch_value": clampi(long_horizon_branch_value, 0, 4),
+		"meta_health": clampi(meta_health, 0, 4)
 	}
 
 static func _target_state_for_evaluation(experiment: Dictionary, dimensions: Dictionary) -> String:
@@ -714,8 +729,11 @@ static func _target_state_for_evaluation(experiment: Dictionary, dimensions: Dic
 	if current_state == "foundational":
 		return "foundational"
 	var fairness_veto := int(dimensions.get("fairness_stability", 0)) <= 1
+	var dignity_veto := int(dimensions.get("dignity_stability", 0)) <= 1
+	var cognitive_budget_veto := int(dimensions.get("cognitive_budget_stability", 0)) <= 1
+	var meta_health_veto := int(dimensions.get("meta_health", 0)) <= 1
 	var anti_noise := int(dimensions.get("replay_distinctiveness", 0)) >= 2 and int(dimensions.get("hypothesis_yield", 0)) <= 1 and int(dimensions.get("cultural_richness", 0)) <= 1
-	if fairness_veto or anti_noise:
+	if fairness_veto or dignity_veto or cognitive_budget_veto or meta_health_veto or anti_noise:
 		return "dormant"
 	if int(dimensions.get("hypothesis_yield", 0)) >= 3 and int(dimensions.get("readability", 0)) >= 3 and int(dimensions.get("long_horizon_branch_value", 0)) >= 4 and int(dimensions.get("fairness_stability", 0)) >= 3:
 		return "foundational"
@@ -737,8 +755,11 @@ static func _derive_outcomes(experiment: Dictionary, dimensions: Dictionary, tar
 	var current_state := str(experiment.get("state", "dormant")).strip_edges()
 	var outcomes: Array[String] = []
 	var fairness_veto := int(dimensions.get("fairness_stability", 0)) <= 1
+	var dignity_veto := int(dimensions.get("dignity_stability", 0)) <= 1
+	var cognitive_budget_veto := int(dimensions.get("cognitive_budget_stability", 0)) <= 1
+	var meta_health_veto := int(dimensions.get("meta_health", 0)) <= 1
 	var anti_noise := int(dimensions.get("replay_distinctiveness", 0)) >= 2 and int(dimensions.get("hypothesis_yield", 0)) <= 1 and int(dimensions.get("cultural_richness", 0)) <= 1
-	if fairness_veto or anti_noise:
+	if fairness_veto or dignity_veto or cognitive_budget_veto or meta_health_veto or anti_noise:
 		outcomes.append("weaken_hypothesis")
 	else:
 		if int(dimensions.get("hypothesis_yield", 0)) >= 3:
@@ -853,12 +874,14 @@ static func _public_trace_lines(experiment: Dictionary, dimensions: Dictionary, 
 
 static func _operator_trace_lines(experiment: Dictionary, dimensions: Dictionary, outcomes: Array, target_state: String) -> Array[String]:
 	return [
-		"%s -> %s | yield=%d readability=%d fairness=%d branch=%d" % [
+		"%s -> %s | yield=%d readability=%d fairness=%d dignity=%d meta=%d branch=%d" % [
 			str(experiment.get("experiment_id", "")),
 			target_state,
 			int(dimensions.get("hypothesis_yield", 0)),
 			int(dimensions.get("readability", 0)),
 			int(dimensions.get("fairness_stability", 0)),
+			int(dimensions.get("dignity_stability", 0)),
+			int(dimensions.get("meta_health", 0)),
 			int(dimensions.get("long_horizon_branch_value", 0))
 		],
 		"Outcomes: %s" % ", ".join(_string_array(outcomes))

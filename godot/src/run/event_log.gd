@@ -103,6 +103,20 @@ func event_id_range(visibility_filter: String = "") -> Dictionary:
 func timeline_digest(visibility_filter: String = "") -> String:
 	return _canonical_string(canonical_events(visibility_filter)).md5_text()
 
+func encounter_events(limit: int = 0) -> Array:
+	var result: Array = []
+	for event_raw in events:
+		var event := Dictionary(event_raw).duplicate(true)
+		if str(event.get("event_type", "")).strip_edges() != "constitution_mutation":
+			continue
+		var meta: Dictionary = Dictionary(event.get("meta", {}))
+		if str(meta.get("trigger_type", "")).strip_edges() != "species_escalation":
+			continue
+		result.append(event)
+	if limit > 0 and result.size() > limit:
+		return result.slice(result.size() - limit, result.size())
+	return result
+
 func _event_less(a: Dictionary, b: Dictionary) -> bool:
 	var a_tick := int(a.get("tick", -1))
 	var b_tick := int(b.get("tick", -1))

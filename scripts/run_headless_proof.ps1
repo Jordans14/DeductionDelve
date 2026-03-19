@@ -112,6 +112,34 @@ function Assert-EmptyFile {
 	}
 }
 
+function Assert-NextWavePressureCoverage {
+    param(
+        [string]$HostOut,
+        [string]$HostReport
+    )
+    $hostText = Read-Text $HostOut
+    $reportText = Read-Text $HostReport
+    $publicMutationMatches = [regex]::Matches($hostText, "TIMELINE_EVENT tick=(\d+) event_id=\d+ type=constitution_mutation .*visibility=public")
+    if ($publicMutationMatches.Count -lt 2) {
+        throw "Next-wave proof coverage expected at least two public constitution_mutation events in host output"
+    }
+    $lateMutationFound = $false
+    foreach ($match in $publicMutationMatches) {
+        $tickValue = [int]$match.Groups[1].Value
+        if ($tickValue -gt 0) {
+            $lateMutationFound = $true
+            break
+        }
+    }
+    if (-not $lateMutationFound) {
+        throw "Next-wave proof coverage expected at least one late public constitution_mutation after run start"
+    }
+    $pressureShiftMatches = [regex]::Matches($reportText, "(?m)^\[SHIFT\]")
+    if ($pressureShiftMatches.Count -lt 1) {
+        throw "Next-wave proof coverage expected at least one public pressure-shift fact in the host report"
+    }
+}
+
 function Get-ReportLocalRole {
     param([string]$Path)
     $text = Read-Text $Path
@@ -286,6 +314,7 @@ function Invoke-ProofAttempt {
         $clientLocalRole = Get-ReportLocalRole -Path $clientReportFile
         Assert-RoleActionEvidence -RoleName $hostLocalRole -ParticipantOut $hostOut -ParticipantLabel "host" -HostOut $hostOut
         Assert-RoleActionEvidence -RoleName $clientLocalRole -ParticipantOut $clientOut -ParticipantLabel "client" -HostOut $hostOut
+        Assert-NextWavePressureCoverage -HostOut $hostOut -HostReport $hostReportFile
 
         $diffScript = Join-Path $PSScriptRoot "diff_run_reports.ps1"
         $diffOutput = & $diffScript -HostReport $hostReportFile -ClientReport $clientReportFile

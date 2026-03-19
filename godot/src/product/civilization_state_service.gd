@@ -9,11 +9,20 @@ static func default_extensions() -> Dictionary:
 	return {
 		"factions": [],
 		"interpretation_regimes": [],
+		"market_regimes": [],
+		"lifecycle_states": [],
 		"regions": [],
 		"world_mutations": [],
 		"residue_records": [],
 		"literacy_tracks": [],
 		"strategy_clusters": [],
+		"institutional_pressure_surface": {
+			"pressure_band": "",
+			"claim_lines": [],
+			"interpretation_lines": [],
+			"reputation_bands": [],
+			"quiet_play_lines": []
+		},
 		"cognitive_field_climate": {
 			"field_state_id": "",
 			"dominant_dimensions": [],
@@ -28,13 +37,104 @@ static func normalize_world_memory_extensions(world_memory: Dictionary) -> Dicti
 			current[key] = default_extensions()[key]
 	current["factions"] = _normalize_factions(Array(current.get("factions", [])))
 	current["interpretation_regimes"] = _normalize_regimes(Array(current.get("interpretation_regimes", [])))
+	current["market_regimes"] = _normalize_market_regimes(Array(current.get("market_regimes", [])))
+	current["lifecycle_states"] = _normalize_lifecycle_states(Array(current.get("lifecycle_states", [])))
 	current["regions"] = _normalize_regions(Array(current.get("regions", [])))
 	current["world_mutations"] = _normalize_world_mutations(Array(current.get("world_mutations", [])))
 	current["residue_records"] = _normalize_residue(Array(current.get("residue_records", [])))
 	current["literacy_tracks"] = _normalize_literacy_tracks(Array(current.get("literacy_tracks", [])))
 	current["strategy_clusters"] = _normalize_strategy_clusters(Array(current.get("strategy_clusters", [])))
+	current["institutional_pressure_surface"] = _normalize_institutional_pressure_surface(Dictionary(current.get("institutional_pressure_surface", {})))
 	current["cognitive_field_climate"] = _normalize_field_climate(Dictionary(current.get("cognitive_field_climate", {})))
 	return current
+
+static func build_world_aftermath_records(run_context: Dictionary) -> Array[Dictionary]:
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var diagnostics: Dictionary = Dictionary(run_context.get("diagnostics", {}))
+	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {}))
+	var active_apex_state: Dictionary = Dictionary(run_record.get("active_apex_state", {}))
+	var aftermath_refs := Array(run_record.get("world_aftermath_refs", []))
+	if aftermath_refs.is_empty() and not local_aftermath.is_empty():
+		aftermath_refs = [{
+			"aftermath_id": "world_aftermath_%s" % str(local_aftermath.get("source_id", "")).strip_edges(),
+			"source_id": str(local_aftermath.get("source_id", "")).strip_edges(),
+			"source_kind": str(local_aftermath.get("source_kind", "encounter")).strip_edges(),
+			"apex_id": str(active_apex_state.get("apex_id", "")),
+			"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
+			"continuity_seed_tags": Array(local_aftermath.get("narrative_residue_tags", [])).duplicate(true),
+			"return_pressure_tags": Array(local_aftermath.get("residual_telegraph_tags", [])).duplicate(true),
+			"route_state_hint": str(local_aftermath.get("immediate_route_state", "")).strip_edges(),
+			"successor_hint_ids": Array(constitution_summary.get("apex_class_ids", [])).duplicate(true)
+		}]
+	var institutional_surface: Dictionary = Dictionary(diagnostics.get("institutional_pressure_surface", {}))
+	var institutional_response_seed := _first_non_empty(
+		_string_array(institutional_surface.get("claim_lines", []))
+		+ _string_array(institutional_surface.get("interpretation_lines", []))
+		+ _string_array(constitution_summary.get("apex_lines", []))
+		+ ["institutions are rereading the route through the aftermath"]
+	)
+	var result: Array[Dictionary] = []
+	for aftermath_ref_raw in aftermath_refs:
+		var aftermath_ref := Dictionary(aftermath_ref_raw)
+		var aftermath_id := str(aftermath_ref.get("aftermath_id", "")).strip_edges()
+		var source_id := str(aftermath_ref.get("source_id", local_aftermath.get("source_id", ""))).strip_edges()
+		if aftermath_id.is_empty() or source_id.is_empty():
+			continue
+		var source_kind := str(aftermath_ref.get("source_kind", local_aftermath.get("source_kind", "encounter"))).strip_edges()
+		var apex_id := str(aftermath_ref.get("apex_id", active_apex_state.get("apex_id", ""))).strip_edges()
+		var route_state_hint := str(aftermath_ref.get("route_state_hint", local_aftermath.get("immediate_route_state", ""))).strip_edges()
+		var residue_records := _slice_strings(
+			_string_array(aftermath_ref.get("continuity_seed_tags", []))
+			+ _string_array(aftermath_ref.get("residue_records", []))
+			+ _string_array(local_aftermath.get("narrative_residue_tags", [])),
+			3
+		)
+		var return_pressure_tags := _slice_strings(
+			_string_array(aftermath_ref.get("return_pressure_tags", []))
+			+ _string_array(aftermath_ref.get("residual_telegraph_tags", []))
+			+ _string_array(local_aftermath.get("residual_telegraph_tags", [])),
+			4
+		)
+		var successor_claims := _slice_strings(
+			_string_array(aftermath_ref.get("successor_hint_ids", []))
+			+ _string_array(aftermath_ref.get("successor_claims", []))
+			+ _string_array(constitution_summary.get("apex_class_ids", [])),
+			4
+		)
+		var prestige_climate_delta := str(aftermath_ref.get("prestige_climate_delta", "")).strip_edges()
+		if prestige_climate_delta.is_empty():
+			prestige_climate_delta = "elevated" if route_state_hint == "rerouted" else "steady"
+		var institutional_response := _first_non_empty([
+			str(aftermath_ref.get("institutional_response", "")).strip_edges(),
+			institutional_response_seed
+		])
+		var continuity_scars := _slice_strings(
+			_string_array(aftermath_ref.get("continuity_scars", []))
+			+ ["scar_%s" % source_id],
+			6
+		)
+		var world_mutation_ids := _slice_strings(
+			_string_array(aftermath_ref.get("world_mutation_ids", []))
+			+ (["wm_%s" % apex_id] if not apex_id.is_empty() and source_kind == "apex" else []),
+			6
+		)
+		result.append({
+			"schema_name": "WorldAftermath",
+			"schema_version": 1,
+			"aftermath_id": aftermath_id,
+			"source_id": source_id,
+			"source_kind": source_kind,
+			"apex_id": apex_id,
+			"world_mutation_ids": world_mutation_ids,
+			"residue_records": residue_records,
+			"prestige_climate_delta": prestige_climate_delta,
+			"institutional_response": institutional_response,
+			"return_pressure_tags": return_pressure_tags,
+			"continuity_scars": continuity_scars,
+			"successor_claims": successor_claims
+		})
+	return result.slice(0, MAX_OBJECTS)
 
 static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dictionary) -> Dictionary:
 	var current := normalize_world_memory_extensions(world_memory)
@@ -45,9 +145,14 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
 	var cookbook_state: Dictionary = Dictionary(profile.get("cookbook_state", {}))
 	var archive_state: Dictionary = Dictionary(profile.get("archive_state", {}))
+	var world_market_memory: Dictionary = Dictionary(current.get("market_memory_state", {}))
+	var world_lifecycle_registry: Dictionary = Dictionary(current.get("lifecycle_registry", {}))
+	var expedition_constitution: Dictionary = Dictionary(run_record.get("expedition_constitution", {}))
+	var constitution_market_regime: Dictionary = Dictionary(expedition_constitution.get("market_regime_state", {}))
 	var theory_ids := _string_array(diagnostics.get("theory_ids", []))
 	var theory_statuses := _string_array(diagnostics.get("theory_statuses", []))
 	var residue_records := _normalize_residue(Array(current.get("residue_records", [])))
+	var world_aftermath_records := build_world_aftermath_records(run_context)
 	residue_records.push_front({
 		"residue_id": "residue_%s" % str(run_record.get("seed", 0)),
 		"label": _first_non_empty([
@@ -58,11 +163,26 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 		"source_kind": "run",
 		"play_routing_tags": ["witness", "route_choice", "return"]
 	})
+	for aftermath_raw in world_aftermath_records:
+		var aftermath := Dictionary(aftermath_raw)
+		var aftermath_id := str(aftermath.get("aftermath_id", "")).strip_edges()
+		if aftermath_id.is_empty():
+			continue
+		residue_records.push_front({
+			"residue_id": aftermath_id,
+			"label": _first_non_empty([
+				_first_non_empty(_string_array(aftermath.get("residue_records", []))),
+				str(aftermath.get("institutional_response", "")).strip_edges(),
+				"aftermath residue remains in circulation"
+			]),
+			"source_kind": "world_aftermath",
+			"play_routing_tags": ["witness", "route_choice", "return"]
+		})
 	current["residue_records"] = residue_records.slice(0, MAX_OBJECTS)
 	var mutation_surface: Dictionary = Dictionary(run_record.get("mutation_public_summary", {}))
 	var mutation_lines := _string_array(mutation_surface.get("public_lines", []))
+	var world_mutations := _normalize_world_mutations(Array(current.get("world_mutations", [])))
 	if not mutation_lines.is_empty():
-		var world_mutations := _normalize_world_mutations(Array(current.get("world_mutations", [])))
 		world_mutations.push_front({
 			"mutation_id": "mutation_%s" % str(run_record.get("seed", 0)),
 			"label": mutation_lines[0],
@@ -70,7 +190,22 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 			"reversal_mode": "reversal" if bool(diagnostics.get("safe_mode_active", false)) else "counteraction",
 			"play_routing_tags": ["artifact_custody", "route_choice", "return"]
 		})
-		current["world_mutations"] = world_mutations.slice(0, MAX_OBJECTS)
+	for aftermath_raw in world_aftermath_records:
+		var aftermath := Dictionary(aftermath_raw)
+		for mutation_id in _string_array(aftermath.get("world_mutation_ids", [])):
+			if _has_entry(world_mutations, mutation_id, "mutation_id"):
+				continue
+			world_mutations.push_front({
+				"mutation_id": mutation_id,
+				"label": _first_non_empty([
+					str(aftermath.get("institutional_response", "")).strip_edges(),
+					"aftermath mutation persists"
+				]),
+				"status": "approved",
+				"reversal_mode": "counteraction",
+				"play_routing_tags": ["artifact_custody", "route_choice", "return"]
+			})
+	current["world_mutations"] = world_mutations.slice(0, MAX_OBJECTS)
 	var factions := _normalize_factions(Array(current.get("factions", [])))
 	var doctrine_family := str(constitution_summary.get("doctrine_family", diagnostics.get("doctrine_family", ""))).strip_edges()
 	if not doctrine_family.is_empty() and factions.is_empty():
@@ -133,6 +268,46 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 			"faction_ids": ["faction_cookbook_cell"]
 		})
 	current["interpretation_regimes"] = regimes.slice(0, MAX_OBJECTS)
+	var market_regimes := _normalize_market_regimes(Array(current.get("market_regimes", [])))
+	var active_regime_ids := _string_array(constitution_summary.get("active_regime_ids", world_market_memory.get("active_regime_ids", [])))
+	var market_regime_id := str(constitution_summary.get("market_regime_id", _first_non_empty(active_regime_ids))).strip_edges()
+	if not market_regime_id.is_empty() and not _has_entry(market_regimes, market_regime_id, "regime_id"):
+		market_regimes.append({
+			"regime_id": market_regime_id,
+			"label": market_regime_id.replace("_", " ").capitalize(),
+			"regime_family": str(constitution_summary.get("market_regime_family", "balanced")).strip_edges(),
+			"scarcity_band": str(constitution_market_regime.get("scarcity_band", "suppressed")).strip_edges(),
+			"prestige_band": str(constitution_summary.get("market_prestige_band", "")),
+			"carrier_risk_band": str(constitution_summary.get("market_carrier_risk_band", "")),
+			"active": true,
+			"play_routing_tags": ["artifact_custody", "route_choice", "extraction", "return"]
+		})
+	current["market_regimes"] = market_regimes.slice(0, MAX_OBJECTS)
+	var lifecycle_states := _normalize_lifecycle_states(Array(current.get("lifecycle_states", [])))
+	var constitution_lifecycle: Dictionary = Dictionary(expedition_constitution.get("lifecycle_registry", world_lifecycle_registry))
+	for state_raw in Array(constitution_lifecycle.get("families", [])):
+		var lifecycle_state := Dictionary(state_raw).duplicate(true)
+		lifecycle_state["state_id"] = str(lifecycle_state.get("family_id", lifecycle_state.get("state_id", ""))).strip_edges()
+		if str(lifecycle_state.get("state_id", "")).strip_edges().is_empty():
+			continue
+		if _has_entry(lifecycle_states, str(lifecycle_state.get("state_id", "")), "state_id"):
+			continue
+		lifecycle_states.append({
+			"state_id": str(lifecycle_state.get("state_id", "")).strip_edges(),
+			"family_id": str(lifecycle_state.get("family_id", "")).strip_edges(),
+			"family_kind": str(lifecycle_state.get("family_kind", "market")).strip_edges(),
+			"state": str(lifecycle_state.get("state", "emerging")).strip_edges(),
+			"heat": int(lifecycle_state.get("heat", 0)),
+			"saturation": int(lifecycle_state.get("saturation", 0)),
+			"strain": int(lifecycle_state.get("strain", 0)),
+			"cooling_tags": _string_array(lifecycle_state.get("cooling_tags", [])),
+			"successor_hint": str(lifecycle_state.get("successor_hint", "")).strip_edges(),
+			"return_window": str(lifecycle_state.get("return_window", "")).strip_edges(),
+			"dominance_strain": int(lifecycle_state.get("dominance_strain", lifecycle_state.get("strain", 0))),
+			"throttle_state": str(lifecycle_state.get("throttle_state", "open")).strip_edges(),
+			"resurrection_priority": int(lifecycle_state.get("resurrection_priority", 0))
+		})
+	current["lifecycle_states"] = lifecycle_states.slice(0, MAX_OBJECTS)
 	var literacy_tracks := _normalize_literacy_tracks(Array(current.get("literacy_tracks", [])))
 	if literacy_tracks.is_empty():
 		literacy_tracks.append({
@@ -172,6 +347,13 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 			"play_routing_tags": ["witness", "route_choice", "artifact_custody", "hesitation"]
 		})
 	current["strategy_clusters"] = strategy_clusters.slice(0, MAX_OBJECTS)
+	current["institutional_pressure_surface"] = _normalize_institutional_pressure_surface({
+		"pressure_band": str(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("pressure_band", "")).strip_edges(),
+		"claim_lines": _string_array(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("claim_lines", [])),
+		"interpretation_lines": _string_array(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("interpretation_lines", [])),
+		"reputation_bands": _string_array([str(diagnostics.get("reputation_band", "")).strip_edges()]),
+		"quiet_play_lines": _string_array(diagnostics.get("quiet_play_signals", []))
+	})
 	current["cognitive_field_climate"] = _normalize_field_climate({
 		"field_state_id": str(constitution_summary.get("constitution_hash", run_record.get("seed", ""))).strip_edges(),
 		"dominant_dimensions": _string_array(diagnostics.get("cognitive_field_dimensions", [])),
@@ -183,8 +365,11 @@ static func build_civilization_surface(world_memory: Dictionary) -> Dictionary:
 	var current := normalize_world_memory_extensions(world_memory)
 	var factions := _normalize_factions(Array(current.get("factions", [])))
 	var regimes := _normalize_regimes(Array(current.get("interpretation_regimes", [])))
+	var market_regimes := _normalize_market_regimes(Array(current.get("market_regimes", [])))
+	var lifecycle_states := _normalize_lifecycle_states(Array(current.get("lifecycle_states", [])))
 	var world_mutations := _normalize_world_mutations(Array(current.get("world_mutations", [])))
 	var literacy_tracks := _normalize_literacy_tracks(Array(current.get("literacy_tracks", [])))
+	var institutional_pressure_surface := _normalize_institutional_pressure_surface(Dictionary(current.get("institutional_pressure_surface", {})))
 	var field_climate := _normalize_field_climate(Dictionary(current.get("cognitive_field_climate", {})))
 	var lines: Array[String] = []
 	if not factions.is_empty():
@@ -192,19 +377,37 @@ static func build_civilization_surface(world_memory: Dictionary) -> Dictionary:
 		lines.append("%s is now shaping public legitimacy and custody arguments" % str(lead_faction.get("label", "a faction")).strip_edges())
 	if not regimes.is_empty():
 		lines.append("%s is framing current interpretation and theory adoption" % str(Dictionary(regimes[0]).get("label", "a regime")).to_lower())
+	if not market_regimes.is_empty():
+		lines.append("%s is setting the current market climate for carriers and extraction debt" % str(Dictionary(market_regimes[0]).get("label", "a market regime")).to_lower())
+	if not lifecycle_states.is_empty():
+		lines.append("%s is the dominant lifecycle state for current doctrine families" % str(Dictionary(lifecycle_states[0]).get("state_id", "an active lifecycle")).replace("_", " "))
 	if not world_mutations.is_empty():
 		lines.append("%s is still redirecting what counts as a safe return path" % str(Dictionary(world_mutations[0]).get("label", "approved world mutation")).strip_edges())
 	if not literacy_tracks.is_empty():
 		lines.append("%s literacy is deciding which doctrine layers can spread" % str(Dictionary(literacy_tracks[0]).get("label", "public")).to_lower())
+	var institutional_claim := _first_non_empty(_string_array(institutional_pressure_surface.get("claim_lines", [])))
+	if not institutional_claim.is_empty():
+		lines.append("institutional pressure is hardening around %s" % institutional_claim.to_lower())
 	if not _string_array(field_climate.get("summary_lines", [])).is_empty():
 		lines.append(_string_array(field_climate.get("summary_lines", []))[0])
 	return {
 		"lines": _slice_strings(lines, MAX_LINES),
 		"faction_ids": _pluck_ids(factions, "faction_id"),
 		"regime_ids": _pluck_ids(regimes, "regime_id"),
+		"market_regime_ids": _pluck_ids(market_regimes, "regime_id"),
+		"lifecycle_state_ids": _pluck_ids(lifecycle_states, "state_id"),
 		"region_ids": _pluck_ids(_normalize_regions(Array(current.get("regions", []))), "region_id"),
 		"world_mutation_ids": _pluck_ids(world_mutations, "mutation_id"),
 		"literacy_track_ids": _pluck_ids(literacy_tracks, "track_id"),
+		"market_regime_lines": _slice_strings(_pluck_labels(market_regimes, "label"), MAX_LINES),
+		"lifecycle_lines": _slice_strings(_pluck_labels(lifecycle_states, "state_id"), MAX_LINES),
+		"institutional_pressure_lines": _slice_strings(
+			_string_array(institutional_pressure_surface.get("claim_lines", []))
+			+ _string_array(institutional_pressure_surface.get("interpretation_lines", [])),
+			MAX_LINES
+		),
+		"reputation_bands": _slice_strings(_string_array(institutional_pressure_surface.get("reputation_bands", [])), MAX_LINES),
+		"quiet_play_lines": _slice_strings(_string_array(institutional_pressure_surface.get("quiet_play_lines", [])), MAX_LINES),
 		"play_routing_tags": ["movement", "burden", "witness", "route_choice", "artifact_custody", "hesitation", "extraction", "return"]
 	}
 
@@ -238,6 +441,43 @@ static func _normalize_regimes(values: Array) -> Array[Dictionary]:
 		current["mode"] = str(current.get("mode", "archive")).strip_edges()
 		current["faction_ids"] = _string_array(current.get("faction_ids", []))
 		if not current["regime_id"].is_empty():
+			result.append(current)
+	return result.slice(0, MAX_OBJECTS)
+
+static func _normalize_market_regimes(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var current := Dictionary(value).duplicate(true)
+		current["regime_id"] = str(current.get("regime_id", "")).strip_edges()
+		current["label"] = str(current.get("label", "")).strip_edges()
+		current["regime_family"] = str(current.get("regime_family", "balanced")).strip_edges()
+		current["scarcity_band"] = str(current.get("scarcity_band", "suppressed")).strip_edges()
+		current["prestige_band"] = str(current.get("prestige_band", "suppressed")).strip_edges()
+		current["carrier_risk_band"] = str(current.get("carrier_risk_band", "suppressed")).strip_edges()
+		current["active"] = bool(current.get("active", true))
+		current["play_routing_tags"] = _string_array(current.get("play_routing_tags", []))
+		if not current["regime_id"].is_empty():
+			result.append(current)
+	return result.slice(0, MAX_OBJECTS)
+
+static func _normalize_lifecycle_states(values: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in values:
+		var current := Dictionary(value).duplicate(true)
+		current["state_id"] = str(current.get("state_id", current.get("family_id", ""))).strip_edges()
+		current["family_id"] = str(current.get("family_id", current.get("state_id", ""))).strip_edges()
+		current["family_kind"] = str(current.get("family_kind", "market")).strip_edges()
+		current["state"] = str(current.get("state", "emerging")).strip_edges()
+		current["heat"] = int(current.get("heat", 0))
+		current["saturation"] = int(current.get("saturation", 0))
+		current["strain"] = int(current.get("strain", 0))
+		current["cooling_tags"] = _string_array(current.get("cooling_tags", []))
+		current["successor_hint"] = str(current.get("successor_hint", "")).strip_edges()
+		current["return_window"] = str(current.get("return_window", "")).strip_edges()
+		current["dominance_strain"] = int(current.get("dominance_strain", current.get("strain", 0)))
+		current["throttle_state"] = str(current.get("throttle_state", "open")).strip_edges()
+		current["resurrection_priority"] = int(current.get("resurrection_priority", 0))
+		if not current["state_id"].is_empty():
 			result.append(current)
 	return result.slice(0, MAX_OBJECTS)
 
@@ -315,7 +555,32 @@ static func _normalize_field_climate(raw: Dictionary) -> Dictionary:
 	current["summary_lines"] = _slice_strings(_string_array(current.get("summary_lines", [])), MAX_LINES)
 	return current
 
+static func _normalize_institutional_pressure_surface(raw: Dictionary) -> Dictionary:
+	var current := {
+		"pressure_band": "",
+		"claim_lines": [],
+		"interpretation_lines": [],
+		"reputation_bands": [],
+		"quiet_play_lines": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["pressure_band"] = str(current.get("pressure_band", "")).strip_edges()
+	current["claim_lines"] = _slice_strings(_string_array(current.get("claim_lines", [])), MAX_LINES)
+	current["interpretation_lines"] = _slice_strings(_string_array(current.get("interpretation_lines", [])), MAX_LINES)
+	current["reputation_bands"] = _slice_strings(_string_array(current.get("reputation_bands", [])), MAX_LINES)
+	current["quiet_play_lines"] = _slice_strings(_string_array(current.get("quiet_play_lines", [])), MAX_LINES)
+	return current
+
 static func _pluck_ids(entries: Array[Dictionary], key: String) -> Array[String]:
+	var result: Array[String] = []
+	for entry in entries:
+		var value := str(Dictionary(entry).get(key, "")).strip_edges()
+		if not value.is_empty() and not result.has(value):
+			result.append(value)
+	return result
+
+static func _pluck_labels(entries: Array[Dictionary], key: String) -> Array[String]:
 	var result: Array[String] = []
 	for entry in entries:
 		var value := str(Dictionary(entry).get(key, "")).strip_edges()

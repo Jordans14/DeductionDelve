@@ -246,6 +246,14 @@ static func compile_state(
 		experiment_public_lines,
 		_string_array(Dictionary(compile_outputs.get("public_activation", {})).get("surface_lines", []))
 	)
+	var creative_governance := _build_creative_governance(
+		learning_guidance,
+		selected_experiments,
+		compile_outputs,
+		dominant_families,
+		expression_modes,
+		horizons
+	)
 	var selected_hypotheses: Array[Dictionary] = []
 	for hypothesis_id in selected_hypothesis_ids:
 		if hypothesis_registry.has(hypothesis_id):
@@ -264,6 +272,7 @@ static func compile_state(
 		"grammar_manifest": _sorted_dict_array(grammar_manifest, "experiment_id"),
 		"learning_guidance": learning_guidance.duplicate(true),
 		"compile_outputs": compile_outputs,
+		"creative_governance": creative_governance.duplicate(true),
 		"public_surface": {
 			"lines": public_lines,
 			"family_labels": _family_labels(_sorted_strings(dominant_families)),
@@ -296,6 +305,14 @@ static func compile_state(
 				"evaluation_count": int(learning_guidance.get("evaluation_count", 0)),
 				"bias_basis": Dictionary(learning_guidance.get("bias_basis", {})).duplicate(true)
 			},
+			"creative_governance": {
+				"novelty_envelope": Dictionary(creative_governance.get("novelty_envelope", {})).duplicate(true),
+				"taste_profile": Dictionary(creative_governance.get("taste_profile", {})).duplicate(true),
+				"personality_band": str(creative_governance.get("personality_band", "")).strip_edges(),
+				"bounded_surface_ids": _string_array(creative_governance.get("bounded_surface_ids", [])),
+				"suppressed_patterns": _string_array(creative_governance.get("suppressed_patterns", [])),
+				"revive_candidates": _string_array(creative_governance.get("revive_candidates", []))
+			},
 			"recent_evaluation_ids": _recent_evaluation_ids(learning_state)
 		},
 		"validation_failures": _merge_string_arrays(_string_array(current.get("validation_failures", [])), [])
@@ -325,6 +342,7 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 		"grammar_manifest",
 		"learning_guidance",
 		"compile_outputs",
+		"creative_governance",
 		"public_surface",
 		"compiler_trace"
 	]:
@@ -361,6 +379,10 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 	for key in ["activation_scores", "activation_trace", "learning_guidance_bias_trace"]:
 		if not compiler_trace.has(key):
 			failures.append("experimental ontology compiler_trace missing %s" % key)
+	var creative_governance: Dictionary = Dictionary(compiled.get("creative_governance", {}))
+	for key in ["novelty_envelope", "taste_profile", "personality_band", "bounded_surface_ids", "suppressed_patterns", "revive_candidates"]:
+		if not creative_governance.has(key):
+			failures.append("experimental ontology creative_governance missing %s" % key)
 	var bias_trace: Dictionary = Dictionary(compiler_trace.get("learning_guidance_bias_trace", {}))
 	for experiment_id_variant in bias_trace.keys():
 		var experiment_id := str(experiment_id_variant).strip_edges()
@@ -372,9 +394,59 @@ static func validate_compile_state(compiled: Dictionary) -> Array[String]:
 			failures.append("experimental ontology learning_guidance_bias_trace %s missing numeric total_bias" % experiment_id)
 		if not (trace_entry.get("applied_tokens", []) is Array):
 			failures.append("experimental ontology learning_guidance_bias_trace %s missing applied_tokens array" % experiment_id)
-	if _contains_runtime_key(compile_outputs) or _contains_runtime_key(Dictionary(compiled.get("compiler_trace", {}))):
+	if _contains_runtime_key(compile_outputs) or _contains_runtime_key(Dictionary(compiled.get("compiler_trace", {}))) or _contains_runtime_key(creative_governance):
 		failures.append("experimental ontology compile outputs must not expose runtime-only fields")
 	return _sorted_strings(failures)
+
+static func _build_creative_governance(learning_guidance: Dictionary, selected_experiments: Array[Dictionary], compile_outputs: Dictionary, dominant_families: Array[String], expression_modes: Array[String], horizons: Array[String]) -> Dictionary:
+	var compile_targets := _string_array(compile_outputs.get("compile_targets", []))
+	var suppressed_patterns: Array[String] = []
+	for topology in _string_array(learning_guidance.get("suppressed_topologies", [])):
+		suppressed_patterns.append("topology:%s" % topology)
+	for horizon in _string_array(learning_guidance.get("suppressed_horizons", [])):
+		suppressed_patterns.append("horizon:%s" % horizon)
+	for medium in _string_array(learning_guidance.get("suppressed_media", [])):
+		suppressed_patterns.append("medium:%s" % medium)
+	var novelty_occupancy := clampi(selected_experiments.size() + _string_array(learning_guidance.get("synthesis_candidates", [])).size() + _string_array(learning_guidance.get("revive_candidates", [])).size(), 0, 6)
+	var novelty_band := "disciplined_frontier"
+	if novelty_occupancy <= 1:
+		novelty_band = "anchored_core"
+	elif novelty_occupancy >= 5:
+		novelty_band = "wide_frontier"
+	var personality_band := "disciplined_curiosity"
+	if not _string_array(learning_guidance.get("revive_candidates", [])).is_empty():
+		personality_band = "revivalist_curiosity"
+	elif not _string_array(learning_guidance.get("synthesis_candidates", [])).is_empty():
+		personality_band = "synthesis_curiosity"
+	elif not _string_array(learning_guidance.get("suppressed_topologies", [])).is_empty():
+		personality_band = "restrained_curiosity"
+	return {
+		"schema_name": "CreativeGovernanceProfile",
+		"schema_version": 1,
+		"novelty_envelope": {
+			"active_band": novelty_band,
+			"occupancy": novelty_occupancy,
+			"evaluation_count": int(learning_guidance.get("evaluation_count", 0)),
+			"allowed_range": ["anchored_core", "disciplined_frontier", "wide_frontier"]
+		},
+		"taste_profile": {
+			"preferred_topologies": _string_array(learning_guidance.get("preferred_topologies", [])),
+			"preferred_horizons": _string_array(learning_guidance.get("preferred_horizons", [])),
+			"preferred_media": _string_array(learning_guidance.get("preferred_media", [])),
+			"dominant_family_labels": _family_labels(dominant_families),
+			"expression_modes": _string_array(expression_modes),
+			"horizons": _string_array(horizons)
+		},
+		"personality_band": personality_band,
+		"bounded_surface_ids": compile_targets if not compile_targets.is_empty() else ["constitution", "archive", "framing"],
+		"suppressed_patterns": _slice_strings(suppressed_patterns, 6),
+		"revive_candidates": _slice_strings(_string_array(learning_guidance.get("revive_candidates", [])), 6),
+		"summary_lines": _slice_strings([
+			"Novelty envelope is holding at %s." % novelty_band.replace("_", " "),
+			"Taste profile is staying bounded to %s." % ", ".join((_family_labels(dominant_families) if not dominant_families.is_empty() else ["current doctrine surfaces"]).slice(0, 2)),
+			"Personality band is reading as %s." % personality_band.replace("_", " ")
+		], 3)
+	}
 
 static func build_world_lines(state: Dictionary) -> Array[String]:
 	var current := normalize(state)
@@ -1452,6 +1524,16 @@ static func _merge_string_arrays(base_values: Variant, extra_values: Variant) ->
 		if not result.has(value):
 			result.append(value)
 	return _sorted_strings(result)
+
+static func _slice_strings(values: Array[String], limit: int) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		var text := str(value).strip_edges()
+		if not text.is_empty() and not result.has(text):
+			result.append(text)
+		if result.size() >= limit:
+			break
+	return result
 
 static func _merge_dict_arrays(base_values: Array[Dictionary], extra_values: Array[Dictionary], limit: int) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []

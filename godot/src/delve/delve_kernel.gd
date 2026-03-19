@@ -64,7 +64,7 @@ static func plan_constitution(profile: Dictionary, session_context: Dictionary, 
 	var world_goals := _world_goals(planner, public_doctrine)
 	var pressure_line := str(public_doctrine.get("pressure_line", _first_string(Array(summary.get("lines", [])), "")))
 	var world_goal := str(public_doctrine.get("world_goal", _first_string(world_goals, "")))
-	var generation_contract := _generation_contract(seed_value, room_count, world_model, doctrine, summary, public_doctrine, run_identity)
+	var generation_contract := _generation_contract(seed_value, room_count, world_model, doctrine, summary, public_doctrine, run_identity, policy)
 	var compile_outputs: Dictionary = CONSTITUTION_COMPILER_SCRIPT.compile(
 		seed_value,
 		room_count,
@@ -110,10 +110,12 @@ static func plan_constitution(profile: Dictionary, session_context: Dictionary, 
 static func plan_directive(profile: Dictionary, session_context: Dictionary, seed_value: int, room_count: int) -> Dictionary:
 	return plan_constitution(profile, session_context, seed_value, room_count)
 
-static func _generation_contract(seed_value: int, room_count: int, world_model: Dictionary, doctrine: Dictionary, summary: Dictionary, public_doctrine: Dictionary, run_identity: Dictionary) -> Dictionary:
+static func _generation_contract(seed_value: int, room_count: int, world_model: Dictionary, doctrine: Dictionary, summary: Dictionary, public_doctrine: Dictionary, run_identity: Dictionary, policy: Dictionary = {}) -> Dictionary:
 	var social_model: Dictionary = Dictionary(world_model.get("social_model", {}))
 	var route_model: Dictionary = Dictionary(world_model.get("route_model", {}))
+	var economy_model: Dictionary = Dictionary(world_model.get("economy_model", {}))
 	var cultural_model: Dictionary = Dictionary(world_model.get("cultural_model", {}))
+	var economy_policy: Dictionary = Dictionary(policy.get("economy", {}))
 	var relationship_routing := {
 		"alliance_stability": int(social_model.get("alliance_stability", 0)),
 		"trust_fragility": int(social_model.get("trust_fragility", 0)),
@@ -164,6 +166,24 @@ static func _generation_contract(seed_value: int, room_count: int, world_model: 
 		"mourning_climate": 1 if int(cultural_model.get("martyr_pressure", 0)) >= 2 or int(cultural_model.get("melancholy_heat", 0)) >= 2 or int(cultural_model.get("ordinary_life_pressure", 0)) >= 2 else 0,
 		"ontology_heat": 1 if int(cultural_model.get("counterfactual_heat", 0)) >= 2 or not str(cultural_model.get("uncertainty_philosophy", "")).strip_edges().is_empty() else 0
 	}
+	var market_routing := {
+		"market_volatility": int(economy_policy.get("market_volatility", 0)),
+		"prestige_pressure": int(economy_policy.get("prestige_pressure", 0)),
+		"hoard_visibility": int(economy_policy.get("hoard_visibility", 0)),
+		"scarcity_recovery": int(economy_policy.get("scarcity_recovery", 0)),
+		"carrier_risk_bias": int(economy_policy.get("carrier_risk_bias", 0)),
+		"extraction_debt": int(economy_model.get("extraction_debt", 0)),
+		"hoard_heat": int(economy_model.get("hoard_heat", 0)),
+		"neglect_heat": int(economy_model.get("neglect_heat", 0)),
+		"distortion_heat": int(economy_model.get("distortion_heat", 0)),
+		"recovery_credit": int(economy_model.get("recovery_credit", 0)),
+		"prestige_climate": str(economy_model.get("prestige_climate", "")).strip_edges(),
+		"carrier_risk_band": str(economy_model.get("carrier_risk_band", "")).strip_edges(),
+		"active_regime_ids": _unique_strings(Array(economy_model.get("active_regime_ids", []))),
+		"lifecycle_state_ids": _unique_strings(Array(economy_model.get("lifecycle_state_ids", []))),
+		"market_lines": _unique_strings(Array(economy_model.get("market_lines", []))),
+		"lifecycle_lines": _unique_strings(Array(economy_model.get("lifecycle_lines", [])))
+	}
 	var directive_view := {
 		"seed": seed_value,
 		"room_count": room_count,
@@ -190,7 +210,8 @@ static func _generation_contract(seed_value: int, room_count: int, world_model: 
 			"relationship_routing": relationship_routing,
 			"relay_routing": relay_routing,
 			"cookbook_routing": cookbook_routing,
-			"civilization_routing": civilization_routing
+			"civilization_routing": civilization_routing,
+			"market_routing": market_routing
 		}
 	}
 	return RUN_GENERATOR_SCRIPT.new().build_generation_contract(seed_value, directive_view)

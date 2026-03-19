@@ -139,6 +139,9 @@ func build_generation_contract(seed_value: int, directive: Dictionary = {}) -> D
 		"relay_routing": Dictionary(embedded.get("relay_routing", directive.get("relay_routing", {}))).duplicate(true),
 		"cookbook_routing": Dictionary(embedded.get("cookbook_routing", directive.get("cookbook_routing", {}))).duplicate(true),
 		"civilization_routing": Dictionary(embedded.get("civilization_routing", directive.get("civilization_routing", {}))).duplicate(true),
+		"market_routing": Dictionary(embedded.get("market_routing", directive.get("market_routing", {}))).duplicate(true),
+		"encounter_routing": Dictionary(embedded.get("encounter_routing", directive.get("encounter_routing", {}))).duplicate(true),
+		"apex_routing": Dictionary(embedded.get("apex_routing", directive.get("apex_routing", {}))).duplicate(true),
 		"ontology_routing": Dictionary(embedded.get("ontology_routing", directive.get("ontology_routing", {}))).duplicate(true)
 	}
 	if contract["protocol_state"].is_empty():
@@ -187,6 +190,8 @@ func _looks_like_generation_contract(candidate: Dictionary) -> bool:
 		and candidate.has("group_tension_bias") \
 		and candidate.has("archive_tone") \
 		and candidate.has("convergence_axis") \
+		and candidate.has("encounter_routing") \
+		and candidate.has("apex_routing") \
 		and not candidate.has("run_identity") \
 		and not candidate.has("control_surfaces")
 
@@ -293,6 +298,7 @@ func _risk_for_slot(rng: RandomNumberGenerator, slot: int, room_count: int, room
 	var item_ecology_bias := str(generation_contract.get("item_ecology_bias", "")).to_lower()
 	var group_tension_bias := str(generation_contract.get("group_tension_bias", "")).to_lower()
 	var convergence_axis := str(generation_contract.get("convergence_axis", "")).to_lower()
+	var market_routing: Dictionary = Dictionary(generation_contract.get("market_routing", {}))
 	var risk_bias := 0
 	if pressure_tokens.has("fragmentation") or pressure_tokens.has("misdirection"):
 		risk_bias += 1
@@ -306,8 +312,20 @@ func _risk_for_slot(rng: RandomNumberGenerator, slot: int, room_count: int, room
 		risk_bias += 1
 	if convergence_axis.find("fragment") != -1:
 		risk_bias += 1
+	if int(market_routing.get("market_volatility", 0)) > 0:
+		risk_bias += int(market_routing.get("market_volatility", 0))
+	if int(market_routing.get("carrier_risk_bias", 0)) > 0:
+		risk_bias += int(market_routing.get("carrier_risk_bias", 0))
+	if int(market_routing.get("extraction_debt", 0)) >= 2:
+		risk_bias += 1
+	if int(market_routing.get("hoard_heat", 0)) >= 2:
+		risk_bias += 1
 	if item_ecology_bias.find("rescue") != -1 or convergence_axis.find("custody") != -1 or pressure_tokens.has("convergence"):
 		risk_bias -= 1
+	if int(market_routing.get("scarcity_recovery", 0)) > 0:
+		risk_bias -= int(market_routing.get("scarcity_recovery", 0))
+	if int(market_routing.get("recovery_credit", 0)) >= 2:
+		risk_bias -= maxi(int(market_routing.get("recovery_credit", 0)) / 2, 1)
 	if pacing_id in ["volatile", "escalating"]:
 		risk_bias += 1
 	elif pacing_id == "calm":
@@ -416,6 +434,18 @@ func _with_branch_context(room: Dictionary, branch_family: Dictionary, slot: int
 	context["surface_summary"] = {
 		"lines": _generation_surface_lines(generation_contract)
 	}
+	context["encounter_preview"] = {
+		"active_pathology_ids": _string_array(Dictionary(generation_contract.get("encounter_routing", {})).get("active_pathology_ids", [])),
+		"encounter_manifest_ids": _string_array(Dictionary(generation_contract.get("encounter_routing", {})).get("encounter_manifest_ids", [])),
+		"encounter_lines": _string_array(Dictionary(generation_contract.get("encounter_routing", {})).get("encounter_lines", []))
+	}
+	context["apex_preview"] = {
+		"apex_manifest_ids": _string_array(Dictionary(generation_contract.get("apex_routing", {})).get("apex_manifest_ids", [])),
+		"apex_class_ids": _string_array(Dictionary(generation_contract.get("apex_routing", {})).get("apex_class_ids", [])),
+		"apex_lines": _string_array(Dictionary(generation_contract.get("apex_routing", {})).get("apex_lines", [])),
+		"peak_structure_lines": _string_array(Dictionary(generation_contract.get("apex_routing", {})).get("peak_structure_lines", [])),
+		"peak_spacing_score": int(Dictionary(generation_contract.get("apex_routing", {})).get("peak_spacing_score", 0))
+	}
 	context["run_identity_summary"] = {
 		"pacing_profile": str(generation_contract.get("pacing_profile", "")),
 		"pressure_grammar": pressure_grammar,
@@ -427,6 +457,8 @@ func _with_branch_context(room: Dictionary, branch_family: Dictionary, slot: int
 	var relay_routing: Dictionary = Dictionary(generation_contract.get("relay_routing", {}))
 	var cookbook_routing: Dictionary = Dictionary(generation_contract.get("cookbook_routing", {}))
 	var civilization_routing: Dictionary = Dictionary(generation_contract.get("civilization_routing", {}))
+	var encounter_routing: Dictionary = Dictionary(generation_contract.get("encounter_routing", {}))
+	var apex_routing: Dictionary = Dictionary(generation_contract.get("apex_routing", {}))
 	var ontology_routing: Dictionary = Dictionary(generation_contract.get("ontology_routing", {}))
 	if int(relationship_routing.get("escort_expectation", 0)) > 0:
 		Array(context["pressure_profile"]).append("escort_duty")
@@ -470,6 +502,12 @@ func _with_branch_context(room: Dictionary, branch_family: Dictionary, slot: int
 		Array(context["pressure_profile"]).append("ontology_heat")
 	for route_tag in _ontology_route_tags(generation_contract):
 		Array(context["pressure_profile"]).append(route_tag)
+	for encounter_pressure in _string_array(encounter_routing.get("anchored_pressures", [])).slice(0, 2):
+		Array(context["pressure_profile"]).append(encounter_pressure)
+	if not _string_array(apex_routing.get("apex_manifest_ids", [])).is_empty():
+		Array(context["pressure_profile"]).append("peak_pressure")
+	if int(apex_routing.get("peak_spacing_score", 0)) >= 3:
+		Array(context["pressure_profile"]).append("crisis_window")
 	context["reputation_seeds"] = [
 		str(branch_family.get("social_pressure", "")),
 		str(branch_family.get("confrontation_climate", "")),
@@ -942,6 +980,12 @@ func _pressure_profile(branch_family: Dictionary, slot: int, room_count: int, ro
 	var convergence_axis := str(generation_contract.get("convergence_axis", "")).strip_edges()
 	if not convergence_axis.is_empty() and convergence_axis != "balanced":
 		profile.append(convergence_axis)
+	for regime_id in _market_regime_ids(generation_contract).slice(0, 2):
+		profile.append("market_%s" % regime_id)
+	for pressure_id in _string_array(Dictionary(generation_contract.get("encounter_routing", {})).get("anchored_pressures", [])).slice(0, 2):
+		profile.append(pressure_id)
+	for pathology_id in _string_array(Dictionary(generation_contract.get("encounter_routing", {})).get("active_pathology_ids", [])).slice(0, 2):
+		profile.append("pathology_%s" % pathology_id)
 	for route_tag in _ontology_route_tags(generation_contract).slice(0, 2):
 		profile.append(route_tag)
 	return profile
@@ -1221,22 +1265,46 @@ func _generation_surface_lines(generation_contract: Dictionary) -> Array[String]
 	var archive_tone := str(generation_contract.get("archive_tone", "")).strip_edges()
 	var item_ecology_bias := str(generation_contract.get("item_ecology_bias", "")).to_lower()
 	var pressure_tokens := _contract_pressure_tokens(generation_contract)
+	var market_routing: Dictionary = Dictionary(generation_contract.get("market_routing", {}))
+	var encounter_routing: Dictionary = Dictionary(generation_contract.get("encounter_routing", {}))
+	var apex_routing: Dictionary = Dictionary(generation_contract.get("apex_routing", {}))
 	if convergence_axis.to_lower().find("fragment") != -1:
 		lines.append("Fragmentation is splitting the public answer.")
 	elif convergence_axis.to_lower().find("custody") != -1 or item_ecology_bias.find("rescue") != -1:
 		lines.append("Rescue geometry is drawing the public answer.")
 	elif pressure_tokens.has("exposure"):
 		lines.append("Exposure is sharpening the public answer.")
+	if int(market_routing.get("market_volatility", 0)) > 0:
+		lines.append("Market volatility is pushing the route toward unstable commitments.")
+	elif int(market_routing.get("scarcity_recovery", 0)) > 0 or int(market_routing.get("recovery_credit", 0)) >= 2:
+		lines.append("Recovery credit is keeping the market ecology from collapsing into scarcity.")
+	if int(market_routing.get("prestige_pressure", 0)) > 0:
+		lines.append("Prestige pressure is making public carriers easier to read.")
+	elif int(market_routing.get("hoard_visibility", 0)) > 0:
+		lines.append("Hoard visibility is exposing where value is getting stuck.")
 	if archive_tone.to_lower().find("memory") != -1 or archive_tone.to_lower().find("custody") != -1:
 		lines.append("Artifact custody is shaping what the archive will remember.")
 	elif archive_tone.to_lower().find("forensic") != -1 or archive_tone.to_lower().find("dispute") != -1:
 		lines.append("Forensic dispute is keeping the route under witness.")
+	for line in _string_array(encounter_routing.get("encounter_lines", [])):
+		if not lines.has(line):
+			lines.append(line)
+	if not _string_array(encounter_routing.get("active_pathology_ids", [])).is_empty():
+		lines.append("Pathology pressure is feeding live encounter routing.")
+	for line in _string_array(apex_routing.get("apex_lines", [])):
+		if not lines.has(line):
+			lines.append(line)
+	if int(apex_routing.get("peak_spacing_score", 0)) >= 3:
+		lines.append("Peak structure is staging a readable crisis window.")
 	for line in _ontology_public_lines(generation_contract):
 		if not lines.has(line):
 			lines.append(line)
 	if lines.is_empty():
 		lines.append("Traversal pressure is staying legible.")
 	return lines.slice(0, 2)
+
+func _market_regime_ids(generation_contract: Dictionary) -> Array[String]:
+	return _string_array(Dictionary(generation_contract.get("market_routing", {})).get("active_regime_ids", []))
 
 func _ontology_route_tags(generation_contract: Dictionary) -> Array[String]:
 	return _string_array(Dictionary(generation_contract.get("ontology_routing", {})).get("route_bias_tags", []))

@@ -26,7 +26,12 @@ const SURFACES := {
 		"resource_austerity": {"min": -2, "max": 2, "owner": "item_service", "label": "Resource austerity"},
 		"recovery_cushion": {"min": -2, "max": 2, "owner": "item_service", "label": "Recovery cushion"},
 		"commitment_cost": {"min": -2, "max": 2, "owner": "item_service", "label": "Commitment cost"},
-		"lure_abundance": {"min": -2, "max": 2, "owner": "item_service", "label": "Lure abundance"}
+		"lure_abundance": {"min": -2, "max": 2, "owner": "item_service", "label": "Lure abundance"},
+		"market_volatility": {"min": -2, "max": 2, "owner": "run_generator", "label": "Market volatility"},
+		"prestige_pressure": {"min": -2, "max": 2, "owner": "item_service", "label": "Prestige pressure"},
+		"hoard_visibility": {"min": -2, "max": 2, "owner": "item_service", "label": "Hoard visibility"},
+		"scarcity_recovery": {"min": -2, "max": 2, "owner": "item_service", "label": "Scarcity recovery"},
+		"carrier_risk_bias": {"min": -2, "max": 2, "owner": "run_generator", "label": "Carrier risk bias"}
 	},
 	"culture": {
 		"public_heat_bias": {"min": -2, "max": 2, "owner": "framing_service", "label": "Public heat bias"},

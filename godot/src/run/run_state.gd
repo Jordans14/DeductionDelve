@@ -27,6 +27,12 @@ var mutation_budget_by_domain: Dictionary = {}
 var active_mutation_flags: Dictionary = {}
 var mutation_caps_state: Dictionary = {}
 var mutation_visibility_state: Dictionary = {}
+var encounter_history: Array = []
+var active_encounter_state: Dictionary = {}
+var pathology_state: Dictionary = {}
+var apex_history: Array = []
+var active_apex_state: Dictionary = {}
+var local_aftermath: Dictionary = {}
 var replay_identity: Dictionary = {}
 var governance_hook_set: Dictionary = {}
 var telemetry_summary: Dictionary = {}
@@ -60,6 +66,12 @@ func set_run(seed_value: int, chain: Array, peers: Array[int], context: Dictiona
 	active_mutation_flags = Dictionary(context.get("active_mutation_flags", {})).duplicate(true)
 	mutation_caps_state = Dictionary(context.get("mutation_caps_state", {})).duplicate(true)
 	mutation_visibility_state = Dictionary(context.get("mutation_visibility_state", {})).duplicate(true)
+	encounter_history = Array(context.get("encounter_history", [])).duplicate(true)
+	active_encounter_state = Dictionary(context.get("active_encounter_state", {})).duplicate(true)
+	pathology_state = Dictionary(context.get("pathology_state", expedition_constitution.get("pathology_state", {}))).duplicate(true)
+	apex_history = Array(context.get("apex_history", [])).duplicate(true)
+	active_apex_state = Dictionary(context.get("active_apex_state", {})).duplicate(true)
+	local_aftermath = Dictionary(context.get("local_aftermath", {})).duplicate(true)
 	replay_identity = Dictionary(context.get("replay_identity", {})).duplicate(true)
 	governance_hook_set = Dictionary(context.get("governance_hook_set", {})).duplicate(true)
 	telemetry_summary = Dictionary(context.get("telemetry_summary", {})).duplicate(true)
@@ -92,6 +104,12 @@ func clear() -> void:
 	active_mutation_flags.clear()
 	mutation_caps_state.clear()
 	mutation_visibility_state.clear()
+	encounter_history.clear()
+	active_encounter_state.clear()
+	pathology_state.clear()
+	apex_history.clear()
+	active_apex_state.clear()
+	local_aftermath.clear()
 	replay_identity.clear()
 	governance_hook_set.clear()
 	telemetry_summary.clear()
@@ -102,6 +120,7 @@ func set_expedition_constitution(constitution: Dictionary) -> void:
 	constitution_hash = str(expedition_constitution.get("constitution_hash", constitution_hash)).strip_edges()
 	constitution_summary = Dictionary(expedition_constitution.get("constitution_summary", expedition_constitution.get("public_summary", constitution_summary))).duplicate(true)
 	generation_surface = Dictionary(expedition_constitution.get("generation_surface", expedition_constitution.get("generation_contract", generation_surface))).duplicate(true)
+	pathology_state = Dictionary(expedition_constitution.get("pathology_state", pathology_state)).duplicate(true)
 
 func get_expedition_constitution() -> Dictionary:
 	return expedition_constitution.duplicate(true)

@@ -94,6 +94,47 @@
     "status",
     "summary_lines"
   ],
+  "saturation_report_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "dominance_strain_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "throttle_record_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "veto_registry_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "rollback_registry_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "exploit_absorption_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "meta_collapse_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "resurrection_priority_required_fields": [
+    "schema_name",
+    "schema_version",
+    "candidate_ids",
+    "summary_lines"
+  ],
   "allowed_report_statuses": [
     "stable",
     "cooling",

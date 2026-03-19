@@ -118,6 +118,7 @@ static func _build_case_entry(run_context: Dictionary) -> Dictionary:
 	var frame: Dictionary = Dictionary(run_context.get("frame", {}))
 	var branch_summary: Dictionary = Dictionary(diagnostics.get("branch_summary", {}))
 	var archive_state: Dictionary = normalize(Dictionary(run_context.get("archive_state", {})))
+	var profile: Dictionary = Dictionary(run_context.get("profile", {}))
 	var artifact_signal_line := _artifact_signal_line(diagnostics)
 	var branch_signal_line := _branch_signal_line(diagnostics)
 	var run_key := "%d|%s|%s" % [
@@ -173,6 +174,23 @@ static func _build_case_entry(run_context: Dictionary) -> Dictionary:
 	var governance_line := str(frame.get("governance_line", "")).strip_edges()
 	if not governance_line.is_empty():
 		detail_lines.append("Governance: %s" % governance_line)
+	var quiet_play_line := _first_string(_string_array(diagnostics.get("quiet_play_signals", [])), "")
+	if not quiet_play_line.is_empty():
+		detail_lines.append("Quiet play: %s" % quiet_play_line)
+	var meaningful_non_action := str(diagnostics.get("meaningful_non_action", "")).strip_edges()
+	if not meaningful_non_action.is_empty():
+		detail_lines.append("Still mattered: %s" % meaningful_non_action)
+	var institutional_claim := _first_string(_string_array(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("claim_lines", [])), "")
+	if not institutional_claim.is_empty():
+		detail_lines.append("Institution: %s" % institutional_claim)
+	var reentry_prompt := ""
+	for hook_raw in Array(profile.get("reentry_hooks", [])):
+		var hook := Dictionary(hook_raw)
+		reentry_prompt = str(hook.get("prompt_line", "")).strip_edges()
+		if not reentry_prompt.is_empty():
+			break
+	if not reentry_prompt.is_empty():
+		detail_lines.append("Return pull: %s" % reentry_prompt)
 	var belief_line := str(frame.get("belief_line", "")).strip_edges()
 	if not belief_line.is_empty():
 		detail_lines.append("Belief: %s" % belief_line)

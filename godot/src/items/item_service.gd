@@ -1584,6 +1584,7 @@ func _directive_bonus_for_item(item_def_id: String, directive: Dictionary, room:
 	var narrative: Dictionary = build_narrative_profile(item_def_id)
 	var gameplay: Dictionary = build_gameplay_profile(item_def_id)
 	var latent: Dictionary = Dictionary(gameplay.get("latent_dimensions", {}))
+	var market_routing: Dictionary = Dictionary(generation_contract.get("market_routing", {}))
 	var branch_affinity := _string_array(narrative.get("branch_affinity", []))
 	var protocol_affinity := _string_array(narrative.get("protocol_affinity", []))
 	var item_ecology_bias := str(generation_contract.get("item_ecology_bias", "")).to_lower()
@@ -1637,6 +1638,7 @@ func _directive_bonus_for_item(item_def_id: String, directive: Dictionary, room:
 		bonus += int(latent.get("deception", 0)) / 2
 	if dominant_forces.has("containment"):
 		bonus += int(latent.get("burden", 0)) / 2 + int(latent.get("scarcity", 0)) / 2
+	bonus += _market_bonus_for_item(latent, market_routing)
 	bonus += _public_summary_bonus_for_item(latent, generation_contract)
 	if protocol_state == "Exposure Protocol":
 		bonus += int(latent.get("scarcity", 0)) / 2
@@ -1683,6 +1685,30 @@ func _directive_bonus_for_item(item_def_id: String, directive: Dictionary, room:
 	if not room_protocol.is_empty() and protocol_affinity.has(room_protocol):
 		bonus += 3
 	bonus += _room_context_bonus_for_item(latent, room)
+	return bonus
+
+func _market_bonus_for_item(latent: Dictionary, market_routing: Dictionary) -> int:
+	var bonus := 0
+	if int(market_routing.get("market_volatility", 0)) > 0:
+		bonus += int(latent.get("instability", 0)) / 2 + int(latent.get("scarcity", 0)) / 2
+	if int(market_routing.get("prestige_pressure", 0)) > 0:
+		bonus += int(latent.get("witness_visibility", 0)) / 2 + int(latent.get("ritual_significance", 0)) / 2
+	if int(market_routing.get("hoard_visibility", 0)) > 0:
+		bonus += int(latent.get("scarcity", 0)) / 2 + int(latent.get("witness_visibility", 0)) / 2
+	if int(market_routing.get("scarcity_recovery", 0)) > 0 or int(market_routing.get("recovery_credit", 0)) >= 2:
+		bonus += int(latent.get("rescue", 0)) / 2 + int(latent.get("traversal", 0)) / 2
+	if int(market_routing.get("carrier_risk_bias", 0)) > 0:
+		bonus += int(latent.get("burden", 0)) / 2 + int(latent.get("rescue", 0)) / 2 + int(latent.get("witness_visibility", 0)) / 2
+	for regime_id in _string_array(market_routing.get("active_regime_ids", [])):
+		match regime_id:
+			"market_extraction_austerity":
+				bonus += int(latent.get("scarcity", 0)) + int(latent.get("burden", 0)) / 2
+			"market_prestige_showcase":
+				bonus += int(latent.get("witness_visibility", 0)) + int(latent.get("ritual_significance", 0)) / 2
+			"market_recovery_weave":
+				bonus += int(latent.get("rescue", 0)) + int(latent.get("traversal", 0)) / 2
+			"market_distortion_spike":
+				bonus += int(latent.get("deception", 0)) + int(latent.get("instability", 0)) / 2
 	return bonus
 
 func _public_summary_bonus_for_item(latent: Dictionary, generation_contract: Dictionary) -> int:

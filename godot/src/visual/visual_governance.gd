@@ -386,6 +386,7 @@ func room_visual_packet(room: Dictionary) -> Dictionary:
 	var telegraph_channels := _telegraph_channels_for_room(room_type, hazard, stagecraft)
 	var residue_layers := _residue_layers_for_room(room_type, hazard, pressure_profile, symbols)
 	var signal_compression_profile := _signal_compression_profile_for_room(room_type, hazard, telegraph_channels, residue_layers)
+	var apex_visual_profile := _apex_visual_profile_for_room(Dictionary(branch_context.get("apex_preview", {})), room_type, hazard)
 	var temporal_density_budget := {
 		"simultaneous_signals": int(signal_compression_profile.get("max_visible_channels", 3)),
 		"residue_layers": residue_layers.size(),
@@ -407,6 +408,13 @@ func room_visual_packet(room: Dictionary) -> Dictionary:
 		"cosmetic_brightness": float(visual_profile.get("cosmetic_brightness", 0.72)),
 		"telegraph_channels": telegraph_channels,
 		"residue_layers": residue_layers,
+		"apex_visual_profile": apex_visual_profile,
+		"normalization_visual_rules": {
+			"supported_modes": ["default", "fairness_sensitive", "all_ages", "forensic_replay"],
+			"fairness_sensitive_behavior": "collapse_modulation_to_canonical",
+			"all_ages_behavior": "collapse_modulation_to_canonical",
+			"forensic_replay_behavior": "collapse_modulation_to_canonical"
+		},
 		"signal_compression_profile": signal_compression_profile,
 		"temporal_density_budget": temporal_density_budget,
 		"openness": maxf(openness, 0.45),
@@ -460,6 +468,17 @@ func _signal_compression_profile_for_room(room_type: String, hazard: String, tel
 		}
 	}
 
+func _apex_visual_profile_for_room(apex_preview: Dictionary, room_type: String, hazard: String) -> Dictionary:
+	var apex_manifest_ids := _string_array(apex_preview.get("apex_manifest_ids", []))
+	var apex_class_ids := _string_array(apex_preview.get("apex_class_ids", []))
+	return {
+		"apex_manifest_ids": apex_manifest_ids,
+		"apex_class_ids": apex_class_ids,
+		"peak_spacing_score": int(apex_preview.get("peak_spacing_score", 0)),
+		"telegraph_emphasis": "crisis_window" if int(apex_preview.get("peak_spacing_score", 0)) >= 3 or room_type == "hazard" or hazard != "none" else "announce_window",
+		"summary_lines": _string_array(apex_preview.get("apex_lines", [])) + _string_array(apex_preview.get("peak_structure_lines", []))
+	}
+
 func validate_room_packet(packet: Dictionary) -> Array[String]:
 	var failures: Array[String] = []
 	if int(packet.get("packet_schema_version", 0)) < ROOM_PACKET_SCHEMA_VERSION:
@@ -488,6 +507,17 @@ func validate_room_packet(packet: Dictionary) -> Array[String]:
 		failures.append("room visual packet must expose telegraph_channels")
 	if Array(packet.get("residue_layers", [])).is_empty():
 		failures.append("room visual packet must expose residue_layers")
+	var apex_visual_profile: Dictionary = Dictionary(packet.get("apex_visual_profile", {}))
+	if not apex_visual_profile.is_empty():
+		if int(apex_visual_profile.get("peak_spacing_score", 0)) < 0:
+			failures.append("room visual packet apex_visual_profile must keep peak spacing non-negative")
+		if _string_array(apex_visual_profile.get("summary_lines", [])).size() > 4:
+			failures.append("room visual packet apex_visual_profile exceeds readability line budget")
+	var normalization_visual_rules: Dictionary = Dictionary(packet.get("normalization_visual_rules", {}))
+	if _string_array(normalization_visual_rules.get("supported_modes", [])).is_empty():
+		failures.append("room visual packet must expose normalization_visual_rules.supported_modes")
+	if str(normalization_visual_rules.get("fairness_sensitive_behavior", "")).strip_edges().is_empty():
+		failures.append("room visual packet must expose fairness-sensitive normalization behavior")
 	return failures
 
 func validate_visual_only_layer(layer: Node, layer_label: String = "visual-only layer", allow_labels: bool = false) -> Array[String]:

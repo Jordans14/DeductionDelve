@@ -164,6 +164,60 @@ static func default_state() -> Dictionary:
 			"transition_pressure": 0,
 			"driver": "",
 			"lines": []
+		},
+		"market_memory_state": {
+			"active_regime_ids": [],
+			"extraction_debt": 0,
+			"hoard_heat": 0,
+			"neglect_heat": 0,
+			"distortion_heat": 0,
+			"recovery_credit": 0,
+			"prestige_climate": "",
+			"carrier_risk_band": "",
+			"lines": []
+		},
+		"lifecycle_registry": {
+			"families": [],
+			"active_state_ids": [],
+			"lines": []
+		},
+		"pathology_memory_state": {
+			"active_family_ids": [],
+			"spread_heat": 0,
+			"recurrence_heat": 0,
+			"last_encounter_id": "",
+			"lines": []
+		},
+		"encounter_memory_state": {
+			"encounter_manifest_ids": [],
+			"encounter_intent_ids": [],
+			"encounter_topology_ids": [],
+			"anchored_pressures": [],
+			"last_active_encounter_id": "",
+			"lines": []
+		},
+		"apex_memory_state": {
+			"apex_manifest_ids": [],
+			"apex_class_ids": [],
+			"last_active_apex_id": "",
+			"peak_spacing_score": 0,
+			"lines": []
+		},
+		"world_aftermath_state": {
+			"world_aftermath_ids": [],
+			"last_source_id": "",
+			"continuity_scars": [],
+			"world_mutation_ids": [],
+			"lines": []
+		},
+		"legacy_memory_state": {
+			"legacy_track_ids": [],
+			"reentry_hooks": [],
+			"reputation_bands": [],
+			"quiet_play_lines": [],
+			"social_safety_flags": [],
+			"institutional_pressure_lines": [],
+			"lines": []
 		}
 	}
 	for key in CIVILIZATION_STATE_SERVICE_SCRIPT.default_extensions().keys():
@@ -215,6 +269,13 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["cookbook_shadow"] = _normalize_cookbook_shadow(Dictionary(current.get("cookbook_shadow", {})))
 	current["crawl_network_state"] = _normalize_crawl_network_state(Dictionary(current.get("crawl_network_state", {})))
 	current["epoch_state"] = _normalize_epoch_state(Dictionary(current.get("epoch_state", {})))
+	current["market_memory_state"] = _normalize_market_memory_state(Dictionary(current.get("market_memory_state", {})))
+	current["lifecycle_registry"] = _normalize_lifecycle_registry(Dictionary(current.get("lifecycle_registry", {})))
+	current["pathology_memory_state"] = _normalize_pathology_memory_state(Dictionary(current.get("pathology_memory_state", {})))
+	current["encounter_memory_state"] = _normalize_encounter_memory_state(Dictionary(current.get("encounter_memory_state", {})))
+	current["apex_memory_state"] = _normalize_apex_memory_state(Dictionary(current.get("apex_memory_state", {})))
+	current["world_aftermath_state"] = _normalize_world_aftermath_state(Dictionary(current.get("world_aftermath_state", {})))
+	current["legacy_memory_state"] = _normalize_legacy_memory_state(Dictionary(current.get("legacy_memory_state", {})))
 	current["legend_log"] = Array(current.get("legend_log", [])).slice(0, 40)
 	current["run_index"] = int(current.get("run_index", 0))
 	return CIVILIZATION_STATE_SERVICE_SCRIPT.normalize_world_memory_extensions(current)
@@ -245,6 +306,13 @@ static func apply_run(world_memory: Dictionary, run_context: Dictionary) -> Dict
 	_update_silence_doctrine(current, run_context)
 	_update_cookbook_shadow(current, run_context)
 	_update_crawl_network_state(current, run_context)
+	_update_market_memory_state(current, run_context)
+	_update_lifecycle_registry(current, run_context)
+	_update_pathology_memory_state(current, run_context)
+	_update_encounter_memory_state(current, run_context)
+	_update_apex_memory_state(current, run_context)
+	_update_world_aftermath_state(current, run_context)
+	_update_legacy_memory_state(current, run_context)
 	_update_epoch_state(current, run_context)
 	return CIVILIZATION_STATE_SERVICE_SCRIPT.apply_post_run_extensions(current, run_context)
 
@@ -299,6 +367,34 @@ static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	var civilization_lines := _string_array(Dictionary(civilization_surface).get("lines", []))
 	if not civilization_lines.is_empty():
 		lines.append("Civilization: %s" % civilization_lines[0])
+	var market_memory_state := Dictionary(current.get("market_memory_state", {}))
+	var market_lines := _string_array(market_memory_state.get("lines", []))
+	if not market_lines.is_empty():
+		lines.append("Market: %s" % market_lines[0])
+	var lifecycle_registry := Dictionary(current.get("lifecycle_registry", {}))
+	var lifecycle_lines := _string_array(lifecycle_registry.get("lines", []))
+	if not lifecycle_lines.is_empty():
+		lines.append("Lifecycle: %s" % lifecycle_lines[0])
+	var pathology_memory_state := Dictionary(current.get("pathology_memory_state", {}))
+	var pathology_lines := _string_array(pathology_memory_state.get("lines", []))
+	if not pathology_lines.is_empty():
+		lines.append("Pathology: %s" % pathology_lines[0])
+	var encounter_memory_state := Dictionary(current.get("encounter_memory_state", {}))
+	var encounter_lines := _string_array(encounter_memory_state.get("lines", []))
+	if not encounter_lines.is_empty():
+		lines.append("Encounter: %s" % encounter_lines[0])
+	var apex_memory_state := Dictionary(current.get("apex_memory_state", {}))
+	var apex_lines := _string_array(apex_memory_state.get("lines", []))
+	if not apex_lines.is_empty():
+		lines.append("Apex: %s" % apex_lines[0])
+	var world_aftermath_state := Dictionary(current.get("world_aftermath_state", {}))
+	var aftermath_lines := _string_array(world_aftermath_state.get("lines", []))
+	if not aftermath_lines.is_empty():
+		lines.append("Aftermath: %s" % aftermath_lines[0])
+	var legacy_memory_state := Dictionary(current.get("legacy_memory_state", {}))
+	var legacy_lines := _string_array(legacy_memory_state.get("lines", []))
+	if not legacy_lines.is_empty():
+		lines.append("Legacy: %s" % legacy_lines[0])
 	var institutional_order := Dictionary(current.get("institutional_order", {}))
 	var institutional_lines := _string_array(institutional_order.get("lines", []))
 	if not institutional_lines.is_empty():
@@ -435,7 +531,11 @@ static func field_snapshot(world_memory: Dictionary) -> Dictionary:
 		"order_tension": Dictionary(current.get("order_tension", {})).duplicate(true),
 		"silence_doctrine": Dictionary(current.get("silence_doctrine", {})).duplicate(true),
 		"cookbook_shadow": Dictionary(current.get("cookbook_shadow", {})).duplicate(true),
-		"crawl_network_state": Dictionary(current.get("crawl_network_state", {})).duplicate(true)
+		"crawl_network_state": Dictionary(current.get("crawl_network_state", {})).duplicate(true),
+		"market_memory_state": Dictionary(current.get("market_memory_state", {})).duplicate(true),
+		"lifecycle_registry": Dictionary(current.get("lifecycle_registry", {})).duplicate(true),
+		"pathology_memory_state": Dictionary(current.get("pathology_memory_state", {})).duplicate(true),
+		"encounter_memory_state": Dictionary(current.get("encounter_memory_state", {})).duplicate(true)
 	}
 
 static func top_bucket_entries(world_memory: Dictionary, bucket: String, limit: int = 4) -> Array[Dictionary]:
@@ -1179,6 +1279,263 @@ static func _update_crawl_network_state(world_memory: Dictionary, run_context: D
 		crawl_network_state["cohort_pressure"] = mini(int(crawl_network_state.get("cohort_pressure", 0)) + 1, 12)
 		crawl_network_state["lines"] = _merge_limited(Array(crawl_network_state.get("lines", [])), [_first_string(cohort_pressure, "")], 6)
 	world_memory["crawl_network_state"] = crawl_network_state
+
+static func _update_market_memory_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var market_memory_state := _normalize_market_memory_state(Dictionary(world_memory.get("market_memory_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	var diagnostics: Dictionary = Dictionary(run_context.get("diagnostics", {}))
+	var active_regime_ids := _string_array(constitution_summary.get("active_regime_ids", []))
+	var market_lines := _string_array(constitution_summary.get("market_regime_lines", []))
+	var extraction_delta := _string_array(diagnostics.get("resource_pressure", [])).size() + maxi(int(diagnostics.get("burden_score", 0)) - int(diagnostics.get("recovery_score", 0)), 0)
+	var recovery_delta := maxi(int(diagnostics.get("recovery_score", 0)), 0)
+	var distortion_delta := int(Dictionary(diagnostics.get("anomaly_sensitivity", {})).get("score", 0)) / 2
+	if not active_regime_ids.is_empty():
+		market_memory_state["active_regime_ids"] = _merge_limited(Array(market_memory_state.get("active_regime_ids", [])), active_regime_ids, 4)
+	if extraction_delta > 0:
+		market_memory_state["extraction_debt"] = mini(int(market_memory_state.get("extraction_debt", 0)) + extraction_delta, 12)
+		market_memory_state["hoard_heat"] = mini(int(market_memory_state.get("hoard_heat", 0)) + maxi(extraction_delta - 1, 0), 12)
+	if recovery_delta > 0:
+		market_memory_state["recovery_credit"] = mini(int(market_memory_state.get("recovery_credit", 0)) + recovery_delta, 12)
+	if distortion_delta > 0:
+		market_memory_state["distortion_heat"] = mini(int(market_memory_state.get("distortion_heat", 0)) + distortion_delta, 12)
+	market_memory_state["neglect_heat"] = mini(maxi(int(market_memory_state.get("extraction_debt", 0)) - int(market_memory_state.get("recovery_credit", 0)), 0), 12)
+	market_memory_state["prestige_climate"] = str(constitution_summary.get("market_prestige_band", market_memory_state.get("prestige_climate", ""))).strip_edges()
+	market_memory_state["carrier_risk_band"] = str(constitution_summary.get("market_carrier_risk_band", market_memory_state.get("carrier_risk_band", ""))).strip_edges()
+	market_memory_state["lines"] = _merge_limited(Array(market_memory_state.get("lines", [])), market_lines, 6)
+	world_memory["market_memory_state"] = market_memory_state
+
+static func _update_lifecycle_registry(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var lifecycle_registry := _normalize_lifecycle_registry(Dictionary(world_memory.get("lifecycle_registry", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var constitution: Dictionary = Dictionary(run_record.get("expedition_constitution", {}))
+	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	var incoming_registry := _normalize_lifecycle_registry(
+		Dictionary(constitution.get("lifecycle_registry", {}))
+	)
+	if Array(incoming_registry.get("families", [])).is_empty():
+		incoming_registry = _normalize_lifecycle_registry({
+			"families": [{
+				"family_id": _first_string(_string_array(constitution_summary.get("active_regime_ids", [])), "market_balanced_exchange"),
+				"family_kind": "market",
+				"state": "emerging",
+				"heat": 1,
+				"saturation": 1,
+				"strain": 0,
+				"cooling_tags": [],
+				"successor_hint": "market_balanced_exchange",
+				"return_window": "near_horizon"
+			}],
+			"active_state_ids": _string_array(constitution_summary.get("lifecycle_state_ids", [])),
+			"lines": _string_array(constitution_summary.get("lifecycle_lines", []))
+		})
+	var family_index := {}
+	for existing_raw in Array(lifecycle_registry.get("families", [])):
+		var existing: Dictionary = Dictionary(existing_raw).duplicate(true)
+		family_index[str(existing.get("family_id", ""))] = existing
+	for incoming_raw in Array(incoming_registry.get("families", [])):
+		var incoming: Dictionary = Dictionary(incoming_raw).duplicate(true)
+		var family_id := str(incoming.get("family_id", "")).strip_edges()
+		if family_id.is_empty():
+			continue
+		var existing_family: Dictionary = Dictionary(family_index.get(family_id, {})).duplicate(true)
+		if existing_family.is_empty():
+			family_index[family_id] = incoming
+			continue
+		existing_family["state"] = str(incoming.get("state", existing_family.get("state", "emerging"))).strip_edges()
+		existing_family["heat"] = maxi(int(existing_family.get("heat", 0)), int(incoming.get("heat", 0)))
+		existing_family["saturation"] = maxi(int(existing_family.get("saturation", 0)), int(incoming.get("saturation", 0)))
+		existing_family["strain"] = maxi(int(existing_family.get("strain", 0)), int(incoming.get("strain", 0)))
+		existing_family["cooling_tags"] = _merge_limited(Array(existing_family.get("cooling_tags", [])), Array(incoming.get("cooling_tags", [])), 4)
+		existing_family["successor_hint"] = str(incoming.get("successor_hint", existing_family.get("successor_hint", ""))).strip_edges()
+		existing_family["return_window"] = str(incoming.get("return_window", existing_family.get("return_window", ""))).strip_edges()
+		existing_family["dominance_strain"] = maxi(int(existing_family.get("dominance_strain", 0)), int(incoming.get("dominance_strain", 0)))
+		existing_family["throttle_state"] = str(incoming.get("throttle_state", existing_family.get("throttle_state", "open"))).strip_edges()
+		existing_family["resurrection_priority"] = maxi(int(existing_family.get("resurrection_priority", 0)), int(incoming.get("resurrection_priority", 0)))
+		family_index[family_id] = existing_family
+	var families: Array[Dictionary] = []
+	for family_id in family_index.keys():
+		families.append(Dictionary(family_index.get(family_id, {})).duplicate(true))
+	families.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_heat := int(a.get("heat", 0))
+		var b_heat := int(b.get("heat", 0))
+		if a_heat == b_heat:
+			return str(a.get("family_id", "")) < str(b.get("family_id", ""))
+		return a_heat > b_heat
+	)
+	lifecycle_registry["families"] = families.slice(0, 8)
+	lifecycle_registry["active_state_ids"] = _merge_limited(Array(lifecycle_registry.get("active_state_ids", [])), Array(incoming_registry.get("active_state_ids", [])), 8)
+	lifecycle_registry["lines"] = _merge_limited(Array(lifecycle_registry.get("lines", [])), Array(incoming_registry.get("lines", [])), 6)
+	world_memory["lifecycle_registry"] = lifecycle_registry
+
+static func _update_pathology_memory_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var pathology_memory_state := _normalize_pathology_memory_state(Dictionary(world_memory.get("pathology_memory_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var pathology_state: Dictionary = Dictionary(run_record.get("pathology_state", {}))
+	var active_family_ids := _string_array(pathology_state.get("active_family_ids", []))
+	if not active_family_ids.is_empty():
+		pathology_memory_state["active_family_ids"] = _merge_limited(Array(pathology_memory_state.get("active_family_ids", [])), active_family_ids, 6)
+		pathology_memory_state["spread_heat"] = mini(maxi(int(pathology_memory_state.get("spread_heat", 0)), int(pathology_state.get("spread_heat", 0))), 12)
+		pathology_memory_state["recurrence_heat"] = mini(maxi(int(pathology_memory_state.get("recurrence_heat", 0)), int(pathology_state.get("recurrence_heat", 0))), 12)
+	pathology_memory_state["lines"] = _merge_limited(
+		Array(pathology_memory_state.get("lines", [])),
+		_string_array(pathology_state.get("summary_lines", [])),
+		6
+	)
+	var active_encounter_state: Dictionary = Dictionary(run_record.get("active_encounter_state", {}))
+	var last_encounter_id := str(active_encounter_state.get("encounter_id", "")).strip_edges()
+	if not last_encounter_id.is_empty():
+		pathology_memory_state["last_encounter_id"] = last_encounter_id
+	world_memory["pathology_memory_state"] = pathology_memory_state
+
+static func _update_encounter_memory_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var encounter_memory_state := _normalize_encounter_memory_state(Dictionary(world_memory.get("encounter_memory_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var encounter_manifest: Dictionary = Dictionary(run_record.get("encounter_manifest", {}))
+	var active_encounter_state: Dictionary = Dictionary(run_record.get("active_encounter_state", {}))
+	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	encounter_memory_state["encounter_manifest_ids"] = _merge_limited(
+		Array(encounter_memory_state.get("encounter_manifest_ids", [])),
+		_string_array(encounter_manifest.get("encounter_manifest_ids", constitution_summary.get("encounter_manifest_ids", []))),
+		8
+	)
+	encounter_memory_state["encounter_intent_ids"] = _merge_limited(
+		Array(encounter_memory_state.get("encounter_intent_ids", [])),
+		_string_array(constitution_summary.get("encounter_intent_ids", [])),
+		8
+	)
+	encounter_memory_state["encounter_topology_ids"] = _merge_limited(
+		Array(encounter_memory_state.get("encounter_topology_ids", [])),
+		_string_array(constitution_summary.get("encounter_topology_ids", [])),
+		8
+	)
+	encounter_memory_state["anchored_pressures"] = _merge_limited(
+		Array(encounter_memory_state.get("anchored_pressures", [])),
+		_string_array(active_encounter_state.get("anchored_pressures", [])),
+		8
+	)
+	var encounter_id := str(active_encounter_state.get("encounter_id", "")).strip_edges()
+	if not encounter_id.is_empty():
+		encounter_memory_state["last_active_encounter_id"] = encounter_id
+	var encounter_lines := _string_array(encounter_manifest.get("summary_lines", []))
+	if encounter_lines.is_empty():
+		encounter_lines = _string_array(constitution_summary.get("encounter_lines", []))
+	encounter_memory_state["lines"] = _merge_limited(
+		Array(encounter_memory_state.get("lines", [])),
+		encounter_lines,
+		6
+	)
+	world_memory["encounter_memory_state"] = encounter_memory_state
+
+static func _update_apex_memory_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var apex_memory_state := _normalize_apex_memory_state(Dictionary(world_memory.get("apex_memory_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var apex_manifest: Dictionary = Dictionary(run_record.get("apex_manifest", {}))
+	var active_apex_state: Dictionary = Dictionary(run_record.get("active_apex_state", {}))
+	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
+	apex_memory_state["apex_manifest_ids"] = _merge_limited(
+		Array(apex_memory_state.get("apex_manifest_ids", [])),
+		_string_array(apex_manifest.get("apex_manifest_ids", constitution_summary.get("apex_manifest_ids", []))),
+		8
+	)
+	apex_memory_state["apex_class_ids"] = _merge_limited(
+		Array(apex_memory_state.get("apex_class_ids", [])),
+		_string_array(constitution_summary.get("apex_class_ids", [])),
+		8
+	)
+	var apex_id := str(active_apex_state.get("apex_id", "")).strip_edges()
+	if not apex_id.is_empty():
+		apex_memory_state["last_active_apex_id"] = apex_id
+	var peak_spacing_score := int(Dictionary(run_record.get("peak_structure_profile", {})).get("peak_spacing_score", 0))
+	apex_memory_state["peak_spacing_score"] = maxi(int(apex_memory_state.get("peak_spacing_score", 0)), peak_spacing_score)
+	var apex_lines := _string_array(apex_manifest.get("summary_lines", []))
+	if apex_lines.is_empty():
+		apex_lines = _string_array(constitution_summary.get("apex_lines", []))
+	apex_memory_state["lines"] = _merge_limited(Array(apex_memory_state.get("lines", [])), apex_lines, 6)
+	world_memory["apex_memory_state"] = apex_memory_state
+
+static func _update_world_aftermath_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var world_aftermath_state := _normalize_world_aftermath_state(Dictionary(world_memory.get("world_aftermath_state", {})))
+	for aftermath_raw in CIVILIZATION_STATE_SERVICE_SCRIPT.build_world_aftermath_records(run_context):
+		var aftermath := Dictionary(aftermath_raw)
+		var aftermath_id := str(aftermath.get("aftermath_id", "")).strip_edges()
+		if aftermath_id.is_empty():
+			continue
+		world_aftermath_state["world_aftermath_ids"] = _merge_limited(Array(world_aftermath_state.get("world_aftermath_ids", [])), [aftermath_id], 8)
+		world_aftermath_state["continuity_scars"] = _merge_limited(Array(world_aftermath_state.get("continuity_scars", [])), _string_array(aftermath.get("continuity_scars", [])), 8)
+		world_aftermath_state["world_mutation_ids"] = _merge_limited(Array(world_aftermath_state.get("world_mutation_ids", [])), _string_array(aftermath.get("world_mutation_ids", [])), 8)
+		world_aftermath_state["lines"] = _merge_limited(
+			Array(world_aftermath_state.get("lines", [])),
+			[
+				"%s is still echoing through institutions and return pressure." % _first_string(_string_array(aftermath.get("residue_records", [])), str(aftermath.get("source_id", "the run")))
+			],
+			6
+		)
+		world_aftermath_state["last_source_id"] = str(aftermath.get("source_id", world_aftermath_state.get("last_source_id", ""))).strip_edges()
+	world_memory["world_aftermath_state"] = world_aftermath_state
+
+static func _update_legacy_memory_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var legacy_memory_state := _normalize_legacy_memory_state(Dictionary(world_memory.get("legacy_memory_state", {})))
+	var diagnostics: Dictionary = Dictionary(run_context.get("diagnostics", {}))
+	var profile: Dictionary = Dictionary(run_context.get("profile", {}))
+	var institutional_pressure_surface: Dictionary = Dictionary(diagnostics.get("institutional_pressure_surface", {}))
+	var latest_legacy_track: Dictionary = {}
+	for track_raw in Array(profile.get("legacy_tracks", [])):
+		var track := Dictionary(track_raw)
+		if not str(track.get("track_id", "")).strip_edges().is_empty():
+			latest_legacy_track = track
+			break
+	var latest_reentry_hook: Dictionary = {}
+	for hook_raw in Array(profile.get("reentry_hooks", [])):
+		var hook := Dictionary(hook_raw)
+		if not str(hook.get("hook_id", "")).strip_edges().is_empty():
+			latest_reentry_hook = hook
+			break
+	if not latest_legacy_track.is_empty():
+		legacy_memory_state["legacy_track_ids"] = _merge_limited(
+			Array(legacy_memory_state.get("legacy_track_ids", [])),
+			[str(latest_legacy_track.get("track_id", "")).strip_edges()],
+			8
+		)
+		legacy_memory_state["reputation_bands"] = _merge_limited(
+			Array(legacy_memory_state.get("reputation_bands", [])),
+			[str(latest_legacy_track.get("reputation_band", "")).strip_edges()],
+			6
+		)
+		legacy_memory_state["quiet_play_lines"] = _merge_limited(
+			Array(legacy_memory_state.get("quiet_play_lines", [])),
+			Array(latest_legacy_track.get("quiet_play_signals", [])),
+			6
+		)
+	if not latest_reentry_hook.is_empty():
+		legacy_memory_state["reentry_hooks"] = _merge_limited(
+			Array(legacy_memory_state.get("reentry_hooks", [])),
+			[str(latest_reentry_hook.get("prompt_line", "")).strip_edges()],
+			8
+		)
+		legacy_memory_state["social_safety_flags"] = _merge_limited(
+			Array(legacy_memory_state.get("social_safety_flags", [])),
+			Array(latest_reentry_hook.get("social_safety_flags", [])),
+			6
+		)
+	legacy_memory_state["institutional_pressure_lines"] = _merge_limited(
+		Array(legacy_memory_state.get("institutional_pressure_lines", [])),
+		Array(institutional_pressure_surface.get("claim_lines", []))
+		+ Array(institutional_pressure_surface.get("interpretation_lines", [])),
+		6
+	)
+	var summary_lines: Array[String] = []
+	var legacy_label := str(latest_legacy_track.get("label", "")).strip_edges()
+	if not legacy_label.is_empty():
+		summary_lines.append("%s is still shaping return pressure." % legacy_label)
+	var quiet_play_line := _first_string(Array(legacy_memory_state.get("quiet_play_lines", [])), "")
+	if not quiet_play_line.is_empty():
+		summary_lines.append(quiet_play_line)
+	var institutional_line := _first_string(Array(legacy_memory_state.get("institutional_pressure_lines", [])), "")
+	if not institutional_line.is_empty():
+		summary_lines.append(institutional_line)
+	legacy_memory_state["lines"] = _merge_limited(Array(legacy_memory_state.get("lines", [])), summary_lines, 6)
+	world_memory["legacy_memory_state"] = legacy_memory_state
 
 static func _update_epoch_state(world_memory: Dictionary, _run_context: Dictionary) -> void:
 	var institutional_order := _normalize_institutional_order(Dictionary(world_memory.get("institutional_order", {})))
@@ -2115,6 +2472,152 @@ static func _normalize_epoch_state(state: Dictionary) -> Dictionary:
 	current["phase"] = str(current.get("phase", "")).strip_edges()
 	current["transition_pressure"] = int(current.get("transition_pressure", 0))
 	current["driver"] = str(current.get("driver", "")).strip_edges()
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_market_memory_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"active_regime_ids": [],
+		"extraction_debt": 0,
+		"hoard_heat": 0,
+		"neglect_heat": 0,
+		"distortion_heat": 0,
+		"recovery_credit": 0,
+		"prestige_climate": "",
+		"carrier_risk_band": "",
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["active_regime_ids"] = _string_array(current.get("active_regime_ids", []))
+	current["extraction_debt"] = int(current.get("extraction_debt", 0))
+	current["hoard_heat"] = int(current.get("hoard_heat", 0))
+	current["neglect_heat"] = int(current.get("neglect_heat", 0))
+	current["distortion_heat"] = int(current.get("distortion_heat", 0))
+	current["recovery_credit"] = int(current.get("recovery_credit", 0))
+	current["prestige_climate"] = str(current.get("prestige_climate", "")).strip_edges()
+	current["carrier_risk_band"] = str(current.get("carrier_risk_band", "")).strip_edges()
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_lifecycle_registry(state: Dictionary) -> Dictionary:
+	var current := {
+		"families": [],
+		"active_state_ids": [],
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	var families: Array[Dictionary] = []
+	for family_raw in Array(current.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw).duplicate(true)
+		family["family_id"] = str(family.get("family_id", "")).strip_edges()
+		family["family_kind"] = str(family.get("family_kind", "market")).strip_edges()
+		family["state"] = str(family.get("state", "emerging")).strip_edges()
+		family["heat"] = int(family.get("heat", 0))
+		family["saturation"] = int(family.get("saturation", 0))
+		family["strain"] = int(family.get("strain", 0))
+		family["cooling_tags"] = _string_array(family.get("cooling_tags", []))
+		family["successor_hint"] = str(family.get("successor_hint", "")).strip_edges()
+		family["return_window"] = str(family.get("return_window", "")).strip_edges()
+		family["dominance_strain"] = int(family.get("dominance_strain", family.get("strain", 0)))
+		family["throttle_state"] = str(family.get("throttle_state", "open")).strip_edges()
+		family["resurrection_priority"] = int(family.get("resurrection_priority", 0))
+		if not str(family.get("family_id", "")).strip_edges().is_empty():
+			families.append(family)
+	current["families"] = families
+	current["active_state_ids"] = _string_array(current.get("active_state_ids", []))
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_pathology_memory_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"active_family_ids": [],
+		"spread_heat": 0,
+		"recurrence_heat": 0,
+		"last_encounter_id": "",
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["active_family_ids"] = _string_array(current.get("active_family_ids", []))
+	current["spread_heat"] = int(current.get("spread_heat", 0))
+	current["recurrence_heat"] = int(current.get("recurrence_heat", 0))
+	current["last_encounter_id"] = str(current.get("last_encounter_id", "")).strip_edges()
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_encounter_memory_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"encounter_manifest_ids": [],
+		"encounter_intent_ids": [],
+		"encounter_topology_ids": [],
+		"anchored_pressures": [],
+		"last_active_encounter_id": "",
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["encounter_manifest_ids"] = _string_array(current.get("encounter_manifest_ids", []))
+	current["encounter_intent_ids"] = _string_array(current.get("encounter_intent_ids", []))
+	current["encounter_topology_ids"] = _string_array(current.get("encounter_topology_ids", []))
+	current["anchored_pressures"] = _string_array(current.get("anchored_pressures", []))
+	current["last_active_encounter_id"] = str(current.get("last_active_encounter_id", "")).strip_edges()
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_apex_memory_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"apex_manifest_ids": [],
+		"apex_class_ids": [],
+		"last_active_apex_id": "",
+		"peak_spacing_score": 0,
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["apex_manifest_ids"] = _string_array(current.get("apex_manifest_ids", []))
+	current["apex_class_ids"] = _string_array(current.get("apex_class_ids", []))
+	current["last_active_apex_id"] = str(current.get("last_active_apex_id", "")).strip_edges()
+	current["peak_spacing_score"] = int(current.get("peak_spacing_score", 0))
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_world_aftermath_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"world_aftermath_ids": [],
+		"last_source_id": "",
+		"continuity_scars": [],
+		"world_mutation_ids": [],
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["world_aftermath_ids"] = _string_array(current.get("world_aftermath_ids", []))
+	current["last_source_id"] = str(current.get("last_source_id", "")).strip_edges()
+	current["continuity_scars"] = _string_array(current.get("continuity_scars", []))
+	current["world_mutation_ids"] = _string_array(current.get("world_mutation_ids", []))
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_legacy_memory_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"legacy_track_ids": [],
+		"reentry_hooks": [],
+		"reputation_bands": [],
+		"quiet_play_lines": [],
+		"social_safety_flags": [],
+		"institutional_pressure_lines": [],
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["legacy_track_ids"] = _string_array(current.get("legacy_track_ids", []))
+	current["reentry_hooks"] = _string_array(current.get("reentry_hooks", []))
+	current["reputation_bands"] = _string_array(current.get("reputation_bands", []))
+	current["quiet_play_lines"] = _string_array(current.get("quiet_play_lines", []))
+	current["social_safety_flags"] = _string_array(current.get("social_safety_flags", []))
+	current["institutional_pressure_lines"] = _string_array(current.get("institutional_pressure_lines", []))
 	current["lines"] = _string_array(current.get("lines", []))
 	return current
 

@@ -377,9 +377,12 @@ const FALLBACK_EVALUATION_SCHEMA := {
 		"ontological_productivity",
 		"narrative_resonance",
 		"fairness_stability",
+		"dignity_stability",
+		"cognitive_budget_stability",
 		"readability",
 		"replay_distinctiveness",
-		"long_horizon_branch_value"
+		"long_horizon_branch_value",
+		"meta_health"
 	],
 	"allowed_outcomes": [
 		"strengthen_hypothesis",
@@ -617,6 +620,14 @@ const FALLBACK_GOVERNANCE_SCHEMA := {
 	"play_routing_report_required_fields": ["report_id", "baseline_routes", "status", "summary_lines"],
 	"court_decision_required_fields": ["decision_id", "status", "summary_lines"],
 	"meta_reflection_required_fields": ["reflection_id", "status", "summary_lines"],
+	"saturation_report_required_fields": ["report_id", "status", "summary_lines"],
+	"dominance_strain_required_fields": ["report_id", "status", "summary_lines"],
+	"throttle_record_required_fields": ["report_id", "status", "summary_lines"],
+	"veto_registry_required_fields": ["report_id", "status", "summary_lines"],
+	"rollback_registry_required_fields": ["report_id", "status", "summary_lines"],
+	"exploit_absorption_required_fields": ["report_id", "status", "summary_lines"],
+	"meta_collapse_required_fields": ["report_id", "status", "summary_lines"],
+	"resurrection_priority_required_fields": ["schema_name", "schema_version", "candidate_ids", "summary_lines"],
 	"allowed_report_statuses": ["stable", "cooling", "warning", "quarantined"]
 }
 
@@ -1510,9 +1521,12 @@ static func _validate_evaluation_schema(schema: Dictionary) -> Array[String]:
 		"ontological_productivity",
 		"narrative_resonance",
 		"fairness_stability",
+		"dignity_stability",
+		"cognitive_budget_stability",
 		"readability",
 		"replay_distinctiveness",
-		"long_horizon_branch_value"
+		"long_horizon_branch_value",
+		"meta_health"
 	], "DelveMindEvaluation dimension_keys", failures)
 	_require_values(_string_array(schema.get("allowed_outcomes", [])), [
 		"strengthen_hypothesis",
@@ -1681,10 +1695,19 @@ static func _validate_governance_schema(schema: Dictionary) -> Array[String]:
 		"play_routing_report_required_fields",
 		"court_decision_required_fields",
 		"meta_reflection_required_fields",
+		"saturation_report_required_fields",
+		"dominance_strain_required_fields",
+		"throttle_record_required_fields",
+		"veto_registry_required_fields",
+		"rollback_registry_required_fields",
+		"exploit_absorption_required_fields",
+		"meta_collapse_required_fields",
+		"resurrection_priority_required_fields",
 		"allowed_report_statuses"
 	])
 	_require_values(_string_array(schema.get("activation_state_required_fields", [])), ["epoch", "active_channels", "dormant_channels", "safe_mode_active", "quarantine_ids"], "GovernanceState activation_state_required_fields", failures)
 	_require_values(_string_array(schema.get("explanation_packet_required_fields", [])), ["packet_id", "artifact_type", "summary_lines", "operator_lines", "play_routing_tags"], "GovernanceState explanation_packet_required_fields", failures)
+	_require_values(_string_array(schema.get("resurrection_priority_required_fields", [])), ["schema_name", "schema_version", "candidate_ids", "summary_lines"], "GovernanceState resurrection_priority_required_fields", failures)
 	return failures
 
 static func _validate_archive_schema(schema: Dictionary) -> Array[String]:
