@@ -64,6 +64,15 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var explanation_meta_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_meta_lines", [])), 3)
 	var review_surface_lines := _take_unique(_string_array(expedition_constitution_summary.get("review_surface_lines", [])), 3)
 	var signal_budget_lines := _take_unique(_string_array(expedition_constitution_summary.get("signal_budget_lines", [])), 3)
+	var disclosure_review := _build_disclosure_review(
+		constitution_surface_lines,
+		experiment_surface_lines,
+		theory_surface_lines,
+		review_surface_lines,
+		safe_mode_lines,
+		explanation_meta_lines,
+		theory_statuses
+	)
 	var apex_manifest_ids := _take_unique(_string_array(expedition_constitution_summary.get("apex_manifest_ids", [])), 4)
 	var apex_class_ids := _take_unique(_string_array(expedition_constitution_summary.get("apex_class_ids", [])), 4)
 	var apex_lines := _take_unique(_string_array(expedition_constitution_summary.get("apex_lines", [])), 3)
@@ -368,6 +377,7 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"explanation_meta_lines": explanation_meta_lines,
 		"review_surface_lines": review_surface_lines,
 		"signal_budget_lines": signal_budget_lines,
+		"disclosure_review": disclosure_review.duplicate(true),
 		"apex_manifest_ids": apex_manifest_ids,
 		"apex_class_ids": apex_class_ids,
 		"apex_lines": apex_lines,
@@ -521,6 +531,32 @@ static func build_review_lines(diagnostics: Dictionary) -> Array[String]:
 	lines.append("Quest pull: %s" % _first(Array(diagnostics.get("quest_pressure", [])), "Steady challenge"))
 	lines.append("Archive pull: %s" % _first(Array(diagnostics.get("anticipation_hooks", [])), "Watch for the next echo"))
 	return lines
+
+static func _build_disclosure_review(surface_lines: Array[String], experiment_surface_lines: Array[String], theory_surface_lines: Array[String], review_surface_lines: Array[String], safe_mode_lines: Array[String], explanation_meta_lines: Array[String], theory_statuses: Array[String]) -> Dictionary:
+	var latent_count := 0
+	if not experiment_surface_lines.is_empty():
+		latent_count += 1
+	if not theory_surface_lines.is_empty():
+		latent_count += 1
+	var obscured_count := review_surface_lines.size() + safe_mode_lines.size()
+	var contradiction_disposition := "stable_surface"
+	if theory_statuses.has("rival") or theory_statuses.has("cookbook") or theory_statuses.has("anomaly"):
+		contradiction_disposition = "public_contestation"
+	elif not safe_mode_lines.is_empty():
+		contradiction_disposition = "cooled_review"
+	var summary_line := "active surface stays public while deeper pressure remains under review"
+	if contradiction_disposition == "public_contestation":
+		summary_line = "active surface stays public while contradiction remains openly contested"
+	elif contradiction_disposition == "cooled_review":
+		summary_line = "active surface stays public while deeper pressure is being cooled in review"
+	return {
+		"active_count": surface_lines.size(),
+		"latent_count": latent_count,
+		"obscured_count": obscured_count,
+		"deep_count": explanation_meta_lines.size(),
+		"contradiction_disposition": contradiction_disposition,
+		"summary_line": summary_line
+	}
 
 static func build_highlight_tags(diagnostics: Dictionary) -> Array[String]:
 	var tags := _take_unique([_nice(str(diagnostics.get("atmosphere", ""))), _nice(str(diagnostics.get("momentum_profile", "")))], 2)

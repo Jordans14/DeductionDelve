@@ -2246,13 +2246,21 @@ static func _normalize_review_surface(raw: Dictionary) -> Dictionary:
 	var current := {
 		"lines": [],
 		"active_channels": [],
-		"dormant_channels": []
+		"dormant_channels": [],
+		"promotion_review": {}
 	}
 	for key in raw.keys():
 		current[key] = raw[key]
 	current["lines"] = _string_array(current.get("lines", []))
 	current["active_channels"] = _string_array(current.get("active_channels", []))
 	current["dormant_channels"] = _string_array(current.get("dormant_channels", []))
+	var promotion_review: Dictionary = Dictionary(current.get("promotion_review", {})).duplicate(true)
+	current["promotion_review"] = {
+		"eligible_count": maxi(int(promotion_review.get("eligible_count", 0)), 0),
+		"cooling_count": maxi(int(promotion_review.get("cooling_count", 0)), 0),
+		"contested_count": maxi(int(promotion_review.get("contested_count", 0)), 0),
+		"summary_line": str(promotion_review.get("summary_line", "")).strip_edges()
+	}
 	return current
 
 static func _lane_summary_lines(values: Array) -> Array[String]:

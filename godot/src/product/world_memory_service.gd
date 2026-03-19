@@ -395,6 +395,10 @@ static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	var legacy_lines := _string_array(legacy_memory_state.get("lines", []))
 	if not legacy_lines.is_empty():
 		lines.append("Legacy: %s" % legacy_lines[0])
+	var continuity_review := build_continuity_review(current)
+	var continuity_line := str(continuity_review.get("summary_line", "")).strip_edges()
+	if not continuity_line.is_empty():
+		lines.append("Continuity: %s" % continuity_line)
 	var institutional_order := Dictionary(current.get("institutional_order", {}))
 	var institutional_lines := _string_array(institutional_order.get("lines", []))
 	if not institutional_lines.is_empty():
@@ -512,6 +516,56 @@ static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	for entry in top_item_entries:
 		lines.append("Item echo: %s" % str(Dictionary(entry).get("label", "")))
 	return lines
+
+static func build_continuity_review(world_memory: Dictionary) -> Dictionary:
+	var current := normalize(world_memory)
+	var myth_count := 0
+	var salient_count := 0
+	var active_count := 0
+	var minority_count := 0
+	var returnable_count := 0
+	for bucket in MYTH_BUCKETS:
+		var bucket_entries := Dictionary(Dictionary(current.get("myths", {})).get(bucket, {}))
+		for myth_key in bucket_entries.keys():
+			var entry := _normalize_myth_entry(Dictionary(bucket_entries.get(myth_key, {})))
+			myth_count += 1
+			if int(entry.get("gravity", 0)) >= 3 or int(entry.get("heat", 0)) >= 4:
+				salient_count += 1
+			if int(entry.get("heat", 0)) >= 4 and str(entry.get("status", "active")).strip_edges() == "active":
+				active_count += 1
+			if str(entry.get("status", "")).strip_edges() in ["residual", "relic"] or not _string_array(entry.get("shadow_tags", [])).is_empty():
+				minority_count += 1
+			if int(entry.get("revivals", 0)) > 0 or not str(entry.get("successor_hint", "")).strip_edges().is_empty():
+				returnable_count += 1
+	var legacy_memory_state := Dictionary(current.get("legacy_memory_state", {}))
+	var world_aftermath_state := Dictionary(current.get("world_aftermath_state", {}))
+	var preserved_count := myth_count + _string_array(legacy_memory_state.get("legacy_track_ids", [])).size() + _string_array(legacy_memory_state.get("reentry_hooks", [])).size() + _string_array(world_aftermath_state.get("world_aftermath_ids", [])).size() + _string_array(world_aftermath_state.get("continuity_scars", [])).size()
+	var accessible_count := _string_array(legacy_memory_state.get("legacy_track_ids", [])).size() + _string_array(legacy_memory_state.get("reentry_hooks", [])).size() + mini(top_fascination_topics(current, 1).size(), 1)
+	active_count += _string_array(world_aftermath_state.get("world_aftermath_ids", [])).size()
+	returnable_count += _string_array(legacy_memory_state.get("reentry_hooks", [])).size() + _string_array(Dictionary(current.get("myth_resurgence", {})).get("lines", [])).size()
+	var canon_pressure := int(Dictionary(current.get("epistemic_order", {})).get("false_canon_pressure", 0)) + int(Dictionary(current.get("epistemic_order", {})).get("semantic_drift", 0)) + int(Dictionary(current.get("epistemic_order", {})).get("forgery_pressure", 0))
+	var summary_bits: Array[String] = []
+	if preserved_count > active_count:
+		summary_bits.append("more is preserved than active")
+	elif active_count > 0:
+		summary_bits.append("the active surface is still carrying most of what survives")
+	if returnable_count > 0:
+		summary_bits.append("return paths stay open")
+	if canon_pressure >= 3:
+		summary_bits.append("canon pressure stays hot")
+	var summary_line := "; ".join(summary_bits)
+	if summary_line.is_empty():
+		summary_line = "continuity remains readable without widening the active surface"
+	return {
+		"preserved_count": preserved_count,
+		"salient_count": salient_count,
+		"accessible_count": accessible_count,
+		"active_count": active_count,
+		"minority_count": minority_count,
+		"returnable_count": returnable_count,
+		"canon_pressure": canon_pressure,
+		"summary_line": summary_line
+	}
 
 static func field_snapshot(world_memory: Dictionary) -> Dictionary:
 	var current := normalize(world_memory)

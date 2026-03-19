@@ -1002,6 +1002,10 @@ static func _continuity_line(run_context: Dictionary, frame: Dictionary) -> Stri
 	var state := str(crawl_packet.get("bank_vs_push_state", "")).strip_edges()
 	if not state.is_empty():
 		return "crawl pull: %s" % state.replace("_", " ")
+	var world_memory: Dictionary = WORLD_MEMORY_SERVICE_SCRIPT.normalize(Dictionary(run_context.get("world_memory", {})))
+	var continuity_review_line := str(WORLD_MEMORY_SERVICE_SCRIPT.build_continuity_review(world_memory).get("summary_line", "")).strip_edges()
+	if not continuity_review_line.is_empty():
+		return continuity_review_line
 	var world_pull := str(frame.get("world_pull", "")).strip_edges()
 	if not world_pull.is_empty():
 		return world_pull

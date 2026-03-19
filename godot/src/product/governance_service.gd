@@ -377,9 +377,13 @@ static func _summary_lines_for_reports(reports: Array, limit: int) -> Array[Stri
 			break
 	return result
 
-static func build_review_surface(governance_state: Dictionary) -> Dictionary:
+static func build_review_surface(governance_state: Dictionary, theory_surface: Dictionary = {}) -> Dictionary:
 	var current := normalize(governance_state)
 	var lines: Array[String] = []
+	var promotion_review := _promotion_review(theory_surface)
+	var promotion_line := str(promotion_review.get("summary_line", "")).strip_edges()
+	if not promotion_line.is_empty():
+		lines.append(promotion_line)
 	for report_key in [
 		"stability_reports",
 		"anti_bottleneck_reports",
@@ -403,7 +407,8 @@ static func build_review_surface(governance_state: Dictionary) -> Dictionary:
 	return {
 		"lines": lines,
 		"active_channels": _string_array(Dictionary(current.get("activation_state", {})).get("active_channels", [])),
-		"dormant_channels": _string_array(Dictionary(current.get("activation_state", {})).get("dormant_channels", []))
+		"dormant_channels": _string_array(Dictionary(current.get("activation_state", {})).get("dormant_channels", [])),
+		"promotion_review": promotion_review.duplicate(true)
 	}
 
 static func apply_post_run(governance_state: Dictionary, run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary, constitution_summary: Dictionary) -> Dictionary:
@@ -687,6 +692,37 @@ static func _build_resurrection_priority(lifecycle_families: Array[Dictionary]) 
 	return {
 		"candidate_ids": candidate_ids.slice(0, 6),
 		"summary_lines": ["resurrection priority is tracking %s for later return" % candidate_ids[0].replace("_", " ")] if not candidate_ids.is_empty() else []
+	}
+
+static func _promotion_review(theory_surface: Dictionary) -> Dictionary:
+	var theories := _dict_array(Dictionary(theory_surface).get("theories", []))
+	if theories.is_empty():
+		return {}
+	var eligible_count := 0
+	var cooling_count := 0
+	var contested_count := 0
+	for theory_raw in theories:
+		var theory := Dictionary(theory_raw)
+		match str(theory.get("promotion_status", "")).strip_edges():
+			"eligible":
+				eligible_count += 1
+			"cooling", "blocked":
+				cooling_count += 1
+			"contested":
+				contested_count += 1
+	var summary_line := ""
+	if eligible_count > 0:
+		summary_line = "promotion review kept %d admissible carrier%s ready" % [eligible_count, "" if eligible_count == 1 else "s"]
+	else:
+		summary_line = "promotion review is holding until admissible evidence stabilizes"
+	var delayed_count := cooling_count + contested_count
+	if delayed_count > 0:
+		summary_line += "; %d line%s stay cooling or contested" % [delayed_count, "" if delayed_count == 1 else "s"]
+	return {
+		"eligible_count": eligible_count,
+		"cooling_count": cooling_count,
+		"contested_count": contested_count,
+		"summary_line": summary_line
 	}
 
 static func _string_array(values: Variant) -> Array[String]:

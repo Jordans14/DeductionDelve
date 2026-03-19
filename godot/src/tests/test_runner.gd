@@ -32,6 +32,7 @@ const CRAWL_SERVICE_SCRIPT = preload("res://src/product/crawl_service.gd")
 const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
 const DELVE_KERNEL_SCRIPT = preload("res://src/delve/delve_kernel.gd")
 const DELVE_WORLD_MODEL_SCRIPT = preload("res://src/delve/world_model.gd")
+const THEORY_ENGINE_SCRIPT = preload("res://src/delve/theory_engine.gd")
 const DOCTRINE_ENGINE_SCRIPT = preload("res://src/delve/doctrine_engine.gd")
 const HORIZON_PLANNER_SCRIPT = preload("res://src/delve/horizon_planner.gd")
 const META_RESISTANCE_SCRIPT = preload("res://src/delve/meta_resistance_engine.gd")
@@ -153,10 +154,12 @@ func _init() -> void:
 	_test_phase3_compiler_and_constitution_market_contract(failures)
 	_test_phase3_generation_and_item_market_bias(failures)
 	_test_phase3_world_memory_and_civilization_market_persistence(failures)
+	_test_phase3_preservation_salience_accessibility_activation_contract(failures)
 	_test_phase4_compiler_and_constitution_encounter_contract(failures)
 	_test_phase4_generation_contract_and_branch_context(failures)
 	_test_phase4_runtime_ecology_encounter_state(failures)
 	_test_phase4_world_memory_encounter_persistence(failures)
+	_test_phase4_truth_layer_disclosure_matrix_contract(failures)
 	_test_phase5_compiler_and_constitution_apex_contract(failures)
 	_test_phase5_branch_context_and_visual_apex_preview(failures)
 	_test_phase5_runtime_apex_and_local_aftermath(failures)
@@ -165,6 +168,7 @@ func _init() -> void:
 	_test_phase5_world_aftermath_persistence(failures)
 	_test_phase6_lifecycle_hardening_compile_contract(failures)
 	_test_phase6_governance_lifecycle_controls(failures)
+	_test_phase6_governance_jurisdiction_and_admissibility_contract(failures)
 	_test_phase6_evaluation_dimensions_and_persistence(failures)
 	_test_wave1_inactive_is_not_optional_defaults(failures)
 	_test_generation_contract_narrowing(failures)
@@ -177,6 +181,7 @@ func _init() -> void:
 	_test_phase6_shell_proof_fast_path(failures)
 	_test_phase7_evaluation_schema_and_owner(failures)
 	_test_phase7_learning_loop_determinism_and_continuity(failures)
+	_test_phase7_promotion_requires_admissibility_evidence(failures)
 	_test_phase7_immutable_fields_and_invalid_transitions(failures)
 	_test_phase7_compiler_guidance_and_public_traces(failures)
 	_test_phase7_duplicate_evaluation_dedup_and_meta_consistency(failures)
@@ -185,6 +190,7 @@ func _init() -> void:
 	_test_phase7_branch_synthesis_persistence_honesty(failures)
 	_test_phase7_summary_only_constitution_normalization_stays_light(failures)
 	_test_phase8_quiet_play_diagnostics_and_safety(failures)
+	_test_phase8_scale_budget_and_stewardship_audit_projection(failures)
 	_test_phase8_legacy_reentry_continuity_surfaces(failures)
 	_test_phase9_forensic_bundle_hardening_contract(failures)
 	_test_phase9_forensic_bundle_extension_consistency(failures)
@@ -1006,6 +1012,8 @@ func _test_constitution_summary_migration_and_aliases(failures: Array[String]) -
 		failures.append("run-start payloads should canonicalize directive_summary and constitution_summary to the same public-safe data")
 	if str(Dictionary(payload.get("constitution_summary", {})).get("doctrine_label", "")) != "Measured Pressure":
 		failures.append("run-start payloads should prefer constitution_summary over stale directive_summary adapters")
+	if Dictionary(payload.get("constitution_summary", {})).has("promotion_review") or Dictionary(payload.get("constitution_summary", {})).has("disclosure_review"):
+		failures.append("run-start payloads should not grow new structured governance or disclosure objects on constitution_summary")
 	manager.free()
 
 	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze({
@@ -7023,6 +7031,33 @@ func _test_phase3_world_memory_and_civilization_market_persistence(failures: Arr
 	if _string_array_for_test(Array(civilization_surface.get("lifecycle_state_ids", []))).is_empty():
 		failures.append("Phase 3 civilization surfaces should expose lifecycle_state_ids")
 
+func _test_phase3_preservation_salience_accessibility_activation_contract(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var result := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, _phase8_run_record(404405), catalog)
+	var updated_profile: Dictionary = Dictionary(result.get("profile", {}))
+	var world_memory: Dictionary = Dictionary(updated_profile.get("world_memory", {}))
+	var continuity_review: Dictionary = Dictionary(WORLD_MEMORY_SERVICE_SCRIPT.build_continuity_review(world_memory))
+	for key in ["preserved_count", "salient_count", "accessible_count", "active_count", "minority_count", "returnable_count", "canon_pressure", "summary_line"]:
+		if not continuity_review.has(key):
+			failures.append("Phase 3 continuity review should expose %s" % key)
+	if int(continuity_review.get("preserved_count", 0)) <= int(continuity_review.get("active_count", 0)):
+		failures.append("Phase 3 continuity review should preserve more total continuity than the currently active surface")
+	if int(continuity_review.get("accessible_count", 0)) <= 0:
+		failures.append("Phase 3 continuity review should keep accessible continuity distinct from zero")
+	if int(continuity_review.get("returnable_count", 0)) <= 0:
+		failures.append("Phase 3 continuity review should keep returnable continuity visible once reentry hooks exist")
+	var world_lines := WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory)
+	var continuity_line_count := 0
+	for line_variant in world_lines:
+		if str(line_variant).begins_with("Continuity: "):
+			continuity_line_count += 1
+	if continuity_line_count != 1:
+		failures.append("Phase 3 world memory lines should add exactly one compact continuity line for the distinction contract")
+	var archive_continuity_line := ARCHIVE_SERVICE_SCRIPT._continuity_line({"world_memory": world_memory, "profile": updated_profile, "crawl_packet": {}}, {})
+	if archive_continuity_line.strip_edges().is_empty():
+		failures.append("Phase 3 archive continuity readers should be able to reuse the compact continuity review when no stronger continuity line is present")
+
 func _test_phase4_compiler_and_constitution_encounter_contract(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
@@ -7153,6 +7188,54 @@ func _test_phase4_world_memory_encounter_persistence(failures: Array[String]) ->
 		failures.append("Phase 4 world memory should persist active pathology ids")
 	if str(Dictionary(updated_world_memory.get("encounter_memory_state", {})).get("last_active_encounter_id", "")).strip_edges().is_empty():
 		failures.append("Phase 4 world memory should persist last_active_encounter_id")
+
+func _test_phase4_truth_layer_disclosure_matrix_contract(failures: Array[String]) -> void:
+	var canonical_summary := {
+		"protocol_state": "Fracture Protocol",
+		"doctrine_label": "Measured Pressure",
+		"pressure_line": "Keep the burden readable.",
+		"surface_summary": {"lines": ["Rescue geometry is drawing the public answer."]},
+		"experiment_surface_lines": ["Stewardship claims are starting to travel faster than extraction talk."],
+		"theory_surface_lines": ["An official theory carrier remains active."],
+		"theory_statuses": ["official", "rival"],
+		"review_surface_lines": ["promotion review kept 1 admissible carrier ready; 1 line stays cooling or contested"],
+		"safe_mode_lines": ["safe mode is standing by while active governance remains stable"],
+		"explanation_meta_lines": ["meta review stayed bounded to public-safe pressure lines"]
+	}
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze({
+		"seed": 505506,
+		"local_peer_id": 2,
+		"item_defs": ["custody_seal"],
+		"timeline_public_events": [
+			{"event_id": 1, "tick": 10, "room_slot": 3, "actor_peer_id": 2, "event_type": "artifact_picked", "visibility": "public", "meta": {"artifact_id": 1}}
+		],
+		"communication_summary": {"total": 1, "regroup": 1},
+		"key_clues": ["Artifact picked up at the threshold."],
+		"action_summary": ["The burden stayed visible."],
+		"gameplay_signal_snapshot": {"protocol_state": "Fracture Protocol"},
+		"expedition_constitution_summary": canonical_summary
+	})
+	var disclosure_review: Dictionary = Dictionary(diagnostics.get("disclosure_review", {}))
+	if int(disclosure_review.get("active_count", 0)) <= 0:
+		failures.append("Phase 4 disclosure review should keep active public implications explicit")
+	if int(disclosure_review.get("latent_count", 0)) <= 0:
+		failures.append("Phase 4 disclosure review should keep latent implications explicit")
+	if int(disclosure_review.get("deep_count", 0)) <= 0:
+		failures.append("Phase 4 disclosure review should keep deep operator-only implications explicit")
+	if str(disclosure_review.get("contradiction_disposition", "")).strip_edges() != "public_contestation":
+		failures.append("Phase 4 disclosure review should classify rival theory pressure as public contestation")
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	var payload := manager.build_run_start_payload(
+		505506,
+		[{"slot": 0, "type": "traversal"}],
+		[2, 3],
+		{"doctrine_label": "Legacy Drift", "surface_summary": {"lines": ["legacy"]}},
+		"constitution_payload_hash",
+		canonical_summary
+	)
+	if Dictionary(payload.get("constitution_summary", {})).has("promotion_review") or Dictionary(payload.get("constitution_summary", {})).has("disclosure_review"):
+		failures.append("Phase 4 disclosure hardening should not add new structured governance or disclosure objects to constitution_summary")
+	manager.free()
 
 func _test_phase5_compiler_and_constitution_apex_contract(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
@@ -7566,6 +7649,54 @@ func _test_phase6_governance_lifecycle_controls(failures: Array[String]) -> void
 			failures.append("Phase 6 governance hook sets should expose %s trigger slots" % key)
 	if _string_array_for_test(Array(Dictionary(updated.get("resurrection_priority", {})).get("candidate_ids", []))).is_empty():
 		failures.append("Phase 6 governance should expose resurrection_priority candidates")
+
+func _test_phase6_governance_jurisdiction_and_admissibility_contract(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var run_record := _phase7_run_record(979797)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	var learned_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(base_state, run_record, diagnostics, {})
+	var governance_state := GOVERNANCE_SERVICE_SCRIPT.normalize({
+		"activation_state": {
+			"epoch": "fully_active",
+			"active_channels": ["constitution", "archive", "world_memory"],
+			"dormant_channels": ["safe_mode"],
+			"safe_mode_active": false,
+			"quarantine_ids": []
+		},
+		"safe_mode_state": {
+			"enabled": false,
+			"summary_lines": []
+		}
+	})
+	var theory_surface := THEORY_ENGINE_SCRIPT.build_surface(learned_state, {}, governance_state)
+	var stewardship_theory: Dictionary = {}
+	for theory_raw in _dict_array_for_test(theory_surface.get("theories", [])):
+		var theory: Dictionary = Dictionary(theory_raw)
+		if str(theory.get("theory_id", "")).strip_edges() == "theory_exp_stewardship_campaign":
+			stewardship_theory = theory
+			break
+	if stewardship_theory.is_empty():
+		failures.append("Phase 6 governance review should keep the stewardship campaign theory available for admissibility review")
+	else:
+		if str(stewardship_theory.get("jurisdiction", "")).strip_edges().is_empty():
+			failures.append("Phase 6 governance review should derive a non-empty jurisdiction label")
+		if str(stewardship_theory.get("admissibility_status", "")).strip_edges() != "admissible":
+			failures.append("Phase 6 governance review should mark strong supported stewardship carriers as admissible")
+		if str(stewardship_theory.get("promotion_status", "")).strip_edges() != "eligible":
+			failures.append("Phase 6 governance review should mark admissible official carriers as promotion-eligible")
+	var promotion_candidates := _string_array_for_test(Array(theory_surface.get("promotion_candidates", [])))
+	if not promotion_candidates.has("theory_exp_stewardship_campaign"):
+		failures.append("Phase 6 governance review should only surface admissible stewardship theories as promotion candidates")
+	var review_surface := GOVERNANCE_SERVICE_SCRIPT.build_review_surface(governance_state, theory_surface)
+	var promotion_review: Dictionary = Dictionary(review_surface.get("promotion_review", {}))
+	if str(promotion_review.get("summary_line", "")).strip_edges().is_empty():
+		failures.append("Phase 6 review surfaces should expose a compact operator-only promotion summary")
+	var promotion_line_count := 0
+	for line_variant in Array(review_surface.get("lines", [])):
+		if str(line_variant).find("promotion review") != -1:
+			promotion_line_count += 1
+	if promotion_line_count != 1:
+		failures.append("Phase 6 review surfaces should add exactly one compact public-safe promotion line")
 
 func _test_phase6_evaluation_dimensions_and_persistence(failures: Array[String]) -> void:
 	var evaluation_schema: Dictionary = DOCTRINE_SCHEMA_REGISTRY_SCRIPT.evaluation_schema()
@@ -8816,6 +8947,63 @@ func _test_phase7_learning_loop_determinism_and_continuity(failures: Array[Strin
 	if not _string_array_for_test(Array(Dictionary(first_profile.get("last_run", {})).get("manifested_experiment_ids", []))).has("exp_stewardship_campaign"):
 		failures.append("Profile continuity should preserve canonical manifested_experiment_ids for post-run traceability")
 
+func _test_phase7_promotion_requires_admissibility_evidence(failures: Array[String]) -> void:
+	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
+	var experiments := Dictionary(base_state.get("experiments", {})).duplicate(true)
+	var stewardship_experiment := Dictionary(experiments.get("exp_stewardship_campaign", {})).duplicate(true)
+	stewardship_experiment["state"] = "active"
+	experiments["exp_stewardship_campaign"] = stewardship_experiment
+	base_state["experiments"] = experiments
+	var default_governance := GOVERNANCE_SERVICE_SCRIPT.default_state()
+	var theory_surface_without := THEORY_ENGINE_SCRIPT.build_surface(base_state, {}, default_governance)
+	var stewardship_without: Dictionary = {}
+	for theory_raw in _dict_array_for_test(theory_surface_without.get("theories", [])):
+		var theory: Dictionary = Dictionary(theory_raw)
+		if str(theory.get("theory_id", "")).strip_edges() == "theory_exp_stewardship_campaign":
+			stewardship_without = theory
+			break
+	if stewardship_without.is_empty():
+		failures.append("Phase 7 promotion gating should keep the stewardship theory available before evidence arrives")
+	else:
+		if str(stewardship_without.get("admissibility_status", "")).strip_edges() != "insufficient":
+			failures.append("Phase 7 promotion gating should keep promotion-insufficient theories marked insufficient before evidence arrives")
+	if _string_array_for_test(Array(theory_surface_without.get("promotion_candidates", []))).has("theory_exp_stewardship_campaign"):
+		failures.append("Phase 7 promotion gating should not surface candidates before admissibility evidence exists")
+	var run_record := _phase7_run_record(989898)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	var learned_state := DELVEMIND_LEARNING_LOOP_SCRIPT.apply_post_run_learning(base_state, run_record, diagnostics, {})
+	var theory_surface_with := THEORY_ENGINE_SCRIPT.build_surface(learned_state, {}, default_governance)
+	if not _string_array_for_test(Array(theory_surface_with.get("promotion_candidates", []))).has("theory_exp_stewardship_campaign"):
+		failures.append("Phase 7 promotion gating should surface the stewardship carrier once admissibility evidence exists")
+	var quarantined_governance := GOVERNANCE_SERVICE_SCRIPT.normalize({
+		"activation_state": {
+			"epoch": "fully_active",
+			"active_channels": ["constitution"],
+			"dormant_channels": ["safe_mode"],
+			"safe_mode_active": false,
+			"quarantine_ids": ["theory_exp_stewardship_campaign"]
+		},
+		"safe_mode_state": {
+			"enabled": false,
+			"summary_lines": []
+		}
+	})
+	var theory_surface_quarantined := THEORY_ENGINE_SCRIPT.build_surface(learned_state, {}, quarantined_governance)
+	var stewardship_quarantined: Dictionary = {}
+	for theory_raw in _dict_array_for_test(theory_surface_quarantined.get("theories", [])):
+		var theory: Dictionary = Dictionary(theory_raw)
+		if str(theory.get("theory_id", "")).strip_edges() == "theory_exp_stewardship_campaign":
+			stewardship_quarantined = theory
+			break
+	if _string_array_for_test(Array(theory_surface_quarantined.get("promotion_candidates", []))).has("theory_exp_stewardship_campaign"):
+		failures.append("Phase 7 promotion gating should remove quarantined theories from promotion candidates")
+	if stewardship_quarantined.is_empty():
+		failures.append("Phase 7 promotion gating should keep quarantined stewardship theories inspectable for operator review")
+	else:
+		var promotion_status := str(stewardship_quarantined.get("promotion_status", "")).strip_edges()
+		if promotion_status not in ["cooling", "blocked"]:
+			failures.append("Phase 7 promotion gating should cool or block quarantined stewardship carriers")
+
 func _test_phase7_immutable_fields_and_invalid_transitions(failures: Array[String]) -> void:
 	var base_state := DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize({})
 	var run_record := _phase7_run_record(717171)
@@ -9256,6 +9444,96 @@ func _test_phase8_quiet_play_diagnostics_and_safety(failures: Array[String]) -> 
 	if int(diagnostics.get("continuity_burden_score", 0)) <= 0:
 		failures.append("Phase 8 diagnostics should raise continuity_burden_score when aftermath and burden remain active")
 
+func _test_phase8_scale_budget_and_stewardship_audit_projection(failures: Array[String]) -> void:
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 6,
+		"event_id": 21,
+		"event_type": "run_started",
+		"room_slot": 0,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	event_log.add_event({
+		"tick": 11,
+		"event_id": 24,
+		"event_type": "artifact_picked",
+		"room_slot": 3,
+		"actor_peer_id": 2,
+		"visibility": "public",
+		"meta": {"artifact_id": 1}
+	})
+	var constitution_summary := {
+		"constitution_id": "phase8_scale_budget",
+		"activation_epoch": "fully_active",
+		"activation_active_channels": ["constitution", "archive", "world_memory"],
+		"activation_dormant_channels": ["safe_mode"],
+		"safe_mode_active": false,
+		"safe_mode_lines": [],
+		"explanation_packet_lines": ["Keep the burden public without widening the shell."],
+		"review_surface_lines": ["promotion review kept 1 admissible carrier ready"],
+		"signal_budget_lines": ["summary budget stays compact"],
+		"active_regime_ids": ["market_recovery_weave"],
+		"lifecycle_state_ids": ["lifecycle_market_recovery_weave"]
+	}
+	var governance_state := GOVERNANCE_SERVICE_SCRIPT.normalize({
+		"activation_state": {
+			"epoch": "fully_active",
+			"active_channels": ["constitution", "archive", "world_memory"],
+			"dormant_channels": ["safe_mode"],
+			"safe_mode_active": false,
+			"quarantine_ids": ["theory_echo_lure"]
+		},
+		"safe_mode_state": {"enabled": false, "summary_lines": []},
+		"fairness_trigger_records": [{
+			"report_id": "fairness_phase8",
+			"status": "warning",
+			"summary_lines": ["fairness review remains active"]
+		}],
+		"dignity_trigger_records": [{
+			"report_id": "dignity_phase8",
+			"status": "warning",
+			"summary_lines": ["dignity review remains active"]
+		}],
+		"quarantine_registry": [{
+			"entry_id": "theory_echo_lure",
+			"status": "quarantined",
+			"summary_lines": ["echo lure stays quarantined"]
+		}]
+	})
+	var action_snapshot := GOVERNANCE_SERVICE_SCRIPT.build_forensic_action_snapshot(governance_state)
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var bundle := controller.build_forensic_bundle_for_test(
+		838383,
+		"phase8_scale_budget_hash",
+		constitution_summary,
+		event_log,
+		[],
+		"forensic_replay",
+		{
+			"governance_action_snapshot": action_snapshot,
+			"experiment_outcomes": {"manifested_experiment_ids": ["exp_stewardship_campaign"]}
+		},
+		governance_state
+	)
+	var bundle_extensions: Dictionary = Dictionary(bundle.get("bundle_extensions", {}))
+	var stewardship_review: Dictionary = Dictionary(bundle_extensions.get("phase8_stewardship_review", {}))
+	if stewardship_review.is_empty():
+		failures.append("Phase 8 scale stewardship should add a compact operator-only stewardship review extension")
+	if bundle.has("stewardship_review"):
+		failures.append("Phase 8 scale stewardship should keep stewardship review out of the top-level forensic bundle")
+	if _string_array_for_test(Array(stewardship_review.get("checked_lens_tags", []))).is_empty():
+		failures.append("Phase 8 scale stewardship should record checked lens tags inside the extension")
+	if _string_array_for_test(Array(stewardship_review.get("summary_lines", []))).size() > 2:
+		failures.append("Phase 8 scale stewardship should keep stewardship summary lines capped at two")
+	if _string_array_for_test(Array(stewardship_review.get("warning_tags", []))).size() > 4:
+		failures.append("Phase 8 scale stewardship should keep warning tags tightly bounded")
+	var continuity_review := Dictionary(WORLD_MEMORY_SERVICE_SCRIPT.build_continuity_review(WORLD_MEMORY_SERVICE_SCRIPT.default_state()))
+	if str(continuity_review.get("summary_line", "")).strip_edges().is_empty():
+		failures.append("Phase 8 scale stewardship should preserve a compact continuity review summary for downstream readers")
+	controller.free()
+	event_log.free()
+
 func _test_phase8_legacy_reentry_continuity_surfaces(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
 	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
@@ -9533,6 +9811,11 @@ func _test_phase9_forensic_bundle_hardening_contract(failures: Array[String]) ->
 		failures.append("Phase 9 forensic bundles should surface fairness trigger ids")
 	if str(Dictionary(bundle.get("rollback_action", {})).get("report_id", "")).strip_edges().is_empty():
 		failures.append("Phase 9 forensic bundles should surface rollback_action")
+	var phase8_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase8_stewardship_review", {}))
+	if phase8_extension.is_empty():
+		failures.append("Phase 9 forensic bundles should preserve the compact Phase 8 stewardship review extension")
+	if bundle.has("stewardship_review"):
+		failures.append("Phase 9 forensic bundles should keep stewardship review out of the top-level bundle surface")
 	controller.free()
 	event_log.free()
 
@@ -9603,6 +9886,7 @@ func _test_phase9_forensic_bundle_extension_consistency(failures: Array[String])
 	var phase2_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase2_cosmetic_modulation", {}))
 	var phase4_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase4_encounter_language", {}))
 	var phase5_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase5_apex_aftermath", {}))
+	var phase8_extension: Dictionary = Dictionary(Dictionary(bundle.get("bundle_extensions", {})).get("phase8_stewardship_review", {}))
 	if JSON.stringify(Array(bundle.get("equipped_modulation_loadout", []))) != JSON.stringify(Array(phase2_extension.get("equipped_modulation_loadout", []))):
 		failures.append("Phase 9 forensic bundles should keep top-level equipped_modulation_loadout consistent with the Phase 2 extension copy")
 	if JSON.stringify(Dictionary(bundle.get("encounter_manifest", {}))) != JSON.stringify(Dictionary(phase4_extension.get("encounter_manifest", {}))):
@@ -9613,6 +9897,10 @@ func _test_phase9_forensic_bundle_extension_consistency(failures: Array[String])
 		failures.append("Phase 9 forensic bundles should keep top-level local_aftermath consistent with the Phase 5 extension copy")
 	if JSON.stringify(Array(bundle.get("world_aftermath_refs", []))) != JSON.stringify(Array(phase5_extension.get("world_aftermath_refs", []))):
 		failures.append("Phase 9 forensic bundles should keep top-level world_aftermath_refs consistent with the Phase 5 extension copy")
+	if phase8_extension.is_empty():
+		failures.append("Phase 9 forensic bundle extensions should keep the operator-only stewardship review available")
+	if bundle.has("stewardship_review"):
+		failures.append("Phase 9 forensic bundle extensions should not mirror stewardship review onto a new top-level field")
 	controller.free()
 	event_log.free()
 

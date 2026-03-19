@@ -2491,6 +2491,12 @@ func _build_forensic_bundle(
 	var top_apex_manifest := Dictionary(phase_extensions.get("apex_manifest", {})).duplicate(true)
 	var top_local_aftermath := Dictionary(phase_extensions.get("local_aftermath", {})).duplicate(true)
 	var top_world_aftermath_refs := Array(phase_extensions.get("world_aftermath_refs", [])).duplicate(true)
+	var stewardship_review := _build_phase8_stewardship_review(
+		constitution_summary,
+		governance_hook_set,
+		explanation_packet,
+		Dictionary(phase_extensions.get("governance_action_snapshot", {}))
+	)
 	var bundle := {
 		"schema_name": "ForensicBundleV1",
 		"bundle_schema_version": 1,
@@ -2557,13 +2563,41 @@ func _build_forensic_bundle(
 				"apex_history": Array(phase_extensions.get("apex_history", [])).duplicate(true),
 				"local_aftermath": top_local_aftermath.duplicate(true),
 				"world_aftermath_refs": top_world_aftermath_refs.duplicate(true)
-			}
+			},
+			"phase8_stewardship_review": stewardship_review.duplicate(true)
 		}
 	}
 	var digest_source := bundle.duplicate(true)
 	digest_source.erase("bundle_digest")
 	bundle["bundle_digest"] = _canonical_bundle_string(digest_source).md5_text()
 	return bundle
+
+func _build_phase8_stewardship_review(constitution_summary: Dictionary, governance_hook_set: Dictionary, explanation_packet: Dictionary, governance_action_snapshot: Dictionary) -> Dictionary:
+	var checked_lens_tags: Array[String] = ["host_authority", "proof_lane", "compact_surface"]
+	if not _string_array(governance_hook_set.get("active_channels", [])).is_empty():
+		checked_lens_tags.append("bounded_channels")
+	if int(Dictionary(explanation_packet.get("compression_profile", {})).get("max_total_lines", 0)) <= 6:
+		checked_lens_tags.append("signal_budget")
+	var warning_tags: Array[String] = []
+	if not _string_array(governance_action_snapshot.get("fairness_triggers", [])).is_empty():
+		warning_tags.append("fairness_review")
+	if not _string_array(governance_action_snapshot.get("dignity_triggers", [])).is_empty():
+		warning_tags.append("dignity_review")
+	if not str(Dictionary(governance_action_snapshot.get("quarantine_action", {})).get("report_id", "")).strip_edges().is_empty():
+		warning_tags.append("quarantine_pressure")
+	if bool(governance_hook_set.get("safe_mode_active", false)):
+		warning_tags.append("cooling_active")
+	var summary_lines: Array[String] = []
+	summary_lines.append("post-run stewardship review stayed compact across host authority, proof, and bounded surfaces")
+	if not warning_tags.is_empty():
+		summary_lines.append("warnings: %s" % ", ".join(_string_array(warning_tags).slice(0, 3)))
+	elif not _string_array(constitution_summary.get("review_surface_lines", [])).is_empty():
+		summary_lines.append("review anchor: %s" % _string_array(constitution_summary.get("review_surface_lines", []))[0])
+	return {
+		"checked_lens_tags": _string_array(checked_lens_tags).slice(0, 4),
+		"warning_tags": _string_array(warning_tags).slice(0, 4),
+		"summary_lines": _string_array(summary_lines).slice(0, 2)
+	}
 
 func _explanation_packet_lane_lines(entries: Array) -> Array[String]:
 	var result: Array[String] = []

@@ -101,7 +101,7 @@ static func compile(
 	var mind_projections := _build_mind_projections(compiler_public_summary, cognitive_field_state, run_identity)
 	var activation_state := GOVERNANCE_SERVICE_SCRIPT.normalize_activation_state(Dictionary(governance_state.get("activation_state", {})))
 	activation_state["safe_mode_state"] = Dictionary(governance_state.get("safe_mode_state", {})).duplicate(true)
-	var review_surface := GOVERNANCE_SERVICE_SCRIPT.build_review_surface(governance_state)
+	var review_surface := GOVERNANCE_SERVICE_SCRIPT.build_review_surface(governance_state, theory_surface)
 	review_surface["lines"] = _merge_arrays(
 		Array(review_surface.get("lines", [])),
 		Array(Dictionary(contradiction_packet.get("anti_bottleneck_report", {})).get("summary_lines", []))

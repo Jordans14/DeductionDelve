@@ -21,6 +21,7 @@ static func build_surface(experiment_state: Dictionary, world_model: Dictionary 
 		experiment_state
 	)
 	var experiments := Dictionary(experiment_state.get("experiments", {}))
+	var learning_state := Dictionary(experiment_state.get("learning_state", {}))
 	var judgments := _dict_array(Dictionary(experiment_state.get("judgment_store", {})).get("judgments", []))
 	var observations := _dict_array(Dictionary(experiment_state.get("observation_store", {})).get("records", []))
 	var cookbook_state := Dictionary(world_model.get("cookbook_state_snapshot", {}))
@@ -48,6 +49,7 @@ static func build_surface(experiment_state: Dictionary, world_model: Dictionary 
 			cookbook_state,
 			cultural
 		)
+		theory = _apply_review_contract(theory, experiments, learning_state, governance_state, judgments)
 		enriched.append(theory)
 	enriched.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_priority := int(STATUS_PRIORITY.get(str(a.get("status", "proto")), 0))
@@ -276,10 +278,110 @@ static func _activation_epoch(activation_state: Dictionary, theories: Array[Dict
 static func _promotion_candidates(theories: Array[Dictionary]) -> Array[String]:
 	var result: Array[String] = []
 	for theory in theories:
-		var status := str(Dictionary(theory).get("status", "")).strip_edges()
-		if status in ["official", "rival", "synthesis"]:
+		var theory_dict := Dictionary(theory)
+		var status := str(theory_dict.get("status", "")).strip_edges()
+		var promotion_status := str(theory_dict.get("promotion_status", "")).strip_edges()
+		if status in ["official", "rival", "synthesis"] and promotion_status == "eligible":
 			result.append(str(Dictionary(theory).get("theory_id", "")).strip_edges())
 	return _string_array(result)
+
+static func _apply_review_contract(theory: Dictionary, experiments: Dictionary, learning_state: Dictionary, governance_state: Dictionary, judgments: Array[Dictionary]) -> Dictionary:
+	var current := Dictionary(theory).duplicate(true)
+	var review := _admissibility_review(current, experiments, learning_state, governance_state, judgments)
+	current["jurisdiction"] = str(review.get("jurisdiction", "")).strip_edges()
+	current["admissibility_status"] = str(review.get("admissibility_status", "insufficient")).strip_edges()
+	current["promotion_status"] = str(review.get("promotion_status", "insufficient")).strip_edges()
+	current["admissibility_summary"] = str(review.get("summary_line", "")).strip_edges()
+	return current
+
+static func _admissibility_review(theory: Dictionary, experiments: Dictionary, learning_state: Dictionary, governance_state: Dictionary, judgments: Array[Dictionary]) -> Dictionary:
+	var theory_id := str(theory.get("theory_id", "")).strip_edges()
+	var status := str(theory.get("status", "proto")).strip_edges()
+	var experiment_id := _experiment_id_for_theory(theory_id)
+	var experiment := Dictionary(experiments.get(experiment_id, {})).duplicate(true)
+	var target := str(experiment.get("target", "")).strip_edges()
+	var observation_contract := str(experiment.get("observation_contract", "")).strip_edges()
+	var jurisdiction := _jurisdiction_label(target, observation_contract, status)
+	var evaluation_records := _evaluation_records_for_experiment(learning_state, experiment_id)
+	var latest_record: Dictionary = Dictionary(evaluation_records[0]).duplicate(true) if not evaluation_records.is_empty() else {}
+	var support_count := _support_count_for_review(latest_record, theory_id, judgments)
+	var contradiction_count := _string_array(latest_record.get("contradicting_evidence", [])).size()
+	var fairness_vetoed := bool(Dictionary(latest_record.get("continuity_effects", {})).get("fairness_vetoed", false))
+	var activation_state := Dictionary(governance_state.get("activation_state", {}))
+	var safe_mode_state := Dictionary(governance_state.get("safe_mode_state", {}))
+	var quarantine_ids := _string_array(activation_state.get("quarantine_ids", []))
+	var quarantine_hold := quarantine_ids.has(theory_id) or quarantine_ids.has(experiment_id)
+	var safe_mode_hold := bool(safe_mode_state.get("enabled", false)) and status in ["suppressed", "cookbook", "anomaly"]
+	var admissibility_status := "insufficient"
+	if quarantine_hold or fairness_vetoed:
+		admissibility_status = "blocked"
+	elif support_count > 0 and contradiction_count <= support_count and not safe_mode_hold:
+		admissibility_status = "admissible"
+	elif support_count > 0 or contradiction_count > 0 or status in ["rival", "cookbook", "anomaly", "suppressed"]:
+		admissibility_status = "contested"
+	var promotion_status := "insufficient"
+	if status in ["official", "rival", "synthesis"] and admissibility_status == "admissible" and not bool(safe_mode_state.get("enabled", false)):
+		promotion_status = "eligible"
+	elif quarantine_hold or safe_mode_hold or status == "suppressed":
+		promotion_status = "cooling"
+	elif admissibility_status == "blocked":
+		promotion_status = "blocked"
+	elif admissibility_status == "contested":
+		promotion_status = "contested"
+	var summary_line := _review_summary_line(jurisdiction, support_count, contradiction_count, admissibility_status, promotion_status)
+	return {
+		"jurisdiction": jurisdiction,
+		"admissibility_status": admissibility_status,
+		"promotion_status": promotion_status,
+		"summary_line": summary_line
+	}
+
+static func _experiment_id_for_theory(theory_id: String) -> String:
+	return theory_id.trim_prefix("theory_")
+
+static func _evaluation_records_for_experiment(learning_state: Dictionary, experiment_id: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if experiment_id.is_empty():
+		return result
+	for record_raw in _dict_array(Dictionary(learning_state).get("evaluation_records", [])):
+		var record := Dictionary(record_raw)
+		if str(record.get("experiment_id", "")).strip_edges() == experiment_id:
+			result.append(record)
+	return result
+
+static func _support_count_for_review(latest_record: Dictionary, theory_id: String, judgments: Array[Dictionary]) -> int:
+	var support_count := _string_array(latest_record.get("supporting_evidence", [])).size()
+	if support_count > 0:
+		return support_count
+	for judgment_raw in judgments:
+		var judgment := Dictionary(judgment_raw)
+		if str(judgment.get("theory_id", "")).strip_edges() != theory_id:
+			continue
+		var outcome := str(judgment.get("outcome", "")).strip_edges()
+		if outcome in ["accepted", "official", "promote", "synthesize", "strengthen_hypothesis"]:
+			return maxi(int(judgment.get("confidence", 0)), 1)
+	return 0
+
+static func _jurisdiction_label(target: String, observation_contract: String, status: String) -> String:
+	if not target.is_empty() and not observation_contract.is_empty():
+		return "%s:%s" % [target, observation_contract]
+	if status == "cookbook":
+		return "cookbook:illicit_marginalia"
+	if status == "anomaly":
+		return "contradiction:anomaly_pressure"
+	if status == "suppressed":
+		return "governance:cooling_review"
+	return "theory:bounded_review"
+
+static func _review_summary_line(jurisdiction: String, support_count: int, contradiction_count: int, admissibility_status: String, promotion_status: String) -> String:
+	var evidence_bits := "support %d / contradiction %d" % [support_count, contradiction_count]
+	var jurisdiction_text := jurisdiction if not jurisdiction.is_empty() else "bounded review"
+	return "%s stays %s with %s; promotion is %s" % [
+		jurisdiction_text,
+		admissibility_status,
+		evidence_bits,
+		promotion_status
+	]
 
 static func _theory_ids(theories: Array[Dictionary]) -> Array[String]:
 	var result: Array[String] = []

@@ -5641,3 +5641,31 @@ All doctrine domains that were still PARTIAL at the start of this pass received 
 - Closing truth note:
   - Waves 2-5 required certification rather than fresh runtime implementation because the tracked repo had already materially satisfied their exit criteria
   - Wave 6 was completed in this pass through explicit proof reruns plus wave-level artifact/progress truth closure
+
+- 2026-03-19 charter completion implementation pass:
+  - scope: finished the lawful current-scope charter gaps on the existing owner tree without adding a second shell, archive, truth path, or replicated governance object
+  - owner files touched:
+    - `godot/src/delve/theory_engine.gd`
+    - `godot/src/product/governance_service.gd`
+    - `godot/src/delve/constitution/expedition_constitution_schema.gd`
+    - `godot/src/gen/constitution_compiler.gd`
+    - `godot/src/product/world_memory_service.gd`
+    - `godot/src/product/archive_service.gd`
+    - `godot/src/product/run_story_diagnostics.gd`
+    - `godot/src/run/game_controller.gd`
+    - `godot/src/tests/test_runner.gd`
+  - exact implementation closure:
+    - derived governance review now computes jurisdiction, admissibility, and promotion gating inside the existing theory/governance seam
+    - public-safe governance expression stays compact by reusing existing `review_surface_lines`; `constitution_summary` did not gain a new structured governance object
+    - continuity distinction is now explicit through a derived internal review reused by world/archive/profile readers with one compact outward continuity line
+    - disclosure review is now explicit as operator-only diagnostics state and does not replicate onto public-safe constitution payloads
+    - stewardship review now exists only as the post-run operator-facing `bundle_extensions.phase8_stewardship_review` forensic extension
+  - proof additions:
+    - added explicit tests for continuity distinction, disclosure boundary hardening, governance jurisdiction/admissibility, promotion gating, and stewardship compactness
+    - tightened existing forensic and constitution-summary tests to hard-fail if structured governance/disclosure objects leak onto public-safe surfaces
+  - validation:
+    - `./scripts/run_tests.ps1` -> passed on `2026-03-19`
+    - `./scripts/run_headless_proof.ps1` -> passed on `2026-03-19`
+    - proof seed: `1337`
+    - proof result: `RUN_VERIFY ok=true`
+    - report diff: `REPORT_DIFF ok=true mismatches=0`
