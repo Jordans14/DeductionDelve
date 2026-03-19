@@ -30,6 +30,28 @@ static func default_extensions() -> Dictionary:
 		}
 	}
 
+static func is_world_aftermath_ref_shape(record: Dictionary) -> bool:
+	return str(record.get("schema_name", "")).strip_edges() == "WorldAftermathRef"
+
+static func is_world_aftermath_record_shape(record: Dictionary) -> bool:
+	return str(record.get("schema_name", "")).strip_edges() == "WorldAftermath"
+
+static func world_aftermath_ref_entries(entries: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry_raw in Array(entries):
+		var entry := Dictionary(entry_raw)
+		if is_world_aftermath_ref_shape(entry):
+			result.append(entry.duplicate(true))
+	return result.slice(0, MAX_OBJECTS)
+
+static func world_aftermath_record_entries(entries: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry_raw in Array(entries):
+		var entry := Dictionary(entry_raw)
+		if is_world_aftermath_record_shape(entry):
+			result.append(entry.duplicate(true))
+	return result.slice(0, MAX_OBJECTS)
+
 static func normalize_world_memory_extensions(world_memory: Dictionary) -> Dictionary:
 	var current := world_memory.duplicate(true)
 	for key in default_extensions().keys():
@@ -54,9 +76,14 @@ static func build_world_aftermath_records(run_context: Dictionary) -> Array[Dict
 	var constitution_summary: Dictionary = Dictionary(run_record.get("expedition_constitution_summary", {}))
 	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {}))
 	var active_apex_state: Dictionary = Dictionary(run_record.get("active_apex_state", {}))
-	var aftermath_refs := Array(run_record.get("world_aftermath_refs", []))
+	var raw_aftermath_refs := Array(run_record.get("world_aftermath_refs", []))
+	var aftermath_refs := world_aftermath_ref_entries(raw_aftermath_refs)
+	if not raw_aftermath_refs.is_empty() and aftermath_refs.size() != raw_aftermath_refs.size():
+		return []
 	if aftermath_refs.is_empty() and not local_aftermath.is_empty():
 		aftermath_refs = [{
+			"schema_name": "WorldAftermathRef",
+			"schema_version": 1,
 			"aftermath_id": "world_aftermath_%s" % str(local_aftermath.get("source_id", "")).strip_edges(),
 			"source_id": str(local_aftermath.get("source_id", "")).strip_edges(),
 			"source_kind": str(local_aftermath.get("source_kind", "encounter")).strip_edges(),

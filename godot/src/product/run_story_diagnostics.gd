@@ -1,6 +1,7 @@
 class_name RunStoryDiagnostics
 extends RefCounted
 
+const CIVILIZATION_STATE_SERVICE_SCRIPT = preload("res://src/product/civilization_state_service.gd")
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
 
 static func analyze(run_record: Dictionary) -> Dictionary:
@@ -69,7 +70,7 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var peak_structure_lines := _take_unique(_string_array(expedition_constitution_summary.get("peak_structure_lines", [])), 3)
 	var active_apex_state: Dictionary = Dictionary(run_record.get("active_apex_state", {}))
 	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {}))
-	var world_aftermath_refs := _dict_array(run_record.get("world_aftermath_refs", []))
+	var world_aftermath_refs := Array(CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_ref_entries(run_record.get("world_aftermath_refs", [])))
 	var mutation_surface_lines := _mutation_surface_lines(Dictionary(run_record.get("mutation_public_summary", {})))
 	var replay_id := str(Dictionary(run_record.get("replay_identity", {})).get("replay_id", Dictionary(run_record.get("forensic_bundle", {})).get("replay_id", ""))).strip_edges()
 	var forensic_bundle_digest := str(Dictionary(run_record.get("forensic_bundle", {})).get("bundle_digest", "")).strip_edges()

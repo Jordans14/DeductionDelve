@@ -18,7 +18,8 @@
 ## Hardening Note
 - The post-implementation hardening pass corrected the audited `WorldAftermath` owner-boundary mismatch without reopening any phase:
   - `LocalAftermath` remains authored on runtime/export seams.
-  - runtime/export `world_aftermath_refs` are now derivation-safe refs only.
+  - runtime/export `world_aftermath_refs` are now derivation-safe refs only with `schema_name: WorldAftermathRef`.
+  - final continuity-persisted `world_aftermath_refs` entries are `WorldAftermath` records with `schema_name: WorldAftermath`.
   - final `WorldAftermath` construction/normalization now happens on continuity seams only.
 - The same hardening pass also tightened:
   - forensic bundle consistency verification

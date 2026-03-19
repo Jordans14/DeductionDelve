@@ -161,6 +161,7 @@ func _init() -> void:
 	_test_phase5_branch_context_and_visual_apex_preview(failures)
 	_test_phase5_runtime_apex_and_local_aftermath(failures)
 	_test_phase5_world_aftermath_owner_boundary(failures)
+	_test_phase5_world_aftermath_shape_contract(failures)
 	_test_phase5_world_aftermath_persistence(failures)
 	_test_phase6_lifecycle_hardening_compile_contract(failures)
 	_test_phase6_governance_lifecycle_controls(failures)
@@ -7394,8 +7395,55 @@ func _test_phase5_world_aftermath_persistence(failures: Array[String]) -> void:
 		failures.append("Phase 5 profiles should persist world_aftermath_refs on last_run")
 	else:
 		var persisted_entry: Dictionary = Dictionary(persisted_world_aftermath[0])
+		if str(persisted_entry.get("schema_name", "")).strip_edges() != "WorldAftermath":
+			failures.append("Phase 5 profile continuity should persist final WorldAftermath records on last_run")
 		if not persisted_entry.has("world_mutation_ids"):
 			failures.append("Phase 5 profile continuity should persist continuity-authored WorldAftermath records rather than runtime refs")
+
+func _test_phase5_world_aftermath_shape_contract(failures: Array[String]) -> void:
+	var runtime_ref := {
+		"schema_name": "WorldAftermathRef",
+		"schema_version": 1,
+		"aftermath_id": "world_aftermath_shape_runtime",
+		"source_id": "apex_shape_runtime",
+		"source_kind": "apex",
+		"apex_id": "apex_shape_runtime",
+		"local_aftermath_id": "local_aftermath_shape_runtime",
+		"continuity_seed_tags": ["shape_seed"],
+		"return_pressure_tags": ["route_pressure"],
+		"route_state_hint": "rerouted",
+		"successor_hint_ids": ["threshold_trial_apex"]
+	}
+	var final_record := {
+		"schema_name": "WorldAftermath",
+		"schema_version": 1,
+		"aftermath_id": "world_aftermath_shape_final",
+		"source_id": "apex_shape_final",
+		"source_kind": "apex",
+		"apex_id": "apex_shape_final",
+		"world_mutation_ids": ["wm_shape_final"],
+		"residue_records": ["shape residue"],
+		"prestige_climate_delta": "steady",
+		"institutional_response": "institutions held the line",
+		"return_pressure_tags": ["route_pressure"],
+		"continuity_scars": ["scar_shape_final"],
+		"successor_claims": ["threshold_trial_apex"]
+	}
+	if CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_ref_entries([runtime_ref]).size() != 1:
+		failures.append("Phase 5 shape helpers should accept runtime WorldAftermathRef entries")
+	if not CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_ref_entries([final_record]).is_empty():
+		failures.append("Phase 5 shape helpers should reject final WorldAftermath records from runtime ref readers")
+	if CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_record_entries([final_record]).size() != 1:
+		failures.append("Phase 5 shape helpers should accept continuity WorldAftermath records")
+	if not CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_record_entries([runtime_ref]).is_empty():
+		failures.append("Phase 5 shape helpers should reject runtime WorldAftermathRef entries from continuity record readers")
+	var invalid_derived := CIVILIZATION_STATE_SERVICE_SCRIPT.build_world_aftermath_records({
+		"run_record": {
+			"world_aftermath_refs": [final_record]
+		}
+	})
+	if not invalid_derived.is_empty():
+		failures.append("Phase 5 continuity derivation should fail closed when run_record.world_aftermath_refs carries final WorldAftermath records")
 
 func _test_phase6_lifecycle_hardening_compile_contract(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
@@ -8622,13 +8670,17 @@ func _phase8_run_record(seed: int, overrides: Dictionary = {}) -> Dictionary:
 	}
 	base["world_aftermath_refs"] = [
 		{
+			"schema_name": "WorldAftermathRef",
+			"schema_version": 1,
 			"aftermath_id": "world_aftermath_%d" % seed,
-			"source_id": "apex_threshold_trial",
-			"world_mutation_ids": ["mutation_quiet_threshold"],
-			"residue_records": ["quiet threshold discipline kept returning in later readings"],
-			"institutional_response": "keepers started treating restraint as the trustworthy reading",
-			"continuity_scars": ["the team now expects quiet hands at the threshold"],
-			"return_pressure_tags": ["measured_return", "quiet_reentry"]
+			"source_id": "encounter_quiet_hold",
+			"source_kind": "encounter",
+			"apex_id": "",
+			"local_aftermath_id": "local_aftermath_%d" % seed,
+			"continuity_seed_tags": ["measured_return", "quiet_pressure"],
+			"return_pressure_tags": ["measured_return", "quiet_reentry"],
+			"route_state_hint": "threshold stabilized",
+			"successor_hint_ids": ["threshold_trial_apex"]
 		}
 	]
 	for key in overrides.keys():
@@ -9392,7 +9444,19 @@ func _test_phase9_forensic_bundle_hardening_contract(failures: Array[String]) ->
 		{},
 		[],
 		{"aftermath_id": "local_phase9"},
-		[{"aftermath_id": "world_phase9"}],
+		[{
+			"schema_name": "WorldAftermathRef",
+			"schema_version": 1,
+			"aftermath_id": "world_phase9",
+			"source_id": "apex_threshold_trial",
+			"source_kind": "apex",
+			"apex_id": "apex_threshold_trial",
+			"local_aftermath_id": "local_phase9",
+			"continuity_seed_tags": ["threshold_residue"],
+			"return_pressure_tags": ["route_pressure"],
+			"route_state_hint": "rerouted",
+			"successor_hint_ids": ["threshold_trial_apex"]
+		}],
 		{
 			"active_regime_ids": ["market_recovery_weave"],
 			"active_lifecycle_state_ids": ["lifecycle_market_recovery_weave"],
@@ -9427,7 +9491,19 @@ func _test_phase9_forensic_bundle_hardening_contract(failures: Array[String]) ->
 			"encounter_manifest": {"encounter_ids": ["encounter_threshold_hold"]},
 			"apex_manifest": {"apex_ids": ["apex_threshold_trial"]},
 			"local_aftermath": {"aftermath_id": "local_phase9"},
-			"world_aftermath_refs": [{"aftermath_id": "world_phase9"}],
+			"world_aftermath_refs": [{
+				"schema_name": "WorldAftermathRef",
+				"schema_version": 1,
+				"aftermath_id": "world_phase9",
+				"source_id": "apex_threshold_trial",
+				"source_kind": "apex",
+				"apex_id": "apex_threshold_trial",
+				"local_aftermath_id": "local_phase9",
+				"continuity_seed_tags": ["threshold_residue"],
+				"return_pressure_tags": ["route_pressure"],
+				"route_state_hint": "rerouted",
+				"successor_hint_ids": ["threshold_trial_apex"]
+			}],
 			"governance_action_snapshot": action_snapshot,
 			"experiment_outcomes": {"manifested_experiment_ids": ["exp_stewardship_campaign"]}
 		},
@@ -9598,7 +9674,19 @@ func _test_phase9_profile_forensic_persistence_and_world_memory_hash(failures: A
 			"encounter_manifest": {"encounter_ids": ["encounter_threshold_hold"]},
 			"apex_manifest": {"apex_ids": ["apex_threshold_trial"]},
 			"local_aftermath": {"aftermath_id": "local_profile_phase9"},
-			"world_aftermath_refs": [{"aftermath_id": "world_profile_phase9"}],
+			"world_aftermath_refs": [{
+				"schema_name": "WorldAftermathRef",
+				"schema_version": 1,
+				"aftermath_id": "world_profile_phase9",
+				"source_id": "apex_threshold_trial",
+				"source_kind": "apex",
+				"apex_id": "apex_threshold_trial",
+				"local_aftermath_id": "local_profile_phase9",
+				"continuity_seed_tags": ["threshold_residue"],
+				"return_pressure_tags": ["route_pressure"],
+				"route_state_hint": "rerouted",
+				"successor_hint_ids": ["threshold_trial_apex"]
+			}],
 			"governance_action_snapshot": action_snapshot,
 			"experiment_outcomes": {"manifested_experiment_ids": ["exp_stewardship_campaign"]}
 		},
@@ -9629,7 +9717,19 @@ func _test_phase9_profile_forensic_persistence_and_world_memory_hash(failures: A
 		{},
 		[],
 		{"aftermath_id": "local_profile_phase9"},
-		[{"aftermath_id": "world_profile_phase9"}],
+		[{
+			"schema_name": "WorldAftermathRef",
+			"schema_version": 1,
+			"aftermath_id": "world_profile_phase9",
+			"source_id": "apex_threshold_trial",
+			"source_kind": "apex",
+			"apex_id": "apex_threshold_trial",
+			"local_aftermath_id": "local_profile_phase9",
+			"continuity_seed_tags": ["threshold_residue"],
+			"return_pressure_tags": ["route_pressure"],
+			"route_state_hint": "rerouted",
+			"successor_hint_ids": ["threshold_trial_apex"]
+		}],
 		{
 			"active_regime_ids": ["market_recovery_weave"],
 			"active_lifecycle_state_ids": ["lifecycle_market_recovery_weave"],

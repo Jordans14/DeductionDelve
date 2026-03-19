@@ -326,14 +326,14 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	)
 	next_profile["delvemind_experiment_state"] = DELVEMIND_EXPERIMENT_ENGINE_SCRIPT.normalize(experiment_state)
 	var crawl_result := CRAWL_SERVICE_SCRIPT.apply_run(next_profile, run_record, diagnostics, frame)
-	var continuity_world_aftermath_refs := CIVILIZATION_STATE_SERVICE_SCRIPT.build_world_aftermath_records({
+	var continuity_world_aftermath_records := CIVILIZATION_STATE_SERVICE_SCRIPT.build_world_aftermath_records({
 		"profile": next_profile,
 		"run_record": run_record,
 		"diagnostics": diagnostics,
 		"frame": frame,
 		"crawl_packet": Dictionary(crawl_result.get("crawl_packet", {}))
 	})
-	var legacy_track := _build_phase8_legacy_track(run_record, diagnostics, frame, Dictionary(crawl_result.get("crawl_packet", {})), continuity_world_aftermath_refs)
+	var legacy_track := _build_phase8_legacy_track(run_record, diagnostics, frame, Dictionary(crawl_result.get("crawl_packet", {})), continuity_world_aftermath_records)
 	var reentry_hook := _build_phase8_reentry_hook(run_record, diagnostics, frame, legacy_track)
 	next_profile["legacy_tracks"] = _merge_front_dictionary_entries(Array(next_profile.get("legacy_tracks", [])), legacy_track, "track_id", 18)
 	next_profile["reentry_hooks"] = _merge_front_dictionary_entries(Array(next_profile.get("reentry_hooks", [])), reentry_hook, "hook_id", 18)
@@ -398,7 +398,7 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 	var normalization_mode := str(run_record.get("normalization_mode", next_profile.get("normalization_mode", "default"))).strip_edges()
 	var equipped_modulation_loadout: Array = Array(run_record.get("equipped_modulation_loadout", next_profile.get("equipped_modulation_loadout", []))).duplicate(true)
 	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {})).duplicate(true)
-	var world_aftermath_refs: Array = continuity_world_aftermath_refs.duplicate(true)
+	var world_aftermath_records: Array = continuity_world_aftermath_records.duplicate(true)
 	var governance_action_snapshot := GOVERNANCE_SERVICE_SCRIPT.build_forensic_action_snapshot(governance_state)
 	var world_memory_snapshot_hash := _canonical_phase9_hash(world_memory)
 	var forensic_bundle_header := _build_phase9_forensic_bundle_header(run_record, world_memory_snapshot_hash, governance_action_snapshot)
@@ -450,7 +450,7 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"institutional_pressure_surface": Dictionary(diagnostics.get("institutional_pressure_surface", {})).duplicate(true),
 		"continuity_burden_score": int(diagnostics.get("continuity_burden_score", 0)),
 		"local_aftermath": local_aftermath.duplicate(true),
-		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"world_aftermath_refs": world_aftermath_records.duplicate(true),
 		"world_memory_snapshot_hash": world_memory_snapshot_hash,
 		"forensic_bundle_header": forensic_bundle_header.duplicate(true),
 		"rollback_action": Dictionary(governance_action_snapshot.get("rollback_action", {})).duplicate(true),
@@ -495,7 +495,7 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"social_safety_flags": _to_string_array(diagnostics.get("social_safety_flags", [])).slice(0, 3),
 		"reputation_band": str(diagnostics.get("reputation_band", "")).strip_edges(),
 		"local_aftermath": local_aftermath.duplicate(true),
-		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"world_aftermath_refs": world_aftermath_records.duplicate(true),
 		"world_memory_snapshot_hash": world_memory_snapshot_hash,
 		"forensic_bundle_header": forensic_bundle_header.duplicate(true)
 	}
@@ -2806,14 +2806,19 @@ static func _merge_front_dictionary_entries(existing: Array, entry: Dictionary, 
 		result.append(current)
 	return result.slice(0, limit)
 
-static func _build_phase8_legacy_track(run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary, crawl_packet: Dictionary, world_aftermath_refs: Array = []) -> Dictionary:
+static func _build_phase8_legacy_track(run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary, crawl_packet: Dictionary, world_aftermath_records: Array = []) -> Dictionary:
 	var source_seed := int(run_record.get("seed", 0))
 	var reputation_band := str(diagnostics.get("reputation_band", "measured_return")).strip_edges()
 	var quiet_play_signals := _to_string_array(diagnostics.get("quiet_play_signals", []))
 	var institutional_pressure_surface: Dictionary = Dictionary(diagnostics.get("institutional_pressure_surface", {}))
 	var continuity_scars: Array[String] = _to_string_array(Dictionary(crawl_packet).get("memorial_residue", []))
 	var world_aftermath_ids: Array[String] = []
-	var aftermath_records := Array(world_aftermath_refs if not world_aftermath_refs.is_empty() else run_record.get("world_aftermath_refs", []))
+	var aftermath_records := CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_record_entries(world_aftermath_records)
+	if aftermath_records.is_empty():
+		aftermath_records = CIVILIZATION_STATE_SERVICE_SCRIPT.build_world_aftermath_records({
+			"run_record": run_record,
+			"diagnostics": diagnostics
+		})
 	for aftermath_raw in aftermath_records:
 		var aftermath := Dictionary(aftermath_raw)
 		var aftermath_id := str(aftermath.get("aftermath_id", "")).strip_edges()

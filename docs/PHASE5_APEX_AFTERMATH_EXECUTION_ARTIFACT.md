@@ -58,16 +58,16 @@
 - Contracts established:
   - run-state `local_aftermath`
   - run-record `local_aftermath`
-  - run-record `world_aftermath_refs` as derivation-safe continuity refs only
+  - run-record `world_aftermath_refs` as derivation-safe continuity refs only with `schema_name: WorldAftermathRef`
   - world-memory `apex_memory_state`
   - world-memory `world_aftermath_state`
   - profile `last_run.local_aftermath`
-  - profile `last_run.world_aftermath_refs`
+  - profile `last_run.world_aftermath_refs` as continuity-authored `WorldAftermath` records with `schema_name: WorldAftermath`
   - profile `run_history[*].local_aftermath`
-  - profile `run_history[*].world_aftermath_refs`
+  - profile `run_history[*].world_aftermath_refs` as continuity-authored `WorldAftermath` records with `schema_name: WorldAftermath`
 - Acceptance result:
   - immediate aftermath now persists through the existing runtime/export path only
-  - runtime/export emits only derivation-safe `world_aftermath_refs`, while final `WorldAftermath` construction and normalization now persist through the existing world-memory, civilization, and profile continuity owners only
+  - runtime/export emits only derivation-safe `world_aftermath_refs` with `schema_name: WorldAftermathRef`, while final continuity-persisted `world_aftermath_refs` entries are `WorldAftermath` records and continue to normalize through the existing world-memory, civilization, and profile continuity owners only
   - no second aftermath subsystem or duplicate persistence path was introduced
 
 ### Peak Structure And Apex Readability
