@@ -176,6 +176,38 @@ static func default_state() -> Dictionary:
 			"carrier_risk_band": "",
 			"lines": []
 		},
+		"artifact_consequence_state": {
+			"artifact_consequence_version": 0,
+			"consequence_event_family": "",
+			"burden_band": "",
+			"valuation_band": "",
+			"return_consequence_state": "",
+			"market_regime_id": "",
+			"market_carrier_risk_band": "",
+			"public_consequence_tags": [],
+			"lines": []
+		},
+		"social_consequence_state": {
+			"social_consequence_version": 0,
+			"public_evidence_tags": [],
+			"witness_pressure": "",
+			"counterfeit_pressure": "",
+			"relationship_pressure": "",
+			"blame_surface_tags": [],
+			"consequence_read_refs": [],
+			"lines": []
+		},
+		"encounter_apex_consequence_state": {
+			"encounter_apex_consequence_version": 0,
+			"encounter_resolution_state": "",
+			"apex_resolution_state": "",
+			"anchored_pressures": [],
+			"consequence_classes": [],
+			"local_aftermath_tags": [],
+			"world_aftermath_tags": [],
+			"aftermath_consequence_refs": [],
+			"lines": []
+		},
 		"lifecycle_registry": {
 			"families": [],
 			"active_state_ids": [],
@@ -270,6 +302,9 @@ static func normalize(state: Dictionary) -> Dictionary:
 	current["crawl_network_state"] = _normalize_crawl_network_state(Dictionary(current.get("crawl_network_state", {})))
 	current["epoch_state"] = _normalize_epoch_state(Dictionary(current.get("epoch_state", {})))
 	current["market_memory_state"] = _normalize_market_memory_state(Dictionary(current.get("market_memory_state", {})))
+	current["artifact_consequence_state"] = _normalize_artifact_consequence_state(Dictionary(current.get("artifact_consequence_state", {})))
+	current["social_consequence_state"] = _normalize_social_consequence_state(Dictionary(current.get("social_consequence_state", {})))
+	current["encounter_apex_consequence_state"] = _normalize_encounter_apex_consequence_state(Dictionary(current.get("encounter_apex_consequence_state", {})))
 	current["lifecycle_registry"] = _normalize_lifecycle_registry(Dictionary(current.get("lifecycle_registry", {})))
 	current["pathology_memory_state"] = _normalize_pathology_memory_state(Dictionary(current.get("pathology_memory_state", {})))
 	current["encounter_memory_state"] = _normalize_encounter_memory_state(Dictionary(current.get("encounter_memory_state", {})))
@@ -307,6 +342,9 @@ static func apply_run(world_memory: Dictionary, run_context: Dictionary) -> Dict
 	_update_cookbook_shadow(current, run_context)
 	_update_crawl_network_state(current, run_context)
 	_update_market_memory_state(current, run_context)
+	_update_artifact_consequence_state(current, run_context)
+	_update_social_consequence_state(current, run_context)
+	_update_encounter_apex_consequence_state(current, run_context)
 	_update_lifecycle_registry(current, run_context)
 	_update_pathology_memory_state(current, run_context)
 	_update_encounter_memory_state(current, run_context)
@@ -371,6 +409,18 @@ static func build_world_lines(world_memory: Dictionary) -> Array[String]:
 	var market_lines := _string_array(market_memory_state.get("lines", []))
 	if not market_lines.is_empty():
 		lines.append("Market: %s" % market_lines[0])
+	var artifact_consequence_state := Dictionary(current.get("artifact_consequence_state", {}))
+	var artifact_consequence_lines := _string_array(artifact_consequence_state.get("lines", []))
+	if not artifact_consequence_lines.is_empty():
+		lines.append("Artifact: %s" % artifact_consequence_lines[0])
+	var social_consequence_state := Dictionary(current.get("social_consequence_state", {}))
+	var social_consequence_lines := _string_array(social_consequence_state.get("lines", []))
+	if not social_consequence_lines.is_empty():
+		lines.append("Social: %s" % social_consequence_lines[0])
+	var encounter_apex_consequence_state := Dictionary(current.get("encounter_apex_consequence_state", {}))
+	var encounter_apex_consequence_lines := _string_array(encounter_apex_consequence_state.get("lines", []))
+	if not encounter_apex_consequence_lines.is_empty():
+		lines.append("Aftermath: %s" % encounter_apex_consequence_lines[0])
 	var lifecycle_registry := Dictionary(current.get("lifecycle_registry", {}))
 	var lifecycle_lines := _string_array(lifecycle_registry.get("lines", []))
 	if not lifecycle_lines.is_empty():
@@ -1359,6 +1409,125 @@ static func _update_market_memory_state(world_memory: Dictionary, run_context: D
 	market_memory_state["lines"] = _merge_limited(Array(market_memory_state.get("lines", [])), market_lines, 6)
 	world_memory["market_memory_state"] = market_memory_state
 
+static func _update_artifact_consequence_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var artifact_consequence_state := _normalize_artifact_consequence_state(Dictionary(world_memory.get("artifact_consequence_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var outcome_summary: Dictionary = Dictionary(run_record.get("outcome_summary", {}))
+	if outcome_summary.is_empty():
+		world_memory["artifact_consequence_state"] = artifact_consequence_state
+		return
+	artifact_consequence_state["artifact_consequence_version"] = int(outcome_summary.get("artifact_consequence_version", artifact_consequence_state.get("artifact_consequence_version", 0)))
+	artifact_consequence_state["consequence_event_family"] = str(outcome_summary.get("consequence_event_family", artifact_consequence_state.get("consequence_event_family", ""))).strip_edges()
+	artifact_consequence_state["burden_band"] = str(outcome_summary.get("burden_band", artifact_consequence_state.get("burden_band", ""))).strip_edges()
+	artifact_consequence_state["valuation_band"] = str(outcome_summary.get("valuation_band", artifact_consequence_state.get("valuation_band", ""))).strip_edges()
+	artifact_consequence_state["return_consequence_state"] = str(outcome_summary.get("return_consequence_state", artifact_consequence_state.get("return_consequence_state", ""))).strip_edges()
+	artifact_consequence_state["market_regime_id"] = str(outcome_summary.get("market_regime_id", artifact_consequence_state.get("market_regime_id", ""))).strip_edges()
+	artifact_consequence_state["market_carrier_risk_band"] = str(outcome_summary.get("market_carrier_risk_band", artifact_consequence_state.get("market_carrier_risk_band", ""))).strip_edges()
+	artifact_consequence_state["public_consequence_tags"] = _merge_limited(
+		Array(artifact_consequence_state.get("public_consequence_tags", [])),
+		Array(outcome_summary.get("public_consequence_tags", [])),
+		8
+	)
+	var summary_line := _first_string([
+		"%s under %s" % [
+			str(outcome_summary.get("return_consequence_state", "")).replace("_", " "),
+			str(outcome_summary.get("valuation_band", "")).replace("_", " ")
+		],
+		str(outcome_summary.get("artifact_continuity_text", "")).strip_edges()
+	], "").strip_edges()
+	if not summary_line.is_empty():
+		artifact_consequence_state["lines"] = _merge_limited(Array(artifact_consequence_state.get("lines", [])), [summary_line], 6)
+	world_memory["artifact_consequence_state"] = artifact_consequence_state
+
+static func _update_social_consequence_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var social_consequence_state := _normalize_social_consequence_state(Dictionary(world_memory.get("social_consequence_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var diagnostics: Dictionary = Dictionary(run_context.get("diagnostics", {}))
+	var version := int(run_record.get("social_consequence_version", diagnostics.get("social_consequence_version", 0)))
+	if version <= 0:
+		world_memory["social_consequence_state"] = social_consequence_state
+		return
+	social_consequence_state["social_consequence_version"] = version
+	social_consequence_state["public_evidence_tags"] = _merge_limited(
+		Array(social_consequence_state.get("public_evidence_tags", [])),
+		_string_array(run_record.get("public_evidence_tags", diagnostics.get("public_evidence_tags", []))),
+		8
+	)
+	social_consequence_state["witness_pressure"] = str(run_record.get("witness_pressure", diagnostics.get("witness_pressure", social_consequence_state.get("witness_pressure", "")))).strip_edges()
+	social_consequence_state["counterfeit_pressure"] = str(run_record.get("counterfeit_pressure", diagnostics.get("counterfeit_pressure", social_consequence_state.get("counterfeit_pressure", "")))).strip_edges()
+	social_consequence_state["relationship_pressure"] = str(run_record.get("relationship_pressure", diagnostics.get("relationship_pressure", social_consequence_state.get("relationship_pressure", "")))).strip_edges()
+	social_consequence_state["blame_surface_tags"] = _merge_limited(
+		Array(social_consequence_state.get("blame_surface_tags", [])),
+		_string_array(run_record.get("blame_surface_tags", diagnostics.get("blame_surface_tags", []))),
+		8
+	)
+	social_consequence_state["consequence_read_refs"] = _merge_limited(
+		Array(social_consequence_state.get("consequence_read_refs", [])),
+		_string_array(run_record.get("consequence_read_refs", diagnostics.get("consequence_read_refs", []))),
+		8
+	)
+	var public_tag := _first_string(Array(social_consequence_state.get("public_evidence_tags", [])), "")
+	var blame_tag := _first_string(Array(social_consequence_state.get("blame_surface_tags", [])), "")
+	var summary_line := _first_string([
+		"%s / %s through %s" % [
+			str(social_consequence_state.get("witness_pressure", "")).replace("_", " "),
+			str(social_consequence_state.get("relationship_pressure", "")).replace("_", " "),
+			(blame_tag if not blame_tag.is_empty() else public_tag).replace("_", " ")
+		],
+		public_tag.replace("_", " ")
+	], "").strip_edges()
+	if not summary_line.is_empty():
+		social_consequence_state["lines"] = _merge_limited(Array(social_consequence_state.get("lines", [])), [summary_line], 6)
+	world_memory["social_consequence_state"] = social_consequence_state
+
+static func _update_encounter_apex_consequence_state(world_memory: Dictionary, run_context: Dictionary) -> void:
+	var encounter_apex_consequence_state := _normalize_encounter_apex_consequence_state(Dictionary(world_memory.get("encounter_apex_consequence_state", {})))
+	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
+	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {}))
+	var version := int(run_record.get("encounter_apex_consequence_version", local_aftermath.get("encounter_apex_consequence_version", 0)))
+	if version <= 0:
+		world_memory["encounter_apex_consequence_state"] = encounter_apex_consequence_state
+		return
+	encounter_apex_consequence_state["encounter_apex_consequence_version"] = version
+	encounter_apex_consequence_state["encounter_resolution_state"] = str(run_record.get("encounter_resolution_state", local_aftermath.get("encounter_resolution_state", encounter_apex_consequence_state.get("encounter_resolution_state", "")))).strip_edges()
+	encounter_apex_consequence_state["apex_resolution_state"] = str(run_record.get("apex_resolution_state", local_aftermath.get("apex_resolution_state", encounter_apex_consequence_state.get("apex_resolution_state", "")))).strip_edges()
+	encounter_apex_consequence_state["anchored_pressures"] = _merge_limited(
+		Array(encounter_apex_consequence_state.get("anchored_pressures", [])),
+		_string_array(run_record.get("anchored_pressures", local_aftermath.get("anchored_pressures", []))),
+		8
+	)
+	encounter_apex_consequence_state["consequence_classes"] = _merge_limited(
+		Array(encounter_apex_consequence_state.get("consequence_classes", [])),
+		_string_array(run_record.get("consequence_classes", local_aftermath.get("consequence_classes", []))),
+		8
+	)
+	encounter_apex_consequence_state["local_aftermath_tags"] = _merge_limited(
+		Array(encounter_apex_consequence_state.get("local_aftermath_tags", [])),
+		_string_array(run_record.get("local_aftermath_tags", local_aftermath.get("local_aftermath_tags", []))),
+		8
+	)
+	encounter_apex_consequence_state["world_aftermath_tags"] = _merge_limited(
+		Array(encounter_apex_consequence_state.get("world_aftermath_tags", [])),
+		_string_array(run_record.get("world_aftermath_tags", local_aftermath.get("world_aftermath_tags", []))),
+		8
+	)
+	encounter_apex_consequence_state["aftermath_consequence_refs"] = _merge_limited(
+		Array(encounter_apex_consequence_state.get("aftermath_consequence_refs", [])),
+		_string_array(run_record.get("aftermath_consequence_refs", local_aftermath.get("aftermath_consequence_refs", []))),
+		8
+	)
+	var summary_line := ""
+	var encounter_state := str(encounter_apex_consequence_state.get("encounter_resolution_state", "")).strip_edges()
+	var apex_state := str(encounter_apex_consequence_state.get("apex_resolution_state", "")).strip_edges()
+	var world_tag := _first_string(Array(encounter_apex_consequence_state.get("world_aftermath_tags", [])), "")
+	if not encounter_state.is_empty() or not apex_state.is_empty():
+		summary_line = "%s / %s through %s" % [encounter_state.replace("_", " "), apex_state.replace("_", " "), world_tag]
+	elif not world_tag.is_empty():
+		summary_line = world_tag.replace("_", " ")
+	if not summary_line.strip_edges().is_empty():
+		encounter_apex_consequence_state["lines"] = _merge_limited(Array(encounter_apex_consequence_state.get("lines", [])), [summary_line], 6)
+	world_memory["encounter_apex_consequence_state"] = encounter_apex_consequence_state
+
 static func _update_lifecycle_registry(world_memory: Dictionary, run_context: Dictionary) -> void:
 	var lifecycle_registry := _normalize_lifecycle_registry(Dictionary(world_memory.get("lifecycle_registry", {})))
 	var run_record: Dictionary = Dictionary(run_context.get("run_record", {}))
@@ -1372,13 +1541,19 @@ static func _update_lifecycle_registry(world_memory: Dictionary, run_context: Di
 			"families": [{
 				"family_id": _first_string(_string_array(constitution_summary.get("active_regime_ids", [])), "market_balanced_exchange"),
 				"family_kind": "market",
+				"source_id": _first_string(_string_array(constitution_summary.get("active_regime_ids", [])), "market_balanced_exchange"),
 				"state": "emerging",
 				"heat": 1,
 				"saturation": 1,
 				"strain": 0,
 				"cooling_tags": [],
+				"cooldown_band": "open",
 				"successor_hint": "market_balanced_exchange",
-				"return_window": "near_horizon"
+				"return_window": "near_horizon",
+				"routing_tags": ["market", "return"],
+				"dominance_strain": 0,
+				"throttle_state": "open",
+				"resurrection_priority": 0
 			}],
 			"active_state_ids": _string_array(constitution_summary.get("lifecycle_state_ids", [])),
 			"lines": _string_array(constitution_summary.get("lifecycle_lines", []))
@@ -1401,8 +1576,11 @@ static func _update_lifecycle_registry(world_memory: Dictionary, run_context: Di
 		existing_family["saturation"] = maxi(int(existing_family.get("saturation", 0)), int(incoming.get("saturation", 0)))
 		existing_family["strain"] = maxi(int(existing_family.get("strain", 0)), int(incoming.get("strain", 0)))
 		existing_family["cooling_tags"] = _merge_limited(Array(existing_family.get("cooling_tags", [])), Array(incoming.get("cooling_tags", [])), 4)
+		existing_family["source_id"] = str(incoming.get("source_id", existing_family.get("source_id", family_id))).strip_edges()
+		existing_family["cooldown_band"] = str(incoming.get("cooldown_band", existing_family.get("cooldown_band", "open"))).strip_edges()
 		existing_family["successor_hint"] = str(incoming.get("successor_hint", existing_family.get("successor_hint", ""))).strip_edges()
 		existing_family["return_window"] = str(incoming.get("return_window", existing_family.get("return_window", ""))).strip_edges()
+		existing_family["routing_tags"] = _merge_limited(Array(existing_family.get("routing_tags", [])), Array(incoming.get("routing_tags", [])), 6)
 		existing_family["dominance_strain"] = maxi(int(existing_family.get("dominance_strain", 0)), int(incoming.get("dominance_strain", 0)))
 		existing_family["throttle_state"] = str(incoming.get("throttle_state", existing_family.get("throttle_state", "open"))).strip_edges()
 		existing_family["resurrection_priority"] = maxi(int(existing_family.get("resurrection_priority", 0)), int(incoming.get("resurrection_priority", 0)))
@@ -2554,6 +2732,79 @@ static func _normalize_market_memory_state(state: Dictionary) -> Dictionary:
 	current["lines"] = _string_array(current.get("lines", []))
 	return current
 
+static func _normalize_artifact_consequence_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"artifact_consequence_version": 0,
+		"consequence_event_family": "",
+		"burden_band": "",
+		"valuation_band": "",
+		"return_consequence_state": "",
+		"market_regime_id": "",
+		"market_carrier_risk_band": "",
+		"public_consequence_tags": [],
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["artifact_consequence_version"] = int(current.get("artifact_consequence_version", 0))
+	current["consequence_event_family"] = str(current.get("consequence_event_family", "")).strip_edges()
+	current["burden_band"] = str(current.get("burden_band", "")).strip_edges()
+	current["valuation_band"] = str(current.get("valuation_band", "")).strip_edges()
+	current["return_consequence_state"] = str(current.get("return_consequence_state", "")).strip_edges()
+	current["market_regime_id"] = str(current.get("market_regime_id", "")).strip_edges()
+	current["market_carrier_risk_band"] = str(current.get("market_carrier_risk_band", "")).strip_edges()
+	current["public_consequence_tags"] = _string_array(current.get("public_consequence_tags", []))
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_social_consequence_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"social_consequence_version": 0,
+		"public_evidence_tags": [],
+		"witness_pressure": "",
+		"counterfeit_pressure": "",
+		"relationship_pressure": "",
+		"blame_surface_tags": [],
+		"consequence_read_refs": [],
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["social_consequence_version"] = int(current.get("social_consequence_version", 0))
+	current["public_evidence_tags"] = _string_array(current.get("public_evidence_tags", []))
+	current["witness_pressure"] = str(current.get("witness_pressure", "")).strip_edges()
+	current["counterfeit_pressure"] = str(current.get("counterfeit_pressure", "")).strip_edges()
+	current["relationship_pressure"] = str(current.get("relationship_pressure", "")).strip_edges()
+	current["blame_surface_tags"] = _string_array(current.get("blame_surface_tags", []))
+	current["consequence_read_refs"] = _string_array(current.get("consequence_read_refs", []))
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
+static func _normalize_encounter_apex_consequence_state(state: Dictionary) -> Dictionary:
+	var current := {
+		"encounter_apex_consequence_version": 0,
+		"encounter_resolution_state": "",
+		"apex_resolution_state": "",
+		"anchored_pressures": [],
+		"consequence_classes": [],
+		"local_aftermath_tags": [],
+		"world_aftermath_tags": [],
+		"aftermath_consequence_refs": [],
+		"lines": []
+	}
+	for key in state.keys():
+		current[key] = state[key]
+	current["encounter_apex_consequence_version"] = int(current.get("encounter_apex_consequence_version", 0))
+	current["encounter_resolution_state"] = str(current.get("encounter_resolution_state", "")).strip_edges()
+	current["apex_resolution_state"] = str(current.get("apex_resolution_state", "")).strip_edges()
+	current["anchored_pressures"] = _string_array(current.get("anchored_pressures", []))
+	current["consequence_classes"] = _string_array(current.get("consequence_classes", []))
+	current["local_aftermath_tags"] = _string_array(current.get("local_aftermath_tags", []))
+	current["world_aftermath_tags"] = _string_array(current.get("world_aftermath_tags", []))
+	current["aftermath_consequence_refs"] = _string_array(current.get("aftermath_consequence_refs", []))
+	current["lines"] = _string_array(current.get("lines", []))
+	return current
+
 static func _normalize_lifecycle_registry(state: Dictionary) -> Dictionary:
 	var current := {
 		"families": [],
@@ -2567,13 +2818,16 @@ static func _normalize_lifecycle_registry(state: Dictionary) -> Dictionary:
 		var family: Dictionary = Dictionary(family_raw).duplicate(true)
 		family["family_id"] = str(family.get("family_id", "")).strip_edges()
 		family["family_kind"] = str(family.get("family_kind", "market")).strip_edges()
+		family["source_id"] = str(family.get("source_id", family.get("family_id", ""))).strip_edges()
 		family["state"] = str(family.get("state", "emerging")).strip_edges()
 		family["heat"] = int(family.get("heat", 0))
 		family["saturation"] = int(family.get("saturation", 0))
 		family["strain"] = int(family.get("strain", 0))
 		family["cooling_tags"] = _string_array(family.get("cooling_tags", []))
+		family["cooldown_band"] = str(family.get("cooldown_band", "open")).strip_edges()
 		family["successor_hint"] = str(family.get("successor_hint", "")).strip_edges()
 		family["return_window"] = str(family.get("return_window", "")).strip_edges()
+		family["routing_tags"] = _string_array(family.get("routing_tags", []))
 		family["dominance_strain"] = int(family.get("dominance_strain", family.get("strain", 0)))
 		family["throttle_state"] = str(family.get("throttle_state", "open")).strip_edges()
 		family["resurrection_priority"] = int(family.get("resurrection_priority", 0))

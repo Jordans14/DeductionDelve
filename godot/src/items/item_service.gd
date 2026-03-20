@@ -1175,6 +1175,12 @@ func build_runtime_affordances(item_def_ids: Array[String], context: Dictionary 
 	affordances["protocol_hooks"] = Array(state.get("protocol_hooks", [])).duplicate()
 	affordances["resource_signals"] = Array(state.get("resource_signals", [])).duplicate()
 	affordances["latent_totals"] = Dictionary(state.get("latent_totals", {})).duplicate(true)
+	affordances["combo_contract_version"] = int(state.get("combo_contract_version", 0))
+	affordances["combo_contract_digest"] = str(state.get("combo_contract_digest", "")).strip_edges()
+	affordances["combo_family_ids"] = Array(state.get("combo_family_ids", [])).duplicate(true)
+	affordances["combo_entries"] = Array(state.get("combo_entries", [])).duplicate(true)
+	affordances["combo_pressure_tags"] = Array(state.get("combo_pressure_tags", [])).duplicate(true)
+	affordances["public_surface_tags"] = Array(state.get("public_surface_tags", [])).duplicate(true)
 	affordances["modifier_surfaces"] = build_modifier_registry()
 	affordances["category_counts"] = category_counts
 	affordances["forbidden_combo_failures"] = forbidden_combo_failures(item_def_ids)
@@ -1639,6 +1645,7 @@ func _directive_bonus_for_item(item_def_id: String, directive: Dictionary, room:
 	if dominant_forces.has("containment"):
 		bonus += int(latent.get("burden", 0)) / 2 + int(latent.get("scarcity", 0)) / 2
 	bonus += _market_bonus_for_item(latent, market_routing)
+	bonus += _lifecycle_bonus_for_item(item_def_id, latent, generation_contract, room)
 	bonus += _public_summary_bonus_for_item(latent, generation_contract)
 	if protocol_state == "Exposure Protocol":
 		bonus += int(latent.get("scarcity", 0)) / 2
@@ -1710,6 +1717,46 @@ func _market_bonus_for_item(latent: Dictionary, market_routing: Dictionary) -> i
 			"market_distortion_spike":
 				bonus += int(latent.get("deception", 0)) + int(latent.get("instability", 0)) / 2
 	return bonus
+
+func _lifecycle_bonus_for_item(item_def_id: String, latent: Dictionary, generation_contract: Dictionary, room: Dictionary = {}) -> int:
+	var bonus := 0
+	var lifecycle_routing: Dictionary = Dictionary(generation_contract.get("lifecycle_routing", {}))
+	var room_branch := str(room.get("branch_family_id", "")).to_lower()
+	for family_raw in Array(lifecycle_routing.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw)
+		var family_kind := str(family.get("family_kind", "")).strip_edges()
+		var source_id := str(family.get("source_id", "")).strip_edges()
+		var heat := int(family.get("heat", 0))
+		var cooldown_band := str(family.get("cooldown_band", "open")).strip_edges()
+		var routing_tags := _string_array(family.get("routing_tags", []))
+		if family_kind == "combo_family" and heat >= 3:
+			if _lifecycle_tag_match(routing_tags, ["route", "return", "artifact_custody"]):
+				bonus += int(latent.get("traversal", 0)) / 2 + int(latent.get("rescue", 0)) / 2
+			if _lifecycle_tag_match(routing_tags, ["memory", "witness", "combo_private_archive_ritual"]):
+				bonus += int(latent.get("ritual_significance", 0)) / 2 + int(latent.get("witness_visibility", 0)) / 2
+			if cooldown_band == "deep_cooling":
+				bonus += maxi(int(latent.get("instability", 0)) / 2, 1)
+		elif family_kind == "artifact_continuity":
+			match source_id:
+				"burial", "archive_only_residue":
+					bonus += int(latent.get("ritual_significance", 0)) / 2 + int(latent.get("burden", 0)) / 2
+				"recoverable_loss", "successor_emergence":
+					bonus += int(latent.get("rescue", 0)) / 2 + int(latent.get("traversal", 0)) / 2
+				"extinction":
+					bonus += int(latent.get("scarcity", 0)) / 2 + int(latent.get("burden", 0)) / 2
+			if cooldown_band in ["cooling", "warming"] and room_branch.find("relay") != -1:
+				bonus += 1
+	if item_def_id == "burden_sling" and room_branch.find("oath") != -1:
+		bonus += 1
+	return bonus
+
+func _lifecycle_tag_match(tags: Array[String], needles: Array[String]) -> bool:
+	for tag in tags:
+		var lowered := tag.to_lower()
+		for needle in needles:
+			if lowered.find(needle) != -1:
+				return true
+	return false
 
 func _public_summary_bonus_for_item(latent: Dictionary, generation_contract: Dictionary) -> int:
 	var bonus := 0

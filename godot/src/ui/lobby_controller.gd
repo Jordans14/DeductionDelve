@@ -4,6 +4,11 @@ const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
 const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
 const VISUAL_GOVERNANCE_SCRIPT = preload("res://src/visual/visual_governance.gd")
 
+var NetworkManager: Node:
+	get:
+		var tree = get_tree() if is_inside_tree() else Engine.get_main_loop()
+		return tree.root.get_node_or_null("/root/NetworkManager") if tree != null else null
+
 @onready var title_label: Label = $Panel/VBox/Title
 @onready var banner_label: Label = $Panel/VBox/BannerLabel
 @onready var status_label: Label = $Panel/VBox/Status
@@ -92,7 +97,6 @@ var product_shell_refresh_queued: bool = false
 var headless_cli_shell_latched: bool = false
 
 func _ready() -> void:
-	print("LOBBY_READY")
 	product_catalog = PRODUCT_CATALOG_SCRIPT.load_catalog()
 	profile_state = PROFILE_SERVICE_SCRIPT.load_profile(PROFILE_SERVICE_SCRIPT.SAVE_PATH, product_catalog)
 	NetworkManager.connection_changed.connect(_on_connection_changed)
@@ -119,11 +123,9 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if cli_mode == "host":
-		print("LOBBY_CLI_HOST")
 		cli_mode = ""
 		_on_host_button_pressed()
 	elif cli_mode == "client":
-		print("LOBBY_CLI_CLIENT")
 		cli_mode = ""
 		_on_join_button_pressed()
 	_run_cli_automation()
@@ -230,7 +232,7 @@ func _on_lobby_updated(players: Array, ready_state: Dictionary, host_flag: bool)
 	if mp != null and mp.multiplayer_peer != null:
 		local_id = mp.get_unique_id()
 		local_ready = bool(ready_state.get(local_id, local_ready))
-	var public_cards := NetworkManager.get_public_player_cards() if NetworkManager.has_method("get_public_player_cards") else {}
+	var public_cards: Dictionary = NetworkManager.get_public_player_cards() if NetworkManager.has_method("get_public_player_cards") else {}
 	players_label.text = "\n".join(
 		PROFILE_SERVICE_SCRIPT.build_lobby_roster_lines(
 			profile_state,
@@ -246,7 +248,13 @@ func _on_lobby_updated(players: Array, ready_state: Dictionary, host_flag: bool)
 	_run_cli_automation()
 
 func _on_run_started(_seed: int, _chain: Array) -> void:
-	get_tree().change_scene_to_file("res://scenes/Game.tscn")
+	call_deferred("_deferred_change_to_game_scene")
+
+func _deferred_change_to_game_scene() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	tree.change_scene_to_file("res://scenes/Game.tscn")
 
 func _refresh_buttons() -> void:
 	var mp := _multiplayer_api()
@@ -285,17 +293,13 @@ func _run_cli_automation() -> void:
 	var connected := mp != null and mp.multiplayer_peer != null
 	if cli_auto_ready and not cli_auto_ready_done and connected:
 		var local_id := mp.get_unique_id()
-		var can_ready := NetworkManager.is_host or (NetworkManager.connected_peers.has(local_id) and NetworkManager.connected_peers.has(1) and NetworkManager.connected_peers.size() >= 2)
+		var can_ready: bool = NetworkManager.is_host or (NetworkManager.connected_peers.has(local_id) and NetworkManager.connected_peers.has(1) and NetworkManager.connected_peers.size() >= 2)
 		if can_ready:
 			if not bool(NetworkManager.ready_by_id.get(local_id, false)):
 				_on_ready_button_pressed()
 			cli_auto_ready_done = true
 	if cli_auto_start and not cli_auto_start_done and connected and NetworkManager.is_host:
 		var gate: Dictionary = NetworkManager.can_host_start_run(NetworkManager.connected_peers, NetworkManager.ready_by_id, true, NetworkManager.is_run_active())
-		print("START_GATE allowed=%s reason=%s" % [
-			str(bool(gate.get("allowed", false))).to_lower(),
-			str(gate.get("reason", ""))
-		])
 		if bool(gate.get("allowed", false)):
 			_on_start_button_pressed()
 			cli_auto_start_done = true
@@ -555,6 +559,26 @@ func _find_selected_cosmetic_index() -> int:
 func _build_home_overview_lines() -> Array[String]:
 	return PROFILE_SERVICE_SCRIPT.build_home_overview_lines(profile_state, NetworkManager.get_session_overview(), product_catalog)
 
+static func build_home_quick_start_text_for_test(profile: Dictionary, session_overview: Dictionary = {}) -> String:
+	var lines: Array[String] = []
+	var live_brief := PROFILE_SERVICE_SCRIPT._session_delve_brief_line(session_overview)
+	if bool(profile.get("first_run_pending", true)):
+		lines.append("First run: recover an authentic Artifact and hold it in Extraction.")
+		lines.append("Roles stay asymmetric: Warden reads clues, Veil hides sabotage, Scavenger keeps the route alive.")
+		if not live_brief.is_empty():
+			lines.append("Current read: %s" % live_brief)
+		lines.append("Artifacts are the objective. Tools are active. Relics are passive.")
+		lines.append("Use notebook notes and hints early; danger pressure closes indecision.")
+		lines.append("Continuity matters: what returns from this run can shape later reads.")
+	else:
+		lines.append("Live brief: host or rejoin, ready up, and commit once the route starts forcing choices.")
+		if not live_brief.is_empty():
+			lines.append("Current read: %s" % live_brief)
+		lines.append("Artifacts remain the objective. Tools stay active. Relics stay passive.")
+		lines.append("Danger pressure, public reads, and continuity matter more now than primer wording.")
+		lines.append("Carry the readable line forward; later runs remember aftermath and custody.")
+	return "\n".join(lines)
+
 func _focus_home_primary_control() -> void:
 	var session: Dictionary = NetworkManager.get_session_overview() if NetworkManager.has_method("get_session_overview") else {}
 	if reconnect_button != null and not reconnect_button.disabled and bool(session.get("reconnect_available", false)):
@@ -574,23 +598,12 @@ func _focus_home_primary_control() -> void:
 		host_button.grab_focus()
 
 func _build_home_quick_start_text() -> String:
-	var lines: Array[String] = []
 	var session: Dictionary = NetworkManager.get_session_overview() if NetworkManager.has_method("get_session_overview") else {}
-	var live_brief := PROFILE_SERVICE_SCRIPT._session_delve_brief_line(session)
-	if bool(profile_state.get("first_run_pending", true)):
-		lines.append("First run: recover an authentic Artifact and hold it in Extraction.")
-		lines.append("Warden reads clues. Veil hides sabotage. Scavenger keeps the route alive.")
-	else:
-		lines.append("Host a room, ready up, and commit to a route when the Ghost starts forcing choices.")
-	if not live_brief.is_empty():
-		lines.append("Current read: %s" % live_brief)
-	lines.append("Artifacts are the objective. Tools are active. Relics are passive.")
-	lines.append("Some runs surface charms, bursts, vows, burdens, and visible threshold shifts.")
-	lines.append("Progression unlocks identity only: titles, banners, notebook themes, and future cosmetics.")
-	return "\n".join(lines)
+	return build_home_quick_start_text_for_test(profile_state, session)
 
 func _build_session_summary_lines() -> Array[String]:
 	var session: Dictionary = NetworkManager.get_session_overview() if NetworkManager.has_method("get_session_overview") else {}
+	session["first_run_pending"] = bool(profile_state.get("first_run_pending", true))
 	var lines: Array[String] = NetworkManager.build_session_policy_lines(session) if NetworkManager.has_method("build_session_policy_lines") else []
 	if lines.is_empty():
 		lines.append("Session: Offline")

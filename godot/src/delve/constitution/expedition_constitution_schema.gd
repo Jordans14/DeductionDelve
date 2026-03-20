@@ -2,6 +2,7 @@ class_name ExpeditionConstitutionSchema
 extends RefCounted
 
 const SCHEMA_VERSION := 2
+const ENCOUNTER_APEX_CONSEQUENCE_VERSION := 1
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
 const DELVEMIND_LEARNING_LOOP_SCRIPT = preload("res://src/product/delvemind_learning_loop.gd")
 const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
@@ -76,6 +77,13 @@ static func build(
 	public_summary = _apply_phase3_market_summary(public_summary, market_regime_state, lifecycle_registry)
 	public_summary = _apply_phase4_encounter_summary(public_summary, encounter_manifest, pathology_state)
 	public_summary = _apply_phase5_apex_summary(public_summary, apex_manifest, peak_structure_profile)
+	var information_doctrine := _build_information_doctrine(policy, public_summary)
+	public_summary["provenance_contract_version"] = int(explanation_packet.get("provenance_contract_version", GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION))
+	public_summary["public_trace_classes"] = _string_array(information_doctrine.get("public_trace_classes", []))
+	public_summary["public_surface_tags"] = _string_array(explanation_packet.get("public_surface_tags", []))
+	var constitution_summary := public_summary.duplicate(true)
+	constitution_summary["private_trace_classes"] = _string_array(information_doctrine.get("private_trace_classes", []))
+	constitution_summary["provenance_source_refs"] = _string_array(explanation_packet.get("provenance_source_refs", []))
 	var constitution := {
 		"artifact_type": "expedition_constitution",
 		"schema_name": "ExpeditionConstitution",
@@ -95,7 +103,7 @@ static func build(
 		"control_surfaces": policy.duplicate(true),
 		"surface_summary": surface_summary.duplicate(true),
 		"public_summary": public_summary.duplicate(true),
-		"constitution_summary": public_summary.duplicate(true),
+		"constitution_summary": constitution_summary.duplicate(true),
 		"generation_surface": generation_surface.duplicate(true),
 		"generation_contract": generation_surface.duplicate(true),
 		"ontology_snapshot": Dictionary(compile_outputs.get("ontology_snapshot", {})).duplicate(true),
@@ -138,7 +146,7 @@ static func build(
 		"role_surface_model": _build_role_surface_model(policy, public_summary),
 		"item_ecology": _build_item_ecology(public_summary, generation_surface),
 		"pressure_ecology": _build_pressure_ecology(policy, public_summary),
-		"information_doctrine": _build_information_doctrine(policy, public_summary),
+		"information_doctrine": information_doctrine.duplicate(true),
 		"custody_law": _build_custody_law(public_summary, generation_surface),
 		"mutation_envelope": _build_mutation_envelope(policy, public_summary, generation_surface),
 		"continuity_hooks": _build_continuity_hooks(public_summary, world_goals),
@@ -483,6 +491,7 @@ static func build_public_summary(
 		"market_regime_family": "",
 		"market_prestige_band": "",
 		"market_carrier_risk_band": "",
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"active_pathology_ids": [],
 		"pathology_lines": [],
 		"encounter_lines": [],
@@ -517,6 +526,9 @@ static func build_public_summary(
 		"activation_lines": [],
 		"safe_mode_active": false,
 		"safe_mode_lines": [],
+		"provenance_contract_version": GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION,
+		"public_trace_classes": ["artifact", "noise", "hazard", "extraction"],
+		"public_surface_tags": [],
 		"packet_schema_version": GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION,
 		"explanation_packet_digest": "",
 		"explanation_packet_lines": [],
@@ -583,6 +595,11 @@ static func build_runtime_summary(summary: Dictionary, constitution_hash: String
 		"activation_lines": Array(normalized_summary.get("activation_lines", [])).duplicate(true),
 		"safe_mode_active": bool(normalized_summary.get("safe_mode_active", false)),
 		"safe_mode_lines": Array(normalized_summary.get("safe_mode_lines", [])).duplicate(true),
+		"provenance_contract_version": int(normalized_summary.get("provenance_contract_version", GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION)),
+		"public_trace_classes": Array(normalized_summary.get("public_trace_classes", [])).duplicate(true),
+		"private_trace_classes": Array(normalized_summary.get("private_trace_classes", [])).duplicate(true),
+		"public_surface_tags": Array(normalized_summary.get("public_surface_tags", [])).duplicate(true),
+		"provenance_source_refs": Array(normalized_summary.get("provenance_source_refs", [])).duplicate(true),
 		"normalization_modes_supported": Array(normalized_summary.get("normalization_modes_supported", PRODUCT_CATALOG_SCRIPT.normalization_modes())).duplicate(true),
 		"normalization_mode_default": str(normalized_summary.get("normalization_mode_default", "default")),
 		"cosmetic_modulation_lines": Array(normalized_summary.get("cosmetic_modulation_lines", [])).duplicate(true),
@@ -594,6 +611,7 @@ static func build_runtime_summary(summary: Dictionary, constitution_hash: String
 		"market_regime_family": str(normalized_summary.get("market_regime_family", "")),
 		"market_prestige_band": str(normalized_summary.get("market_prestige_band", "")),
 		"market_carrier_risk_band": str(normalized_summary.get("market_carrier_risk_band", "")),
+		"encounter_apex_consequence_version": int(normalized_summary.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION)),
 		"active_pathology_ids": Array(normalized_summary.get("active_pathology_ids", [])).duplicate(true),
 		"pathology_lines": Array(normalized_summary.get("pathology_lines", [])).duplicate(true),
 		"encounter_lines": Array(normalized_summary.get("encounter_lines", [])).duplicate(true),
@@ -626,7 +644,7 @@ static func build_hash(raw_constitution: Dictionary) -> String:
 
 static func public_summary(constitution: Dictionary) -> Dictionary:
 	var normalized := normalize(constitution)
-	var summary: Dictionary = Dictionary(normalized.get("constitution_summary", normalized.get("public_summary", {}))).duplicate(true)
+	var summary: Dictionary = Dictionary(normalized.get("public_summary", normalized.get("constitution_summary", {}))).duplicate(true)
 	if not str(normalized.get("constitution_hash", "")).strip_edges().is_empty():
 		summary["constitution_hash"] = str(normalized.get("constitution_hash", ""))
 	if not str(normalized.get("constitution_id", "")).strip_edges().is_empty():
@@ -714,13 +732,19 @@ static func _default_lifecycle_registry(market_regime_state: Dictionary) -> Dict
 		"families": [{
 			"family_id": str(market_regime_state.get("regime_id", "market_balanced_exchange")).strip_edges(),
 			"family_kind": "market",
+			"source_id": str(market_regime_state.get("regime_id", "market_balanced_exchange")).strip_edges(),
 			"state": "emerging",
 			"heat": 0,
 			"saturation": 0,
 			"strain": 0,
 			"cooling_tags": [],
+			"cooldown_band": "open",
 			"successor_hint": "market_balanced_exchange",
-			"return_window": "near_horizon"
+			"return_window": "near_horizon",
+			"routing_tags": ["market", "return"],
+			"dominance_strain": 0,
+			"throttle_state": "open",
+			"resurrection_priority": 0
 		}],
 		"active_state_ids": Array(market_regime_state.get("active_regime_ids", [])).duplicate(true),
 		"lines": Array(market_regime_state.get("summary_lines", [])).duplicate(true)
@@ -985,6 +1009,7 @@ static func _default_encounter_manifest(public_summary: Dictionary, _generation_
 	return {
 		"schema_name": "EncounterManifest",
 		"schema_version": SCHEMA_VERSION,
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"encounters": encounters,
 		"summary_lines": summary_lines.slice(0, 3)
 	}
@@ -1077,6 +1102,7 @@ static func _default_apex_manifest(public_summary: Dictionary, _generation_surfa
 	return {
 		"schema_name": "ApexManifest",
 		"schema_version": SCHEMA_VERSION,
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"apexes": apexes,
 		"summary_lines": summary_lines.slice(0, 3)
 	}
@@ -1187,6 +1213,7 @@ static func _normalize_encounter_manifest(raw: Dictionary) -> Dictionary:
 		normalized[key] = raw[key]
 	normalized["schema_name"] = "EncounterManifest"
 	normalized["schema_version"] = maxi(int(normalized.get("schema_version", SCHEMA_VERSION)), SCHEMA_VERSION)
+	normalized["encounter_apex_consequence_version"] = maxi(int(normalized.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION)), ENCOUNTER_APEX_CONSEQUENCE_VERSION)
 	var encounter_defaults := {}
 	for encounter_raw in _encounter_defaults():
 		var encounter := Dictionary(encounter_raw).duplicate(true)
@@ -1208,10 +1235,13 @@ static func _normalize_encounter_manifest(raw: Dictionary) -> Dictionary:
 		merged["role_vectors"] = _unique_string_array(Array(merged.get("role_vectors", [])))
 		merged["telegraph_channels"] = _unique_string_array(Array(merged.get("telegraph_channels", [])))
 		merged["consequence_classes"] = _unique_string_array(Array(merged.get("consequence_classes", [])))
+		merged["local_aftermath_tags"] = _unique_string_array(Array(merged.get("local_aftermath_tags", [])))
+		merged["world_aftermath_tags"] = _unique_string_array(Array(merged.get("world_aftermath_tags", [])))
 		merged["pathology_family_ids"] = _unique_string_array(Array(merged.get("pathology_family_ids", [])))
 		merged["room_tags"] = _unique_string_array(Array(merged.get("room_tags", [])))
 		merged["hazard_tags"] = _unique_string_array(Array(merged.get("hazard_tags", [])))
 		merged["summary_lines"] = _unique_string_array(Array(merged.get("summary_lines", []))).slice(0, 2)
+		merged["encounter_apex_consequence_version"] = maxi(int(merged.get("encounter_apex_consequence_version", normalized.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION))), ENCOUNTER_APEX_CONSEQUENCE_VERSION)
 		if not merged.has("state_flow"):
 			merged["state_flow"] = _encounter_state_flow_defaults()
 		else:
@@ -1261,6 +1291,7 @@ static func _normalize_apex_manifest(raw: Dictionary) -> Dictionary:
 		normalized[key] = raw[key]
 	normalized["schema_name"] = "ApexManifest"
 	normalized["schema_version"] = maxi(int(normalized.get("schema_version", SCHEMA_VERSION)), SCHEMA_VERSION)
+	normalized["encounter_apex_consequence_version"] = maxi(int(normalized.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION)), ENCOUNTER_APEX_CONSEQUENCE_VERSION)
 	var defaults_by_id := {}
 	for apex_raw in Array(_default_apex_manifest({}, {}).get("apexes", [])):
 		var apex := Dictionary(apex_raw).duplicate(true)
@@ -1278,6 +1309,7 @@ static func _normalize_apex_manifest(raw: Dictionary) -> Dictionary:
 			merged[key] = apex[key]
 		for key in ["linked_encounter_ids", "phase_model", "resolution_classes", "consequence_strata", "anchored_pressures", "local_aftermath_tags", "world_aftermath_tags"]:
 			merged[key] = _unique_string_array(Array(merged.get(key, [])))
+		merged["encounter_apex_consequence_version"] = maxi(int(merged.get("encounter_apex_consequence_version", normalized.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION))), ENCOUNTER_APEX_CONSEQUENCE_VERSION)
 		merged["telegraph_profile"] = Dictionary(merged.get("telegraph_profile", {})).duplicate(true)
 		merged["summary_lines"] = _unique_string_array(Array(merged.get("summary_lines", []))).slice(0, 2)
 		normalized_apexes.append(merged)
@@ -1310,6 +1342,7 @@ static func _normalize_peak_structure_profile(raw: Dictionary) -> Dictionary:
 
 static func _apply_phase4_encounter_summary(summary: Dictionary, encounter_manifest: Dictionary, pathology_state: Dictionary) -> Dictionary:
 	var next := summary.duplicate(true)
+	next["encounter_apex_consequence_version"] = int(Dictionary(encounter_manifest).get("encounter_apex_consequence_version", next.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION)))
 	var encounters := Array(Dictionary(encounter_manifest).get("encounters", []))
 	var active_pathology_ids := _unique_string_array(Array(Dictionary(pathology_state).get("active_family_ids", [])))
 	var encounter_manifest_ids: Array[String] = []
@@ -1342,6 +1375,7 @@ static func _apply_phase4_encounter_summary(summary: Dictionary, encounter_manif
 
 static func _apply_phase5_apex_summary(summary: Dictionary, apex_manifest: Dictionary, peak_structure_profile: Dictionary) -> Dictionary:
 	var next := summary.duplicate(true)
+	next["encounter_apex_consequence_version"] = int(Dictionary(apex_manifest).get("encounter_apex_consequence_version", next.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION)))
 	var apex_manifest_ids: Array[String] = []
 	var apex_class_ids: Array[String] = []
 	var apex_lines: Array[String] = _string_array(Dictionary(apex_manifest).get("summary_lines", []))
@@ -2019,6 +2053,33 @@ static func _apply_phase_v3_summary(
 	review_surface: Dictionary
 ) -> Dictionary:
 	var current := Dictionary(summary).duplicate(true)
+	var packet_provenance_version := int(explanation_packet.get("provenance_contract_version", 0))
+	if packet_provenance_version <= 0:
+		packet_provenance_version = int(current.get("provenance_contract_version", GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION))
+	var packet_public_surface_tags := _string_array(explanation_packet.get("public_surface_tags", []))
+	if packet_public_surface_tags.is_empty():
+		packet_public_surface_tags = _string_array(current.get("public_surface_tags", []))
+	var packet_schema_version := int(explanation_packet.get("packet_schema_version", 0))
+	if packet_schema_version <= 0:
+		packet_schema_version = int(current.get("packet_schema_version", GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION))
+	var packet_digest := str(explanation_packet.get("packet_digest", "")).strip_edges()
+	if packet_digest.is_empty():
+		packet_digest = str(current.get("explanation_packet_digest", "")).strip_edges()
+	var packet_summary_lines := _string_array(explanation_packet.get("summary_lines", []))
+	if packet_summary_lines.is_empty():
+		packet_summary_lines = _string_array(current.get("explanation_packet_lines", []))
+	var packet_immediate_lines := _lane_summary_lines(Array(explanation_packet.get("immediate", [])))
+	if packet_immediate_lines.is_empty():
+		packet_immediate_lines = _string_array(current.get("explanation_immediate_lines", []))
+	var packet_run_lines := _lane_summary_lines(Array(explanation_packet.get("run", [])))
+	if packet_run_lines.is_empty():
+		packet_run_lines = _string_array(current.get("explanation_run_lines", []))
+	var packet_meta_lines := _lane_summary_lines(Array(explanation_packet.get("meta", [])))
+	if packet_meta_lines.is_empty():
+		packet_meta_lines = _string_array(current.get("explanation_meta_lines", []))
+	var packet_signal_budget_lines := _signal_budget_lines(Dictionary(explanation_packet.get("compression_profile", {})))
+	if packet_signal_budget_lines.is_empty():
+		packet_signal_budget_lines = _string_array(current.get("signal_budget_lines", []))
 	current["lineage_registry_ids"] = _sorted_strings(lineage_registry.keys())
 	current["civilization_surface_lines"] = _string_array(civilization_surface.get("lines", []))
 	current["civilization_faction_ids"] = _string_array(civilization_surface.get("faction_ids", []))
@@ -2037,14 +2098,16 @@ static func _apply_phase_v3_summary(
 	current["activation_lines"] = _string_array(activation_state.get("activation_lines", []))
 	current["safe_mode_active"] = bool(activation_state.get("safe_mode_active", false))
 	current["safe_mode_lines"] = _string_array(Dictionary(activation_state.get("safe_mode_state", {})).get("summary_lines", []))
-	current["packet_schema_version"] = int(explanation_packet.get("packet_schema_version", GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION))
-	current["explanation_packet_digest"] = str(explanation_packet.get("packet_digest", "")).strip_edges()
-	current["explanation_packet_lines"] = _string_array(explanation_packet.get("summary_lines", []))
-	current["explanation_immediate_lines"] = _lane_summary_lines(Array(explanation_packet.get("immediate", [])))
-	current["explanation_run_lines"] = _lane_summary_lines(Array(explanation_packet.get("run", [])))
-	current["explanation_meta_lines"] = _lane_summary_lines(Array(explanation_packet.get("meta", [])))
+	current["provenance_contract_version"] = packet_provenance_version
+	current["public_surface_tags"] = packet_public_surface_tags
+	current["packet_schema_version"] = packet_schema_version
+	current["explanation_packet_digest"] = packet_digest
+	current["explanation_packet_lines"] = packet_summary_lines
+	current["explanation_immediate_lines"] = packet_immediate_lines
+	current["explanation_run_lines"] = packet_run_lines
+	current["explanation_meta_lines"] = packet_meta_lines
 	current["review_surface_lines"] = _string_array(review_surface.get("lines", []))
-	current["signal_budget_lines"] = _signal_budget_lines(Dictionary(explanation_packet.get("compression_profile", {})))
+	current["signal_budget_lines"] = packet_signal_budget_lines
 	return current
 
 static func _normalize_civilization_surface(raw: Dictionary) -> Dictionary:
@@ -2199,13 +2262,19 @@ static func _normalize_lifecycle_registry(raw: Dictionary) -> Dictionary:
 		var family: Dictionary = Dictionary(family_raw).duplicate(true)
 		family["family_id"] = str(family.get("family_id", "")).strip_edges()
 		family["family_kind"] = str(family.get("family_kind", "market")).strip_edges()
+		family["source_id"] = str(family.get("source_id", family.get("family_id", ""))).strip_edges()
 		family["state"] = str(family.get("state", "emerging")).strip_edges()
 		family["heat"] = int(family.get("heat", 0))
 		family["saturation"] = int(family.get("saturation", 0))
 		family["strain"] = int(family.get("strain", 0))
 		family["cooling_tags"] = _string_array(family.get("cooling_tags", []))
+		family["cooldown_band"] = str(family.get("cooldown_band", "open")).strip_edges()
 		family["successor_hint"] = str(family.get("successor_hint", "")).strip_edges()
 		family["return_window"] = str(family.get("return_window", "")).strip_edges()
+		family["routing_tags"] = _string_array(family.get("routing_tags", []))
+		family["dominance_strain"] = int(family.get("dominance_strain", family.get("strain", 0)))
+		family["throttle_state"] = str(family.get("throttle_state", "open")).strip_edges()
+		family["resurrection_priority"] = int(family.get("resurrection_priority", 0))
 		if not str(family.get("family_id", "")).strip_edges().is_empty():
 			families.append(family)
 	current["families"] = families
@@ -2227,9 +2296,12 @@ static func _normalize_explanation_packet(raw: Dictionary) -> Dictionary:
 		current["packet_id"] = "packet_constitution"
 	current["artifact_type"] = str(current.get("artifact_type", "expedition_constitution")).strip_edges()
 	current["packet_schema_version"] = int(current.get("packet_schema_version", GOVERNANCE_SERVICE_SCRIPT.PACKET_SCHEMA_VERSION))
+	current["provenance_contract_version"] = int(current.get("provenance_contract_version", GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION))
 	current["summary_lines"] = _string_array(current.get("summary_lines", []))
 	current["operator_lines"] = _string_array(current.get("operator_lines", []))
 	current["play_routing_tags"] = _string_array(current.get("play_routing_tags", []))
+	current["public_surface_tags"] = _string_array(current.get("public_surface_tags", []))
+	current["provenance_source_refs"] = _string_array(current.get("provenance_source_refs", []))
 	current["play_routing_contract"] = Dictionary(current.get("play_routing_contract", {})).duplicate(true)
 	current["compression_profile"] = GOVERNANCE_SERVICE_SCRIPT.normalize_signal_compression_profile(
 		Dictionary(current.get("compression_profile", {}))

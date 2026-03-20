@@ -5,6 +5,7 @@ const MAX_HISTORY := 24
 const MAX_REPORTS := 24
 const MAX_LINES := 6
 const PACKET_SCHEMA_VERSION := 2
+const PROVENANCE_CONTRACT_VERSION := 1
 const SIGNAL_COMPRESSION_SCHEMA_VERSION := 1
 const GOVERNANCE_HOOK_SCHEMA_VERSION := 1
 const BASELINE_ROUTES := ["movement", "burden", "rescue", "witness", "route_choice", "artifact_custody", "hesitation", "extraction", "return"]
@@ -334,9 +335,16 @@ static func build_explanation_packet(source: Dictionary, summary_lines: Array = 
 		"packet_id": "packet_%s" % packet_id_seed.md5_text().substr(0, 12),
 		"artifact_type": artifact_type,
 		"packet_schema_version": PACKET_SCHEMA_VERSION,
+		"provenance_contract_version": PROVENANCE_CONTRACT_VERSION,
 		"summary_lines": packet_summary_lines,
 		"operator_lines": packet_operator_lines,
 		"play_routing_tags": _string_array(play_routing_tags),
+		"public_surface_tags": _string_array(options.get("public_surface_tags", play_routing_tags)),
+		"provenance_source_refs": _string_array(options.get("provenance_source_refs", [
+			"constitution_summary",
+			"explanation_packet",
+			"governance_state"
+		])),
 		"play_routing_contract": {
 			"baseline_routes": _string_array(play_routing_tags),
 			"artifact_type": artifact_type
@@ -660,13 +668,18 @@ static func _sorted_lifecycle_families(lifecycle_registry: Dictionary, constitut
 		families.append({
 			"family_id": fallback_id,
 			"family_kind": "market",
+			"source_id": fallback_id,
 			"state": "emerging",
 			"heat": 1,
 			"saturation": 1,
 			"strain": 0,
 			"dominance_strain": 0,
+			"cooldown_band": "open",
 			"successor_hint": fallback_id,
-			"return_window": "near_horizon"
+			"return_window": "near_horizon",
+			"routing_tags": ["market", "return"],
+			"throttle_state": "open",
+			"resurrection_priority": 0
 		})
 	families.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_rank := int(a.get("heat", 0)) + int(a.get("saturation", 0)) + maxi(int(a.get("strain", 0)), int(a.get("dominance_strain", 0)))
@@ -685,7 +698,8 @@ static func _build_resurrection_priority(lifecycle_families: Array[Dictionary]) 
 		if family_id.is_empty():
 			continue
 		var state := str(family.get("state", "emerging")).strip_edges()
-		if state in ["cooling", "dormant", "recurring"]:
+		var cooldown_band := str(family.get("cooldown_band", "open")).strip_edges()
+		if state in ["cooling", "dormant", "recurring"] or cooldown_band in ["cooling", "deep_cooling", "warming"]:
 			candidate_ids.append(family_id)
 		elif int(family.get("resurrection_priority", 0)) >= 3:
 			candidate_ids.append(family_id)

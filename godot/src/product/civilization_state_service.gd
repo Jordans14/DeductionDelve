@@ -23,6 +23,29 @@ static func default_extensions() -> Dictionary:
 			"reputation_bands": [],
 			"quiet_play_lines": []
 		},
+		"artifact_consequence_surface": {
+			"artifact_consequence_version": 0,
+			"consequence_event_family": "",
+			"burden_band": "",
+			"valuation_band": "",
+			"return_consequence_state": "",
+			"market_regime_id": "",
+			"market_carrier_risk_band": "",
+			"public_consequence_tags": [],
+			"return_pressure_tags": [],
+			"lines": []
+		},
+		"encounter_apex_consequence_surface": {
+			"encounter_apex_consequence_version": 0,
+			"encounter_resolution_state": "",
+			"apex_resolution_state": "",
+			"anchored_pressures": [],
+			"consequence_classes": [],
+			"local_aftermath_tags": [],
+			"world_aftermath_tags": [],
+			"aftermath_consequence_refs": [],
+			"lines": []
+		},
 		"cognitive_field_climate": {
 			"field_state_id": "",
 			"dominant_dimensions": [],
@@ -67,6 +90,8 @@ static func normalize_world_memory_extensions(world_memory: Dictionary) -> Dicti
 	current["literacy_tracks"] = _normalize_literacy_tracks(Array(current.get("literacy_tracks", [])))
 	current["strategy_clusters"] = _normalize_strategy_clusters(Array(current.get("strategy_clusters", [])))
 	current["institutional_pressure_surface"] = _normalize_institutional_pressure_surface(Dictionary(current.get("institutional_pressure_surface", {})))
+	current["artifact_consequence_surface"] = _normalize_artifact_consequence_surface(Dictionary(current.get("artifact_consequence_surface", {})))
+	current["encounter_apex_consequence_surface"] = _normalize_encounter_apex_consequence_surface(Dictionary(current.get("encounter_apex_consequence_surface", {})))
 	current["cognitive_field_climate"] = _normalize_field_climate(Dictionary(current.get("cognitive_field_climate", {})))
 	return current
 
@@ -84,15 +109,23 @@ static func build_world_aftermath_records(run_context: Dictionary) -> Array[Dict
 		aftermath_refs = [{
 			"schema_name": "WorldAftermathRef",
 			"schema_version": 1,
+			"encounter_apex_consequence_version": int(local_aftermath.get("encounter_apex_consequence_version", 0)),
 			"aftermath_id": "world_aftermath_%s" % str(local_aftermath.get("source_id", "")).strip_edges(),
 			"source_id": str(local_aftermath.get("source_id", "")).strip_edges(),
 			"source_kind": str(local_aftermath.get("source_kind", "encounter")).strip_edges(),
 			"apex_id": str(active_apex_state.get("apex_id", "")),
+			"encounter_resolution_state": str(local_aftermath.get("encounter_resolution_state", "")).strip_edges(),
+			"apex_resolution_state": str(local_aftermath.get("apex_resolution_state", "")).strip_edges(),
+			"anchored_pressures": Array(local_aftermath.get("anchored_pressures", [])).duplicate(true),
+			"consequence_classes": Array(local_aftermath.get("consequence_classes", [])).duplicate(true),
 			"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
 			"continuity_seed_tags": Array(local_aftermath.get("narrative_residue_tags", [])).duplicate(true),
 			"return_pressure_tags": Array(local_aftermath.get("residual_telegraph_tags", [])).duplicate(true),
 			"route_state_hint": str(local_aftermath.get("immediate_route_state", "")).strip_edges(),
-			"successor_hint_ids": Array(constitution_summary.get("apex_class_ids", [])).duplicate(true)
+			"successor_hint_ids": Array(constitution_summary.get("apex_class_ids", [])).duplicate(true),
+			"local_aftermath_tags": Array(local_aftermath.get("local_aftermath_tags", [])).duplicate(true),
+			"world_aftermath_tags": Array(local_aftermath.get("world_aftermath_tags", [])).duplicate(true),
+			"aftermath_consequence_refs": Array(local_aftermath.get("aftermath_consequence_refs", [])).duplicate(true)
 		}]
 	var institutional_surface: Dictionary = Dictionary(diagnostics.get("institutional_pressure_surface", {}))
 	var institutional_response_seed := _first_non_empty(
@@ -111,6 +144,8 @@ static func build_world_aftermath_records(run_context: Dictionary) -> Array[Dict
 		var source_kind := str(aftermath_ref.get("source_kind", local_aftermath.get("source_kind", "encounter"))).strip_edges()
 		var apex_id := str(aftermath_ref.get("apex_id", active_apex_state.get("apex_id", ""))).strip_edges()
 		var route_state_hint := str(aftermath_ref.get("route_state_hint", local_aftermath.get("immediate_route_state", ""))).strip_edges()
+		var encounter_resolution_state := str(aftermath_ref.get("encounter_resolution_state", local_aftermath.get("encounter_resolution_state", ""))).strip_edges()
+		var apex_resolution_state := str(aftermath_ref.get("apex_resolution_state", local_aftermath.get("apex_resolution_state", ""))).strip_edges()
 		var residue_records := _slice_strings(
 			_string_array(aftermath_ref.get("continuity_seed_tags", []))
 			+ _string_array(aftermath_ref.get("residue_records", []))
@@ -128,6 +163,31 @@ static func build_world_aftermath_records(run_context: Dictionary) -> Array[Dict
 			+ _string_array(aftermath_ref.get("successor_claims", []))
 			+ _string_array(constitution_summary.get("apex_class_ids", [])),
 			4
+		)
+		var anchored_pressures := _slice_strings(
+			_string_array(aftermath_ref.get("anchored_pressures", []))
+			+ _string_array(local_aftermath.get("anchored_pressures", [])),
+			6
+		)
+		var consequence_classes := _slice_strings(
+			_string_array(aftermath_ref.get("consequence_classes", []))
+			+ _string_array(local_aftermath.get("consequence_classes", [])),
+			6
+		)
+		var local_aftermath_tags := _slice_strings(
+			_string_array(aftermath_ref.get("local_aftermath_tags", []))
+			+ _string_array(local_aftermath.get("local_aftermath_tags", [])),
+			6
+		)
+		var world_aftermath_tags := _slice_strings(
+			_string_array(aftermath_ref.get("world_aftermath_tags", []))
+			+ _string_array(local_aftermath.get("world_aftermath_tags", [])),
+			6
+		)
+		var aftermath_consequence_refs := _slice_strings(
+			_string_array(aftermath_ref.get("aftermath_consequence_refs", []))
+			+ _string_array(local_aftermath.get("aftermath_consequence_refs", [])),
+			8
 		)
 		var prestige_climate_delta := str(aftermath_ref.get("prestige_climate_delta", "")).strip_edges()
 		if prestige_climate_delta.is_empty():
@@ -149,10 +209,18 @@ static func build_world_aftermath_records(run_context: Dictionary) -> Array[Dict
 		result.append({
 			"schema_name": "WorldAftermath",
 			"schema_version": 1,
+			"encounter_apex_consequence_version": int(aftermath_ref.get("encounter_apex_consequence_version", local_aftermath.get("encounter_apex_consequence_version", 0))),
 			"aftermath_id": aftermath_id,
 			"source_id": source_id,
 			"source_kind": source_kind,
 			"apex_id": apex_id,
+			"encounter_resolution_state": encounter_resolution_state,
+			"apex_resolution_state": apex_resolution_state,
+			"anchored_pressures": anchored_pressures,
+			"consequence_classes": consequence_classes,
+			"local_aftermath_tags": local_aftermath_tags,
+			"world_aftermath_tags": world_aftermath_tags,
+			"aftermath_consequence_refs": aftermath_consequence_refs,
 			"world_mutation_ids": world_mutation_ids,
 			"residue_records": residue_records,
 			"prestige_climate_delta": prestige_climate_delta,
@@ -323,13 +391,16 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 			"state_id": str(lifecycle_state.get("state_id", "")).strip_edges(),
 			"family_id": str(lifecycle_state.get("family_id", "")).strip_edges(),
 			"family_kind": str(lifecycle_state.get("family_kind", "market")).strip_edges(),
+			"source_id": str(lifecycle_state.get("source_id", lifecycle_state.get("family_id", ""))).strip_edges(),
 			"state": str(lifecycle_state.get("state", "emerging")).strip_edges(),
 			"heat": int(lifecycle_state.get("heat", 0)),
 			"saturation": int(lifecycle_state.get("saturation", 0)),
 			"strain": int(lifecycle_state.get("strain", 0)),
 			"cooling_tags": _string_array(lifecycle_state.get("cooling_tags", [])),
+			"cooldown_band": str(lifecycle_state.get("cooldown_band", "open")).strip_edges(),
 			"successor_hint": str(lifecycle_state.get("successor_hint", "")).strip_edges(),
 			"return_window": str(lifecycle_state.get("return_window", "")).strip_edges(),
+			"routing_tags": _string_array(lifecycle_state.get("routing_tags", [])),
 			"dominance_strain": int(lifecycle_state.get("dominance_strain", lifecycle_state.get("strain", 0))),
 			"throttle_state": str(lifecycle_state.get("throttle_state", "open")).strip_edges(),
 			"resurrection_priority": int(lifecycle_state.get("resurrection_priority", 0))
@@ -374,12 +445,58 @@ static func apply_post_run_extensions(world_memory: Dictionary, run_context: Dic
 			"play_routing_tags": ["witness", "route_choice", "artifact_custody", "hesitation"]
 		})
 	current["strategy_clusters"] = strategy_clusters.slice(0, MAX_OBJECTS)
+	var outcome_summary: Dictionary = Dictionary(run_record.get("outcome_summary", {}))
 	current["institutional_pressure_surface"] = _normalize_institutional_pressure_surface({
 		"pressure_band": str(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("pressure_band", "")).strip_edges(),
 		"claim_lines": _string_array(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("claim_lines", [])),
 		"interpretation_lines": _string_array(Dictionary(diagnostics.get("institutional_pressure_surface", {})).get("interpretation_lines", [])),
 		"reputation_bands": _string_array([str(diagnostics.get("reputation_band", "")).strip_edges()]),
 		"quiet_play_lines": _string_array(diagnostics.get("quiet_play_signals", []))
+	})
+	current["artifact_consequence_surface"] = _normalize_artifact_consequence_surface({
+		"artifact_consequence_version": int(outcome_summary.get("artifact_consequence_version", 0)),
+		"consequence_event_family": str(outcome_summary.get("consequence_event_family", "")).strip_edges(),
+		"burden_band": str(outcome_summary.get("burden_band", "")).strip_edges(),
+		"valuation_band": str(outcome_summary.get("valuation_band", "")).strip_edges(),
+		"return_consequence_state": str(outcome_summary.get("return_consequence_state", "")).strip_edges(),
+		"market_regime_id": str(outcome_summary.get("market_regime_id", market_regime_id)).strip_edges(),
+		"market_carrier_risk_band": str(outcome_summary.get("market_carrier_risk_band", constitution_summary.get("market_carrier_risk_band", ""))).strip_edges(),
+		"public_consequence_tags": _string_array(outcome_summary.get("public_consequence_tags", [])),
+		"return_pressure_tags": _string_array(outcome_summary.get("return_pressure_tags", [])),
+		"lines": _string_array(
+			[
+				"%s under %s" % [
+					str(outcome_summary.get("return_consequence_state", "")).replace("_", " "),
+					str(outcome_summary.get("valuation_band", "")).replace("_", " ")
+				]
+			]
+			if not str(outcome_summary.get("return_consequence_state", "")).strip_edges().is_empty() or not str(outcome_summary.get("valuation_band", "")).strip_edges().is_empty()
+			else []
+		)
+	})
+	current["encounter_apex_consequence_surface"] = _normalize_encounter_apex_consequence_surface({
+		"encounter_apex_consequence_version": int(run_record.get("encounter_apex_consequence_version", Dictionary(run_record.get("local_aftermath", {})).get("encounter_apex_consequence_version", 0))),
+		"encounter_resolution_state": str(run_record.get("encounter_resolution_state", Dictionary(run_record.get("local_aftermath", {})).get("encounter_resolution_state", ""))).strip_edges(),
+		"apex_resolution_state": str(run_record.get("apex_resolution_state", Dictionary(run_record.get("local_aftermath", {})).get("apex_resolution_state", ""))).strip_edges(),
+		"anchored_pressures": _string_array(run_record.get("anchored_pressures", Dictionary(run_record.get("local_aftermath", {})).get("anchored_pressures", []))),
+		"consequence_classes": _string_array(run_record.get("consequence_classes", Dictionary(run_record.get("local_aftermath", {})).get("consequence_classes", []))),
+		"local_aftermath_tags": _string_array(run_record.get("local_aftermath_tags", Dictionary(run_record.get("local_aftermath", {})).get("local_aftermath_tags", []))),
+		"world_aftermath_tags": _string_array(run_record.get("world_aftermath_tags", [])),
+		"aftermath_consequence_refs": _string_array(run_record.get("aftermath_consequence_refs", Dictionary(run_record.get("local_aftermath", {})).get("aftermath_consequence_refs", []))),
+		"lines": _string_array(
+			[
+				"%s / %s through %s" % [
+					str(run_record.get("encounter_resolution_state", Dictionary(run_record.get("local_aftermath", {})).get("encounter_resolution_state", ""))).replace("_", " "),
+					str(run_record.get("apex_resolution_state", Dictionary(run_record.get("local_aftermath", {})).get("apex_resolution_state", ""))).replace("_", " "),
+					_first_non_empty(
+						_string_array(run_record.get("world_aftermath_tags", []))
+						+ _string_array(Dictionary(run_record.get("local_aftermath", {})).get("world_aftermath_tags", []))
+					)
+				]
+			]
+			if int(run_record.get("encounter_apex_consequence_version", Dictionary(run_record.get("local_aftermath", {})).get("encounter_apex_consequence_version", 0))) > 0
+			else []
+		)
 	})
 	current["cognitive_field_climate"] = _normalize_field_climate({
 		"field_state_id": str(constitution_summary.get("constitution_hash", run_record.get("seed", ""))).strip_edges(),
@@ -397,6 +514,8 @@ static func build_civilization_surface(world_memory: Dictionary) -> Dictionary:
 	var world_mutations := _normalize_world_mutations(Array(current.get("world_mutations", [])))
 	var literacy_tracks := _normalize_literacy_tracks(Array(current.get("literacy_tracks", [])))
 	var institutional_pressure_surface := _normalize_institutional_pressure_surface(Dictionary(current.get("institutional_pressure_surface", {})))
+	var artifact_consequence_surface := _normalize_artifact_consequence_surface(Dictionary(current.get("artifact_consequence_surface", {})))
+	var encounter_apex_consequence_surface := _normalize_encounter_apex_consequence_surface(Dictionary(current.get("encounter_apex_consequence_surface", {})))
 	var field_climate := _normalize_field_climate(Dictionary(current.get("cognitive_field_climate", {})))
 	var lines: Array[String] = []
 	if not factions.is_empty():
@@ -406,6 +525,10 @@ static func build_civilization_surface(world_memory: Dictionary) -> Dictionary:
 		lines.append("%s is framing current interpretation and theory adoption" % str(Dictionary(regimes[0]).get("label", "a regime")).to_lower())
 	if not market_regimes.is_empty():
 		lines.append("%s is setting the current market climate for carriers and extraction debt" % str(Dictionary(market_regimes[0]).get("label", "a market regime")).to_lower())
+	if not _string_array(artifact_consequence_surface.get("lines", [])).is_empty():
+		lines.append("artifact consequence is holding at %s" % _string_array(artifact_consequence_surface.get("lines", []))[0].to_lower())
+	if not _string_array(encounter_apex_consequence_surface.get("lines", [])).is_empty():
+		lines.append("aftermath consequence is holding at %s" % _string_array(encounter_apex_consequence_surface.get("lines", []))[0].to_lower())
 	if not lifecycle_states.is_empty():
 		lines.append("%s is the dominant lifecycle state for current doctrine families" % str(Dictionary(lifecycle_states[0]).get("state_id", "an active lifecycle")).replace("_", " "))
 	if not world_mutations.is_empty():
@@ -427,6 +550,15 @@ static func build_civilization_surface(world_memory: Dictionary) -> Dictionary:
 		"world_mutation_ids": _pluck_ids(world_mutations, "mutation_id"),
 		"literacy_track_ids": _pluck_ids(literacy_tracks, "track_id"),
 		"market_regime_lines": _slice_strings(_pluck_labels(market_regimes, "label"), MAX_LINES),
+		"artifact_consequence_lines": _slice_strings(_string_array(artifact_consequence_surface.get("lines", [])), MAX_LINES),
+		"artifact_consequence_tags": _slice_strings(_string_array(artifact_consequence_surface.get("public_consequence_tags", [])), MAX_LINES),
+		"encounter_apex_consequence_lines": _slice_strings(_string_array(encounter_apex_consequence_surface.get("lines", [])), MAX_LINES),
+		"encounter_apex_consequence_tags": _slice_strings(
+			_string_array(encounter_apex_consequence_surface.get("world_aftermath_tags", []))
+			+ _string_array(encounter_apex_consequence_surface.get("local_aftermath_tags", [])),
+			MAX_LINES
+		),
+		"aftermath_consequence_refs": _slice_strings(_string_array(encounter_apex_consequence_surface.get("aftermath_consequence_refs", [])), MAX_LINES),
 		"lifecycle_lines": _slice_strings(_pluck_labels(lifecycle_states, "state_id"), MAX_LINES),
 		"institutional_pressure_lines": _slice_strings(
 			_string_array(institutional_pressure_surface.get("claim_lines", []))
@@ -494,13 +626,16 @@ static func _normalize_lifecycle_states(values: Array) -> Array[Dictionary]:
 		current["state_id"] = str(current.get("state_id", current.get("family_id", ""))).strip_edges()
 		current["family_id"] = str(current.get("family_id", current.get("state_id", ""))).strip_edges()
 		current["family_kind"] = str(current.get("family_kind", "market")).strip_edges()
+		current["source_id"] = str(current.get("source_id", current.get("family_id", ""))).strip_edges()
 		current["state"] = str(current.get("state", "emerging")).strip_edges()
 		current["heat"] = int(current.get("heat", 0))
 		current["saturation"] = int(current.get("saturation", 0))
 		current["strain"] = int(current.get("strain", 0))
 		current["cooling_tags"] = _string_array(current.get("cooling_tags", []))
+		current["cooldown_band"] = str(current.get("cooldown_band", "open")).strip_edges()
 		current["successor_hint"] = str(current.get("successor_hint", "")).strip_edges()
 		current["return_window"] = str(current.get("return_window", "")).strip_edges()
+		current["routing_tags"] = _string_array(current.get("routing_tags", []))
 		current["dominance_strain"] = int(current.get("dominance_strain", current.get("strain", 0)))
 		current["throttle_state"] = str(current.get("throttle_state", "open")).strip_edges()
 		current["resurrection_priority"] = int(current.get("resurrection_priority", 0))
@@ -580,6 +715,58 @@ static func _normalize_field_climate(raw: Dictionary) -> Dictionary:
 	current["field_state_id"] = str(current.get("field_state_id", "")).strip_edges()
 	current["dominant_dimensions"] = _string_array(current.get("dominant_dimensions", []))
 	current["summary_lines"] = _slice_strings(_string_array(current.get("summary_lines", [])), MAX_LINES)
+	return current
+
+static func _normalize_artifact_consequence_surface(raw: Dictionary) -> Dictionary:
+	var current := {
+		"artifact_consequence_version": 0,
+		"consequence_event_family": "",
+		"burden_band": "",
+		"valuation_band": "",
+		"return_consequence_state": "",
+		"market_regime_id": "",
+		"market_carrier_risk_band": "",
+		"public_consequence_tags": [],
+		"return_pressure_tags": [],
+		"lines": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["artifact_consequence_version"] = int(current.get("artifact_consequence_version", 0))
+	current["consequence_event_family"] = str(current.get("consequence_event_family", "")).strip_edges()
+	current["burden_band"] = str(current.get("burden_band", "")).strip_edges()
+	current["valuation_band"] = str(current.get("valuation_band", "")).strip_edges()
+	current["return_consequence_state"] = str(current.get("return_consequence_state", "")).strip_edges()
+	current["market_regime_id"] = str(current.get("market_regime_id", "")).strip_edges()
+	current["market_carrier_risk_band"] = str(current.get("market_carrier_risk_band", "")).strip_edges()
+	current["public_consequence_tags"] = _slice_strings(_string_array(current.get("public_consequence_tags", [])), MAX_LINES)
+	current["return_pressure_tags"] = _slice_strings(_string_array(current.get("return_pressure_tags", [])), MAX_LINES)
+	current["lines"] = _slice_strings(_string_array(current.get("lines", [])), MAX_LINES)
+	return current
+
+static func _normalize_encounter_apex_consequence_surface(raw: Dictionary) -> Dictionary:
+	var current := {
+		"encounter_apex_consequence_version": 0,
+		"encounter_resolution_state": "",
+		"apex_resolution_state": "",
+		"anchored_pressures": [],
+		"consequence_classes": [],
+		"local_aftermath_tags": [],
+		"world_aftermath_tags": [],
+		"aftermath_consequence_refs": [],
+		"lines": []
+	}
+	for key in raw.keys():
+		current[key] = raw[key]
+	current["encounter_apex_consequence_version"] = int(current.get("encounter_apex_consequence_version", 0))
+	current["encounter_resolution_state"] = str(current.get("encounter_resolution_state", "")).strip_edges()
+	current["apex_resolution_state"] = str(current.get("apex_resolution_state", "")).strip_edges()
+	current["anchored_pressures"] = _slice_strings(_string_array(current.get("anchored_pressures", [])), MAX_LINES)
+	current["consequence_classes"] = _slice_strings(_string_array(current.get("consequence_classes", [])), MAX_LINES)
+	current["local_aftermath_tags"] = _slice_strings(_string_array(current.get("local_aftermath_tags", [])), MAX_LINES)
+	current["world_aftermath_tags"] = _slice_strings(_string_array(current.get("world_aftermath_tags", [])), MAX_LINES)
+	current["aftermath_consequence_refs"] = _slice_strings(_string_array(current.get("aftermath_consequence_refs", [])), MAX_LINES)
+	current["lines"] = _slice_strings(_string_array(current.get("lines", [])), MAX_LINES)
 	return current
 
 static func _normalize_institutional_pressure_surface(raw: Dictionary) -> Dictionary:

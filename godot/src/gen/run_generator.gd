@@ -140,6 +140,7 @@ func build_generation_contract(seed_value: int, directive: Dictionary = {}) -> D
 		"cookbook_routing": Dictionary(embedded.get("cookbook_routing", directive.get("cookbook_routing", {}))).duplicate(true),
 		"civilization_routing": Dictionary(embedded.get("civilization_routing", directive.get("civilization_routing", {}))).duplicate(true),
 		"market_routing": Dictionary(embedded.get("market_routing", directive.get("market_routing", {}))).duplicate(true),
+		"lifecycle_routing": Dictionary(embedded.get("lifecycle_routing", directive.get("lifecycle_routing", {}))).duplicate(true),
 		"encounter_routing": Dictionary(embedded.get("encounter_routing", directive.get("encounter_routing", {}))).duplicate(true),
 		"apex_routing": Dictionary(embedded.get("apex_routing", directive.get("apex_routing", {}))).duplicate(true),
 		"ontology_routing": Dictionary(embedded.get("ontology_routing", directive.get("ontology_routing", {}))).duplicate(true)
@@ -272,7 +273,10 @@ func _shape_room_weights(base: Dictionary, slot: int, room_count: int, branch_fa
 	return _apply_protocol_room_weights(
 		_apply_run_identity_room_weights(
 			_apply_branch_family_room_weights(
-				_apply_surface_slot_room_weights(_apply_doctrine_room_weights(base, generation_contract), slot, room_count, generation_contract),
+				_apply_lifecycle_room_weights(
+					_apply_surface_slot_room_weights(_apply_doctrine_room_weights(base, generation_contract), slot, room_count, generation_contract),
+					generation_contract
+				),
 				branch_family
 			),
 			slot,
@@ -284,6 +288,35 @@ func _shape_room_weights(base: Dictionary, slot: int, room_count: int, branch_fa
 		room_count,
 		generation_contract
 	)
+
+func _apply_lifecycle_room_weights(weights: Dictionary, generation_contract: Dictionary) -> Dictionary:
+	var next := weights.duplicate(true)
+	var lifecycle_routing: Dictionary = Dictionary(generation_contract.get("lifecycle_routing", {}))
+	for family_raw in Array(lifecycle_routing.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw)
+		var family_kind := str(family.get("family_kind", "")).strip_edges()
+		var source_id := str(family.get("source_id", "")).strip_edges()
+		var heat := int(family.get("heat", 0))
+		var cooldown_band := str(family.get("cooldown_band", "open")).strip_edges()
+		var routing_tags := _string_array(family.get("routing_tags", []))
+		if family_kind == "combo_family" and heat >= 3:
+			if _lifecycle_has_any_tag(routing_tags, ["route", "return", "combo_private_archive_ritual", "route_memory"]):
+				next["traversal"] = int(next.get("traversal", 0)) + 1
+			if _lifecycle_has_any_tag(routing_tags, ["memory", "witness", "artifact_custody", "combo_private_archive_ritual"]):
+				next["evidence"] = int(next.get("evidence", 0)) + 1
+			if cooldown_band == "deep_cooling":
+				next["hazard"] = int(next.get("hazard", 0)) + 1
+		elif family_kind == "artifact_continuity":
+			match source_id:
+				"burial", "archive_only_residue":
+					next["evidence"] = int(next.get("evidence", 0)) + 2
+				"recoverable_loss", "successor_emergence":
+					next["traversal"] = int(next.get("traversal", 0)) + 2
+				"extinction":
+					next["hazard"] = int(next.get("hazard", 0)) + 1
+			if cooldown_band in ["cooling", "warming"]:
+				next["traversal"] = int(next.get("traversal", 0)) + 1
+	return next
 
 func room_type_weights_for_slot_for_test(slot: int, room_count: int, directive: Dictionary = {}) -> Dictionary:
 	return _room_type_weights_for_slot(slot, room_count, {}, build_generation_contract(slot * 97 + room_count * 13, directive))
@@ -299,6 +332,7 @@ func _risk_for_slot(rng: RandomNumberGenerator, slot: int, room_count: int, room
 	var group_tension_bias := str(generation_contract.get("group_tension_bias", "")).to_lower()
 	var convergence_axis := str(generation_contract.get("convergence_axis", "")).to_lower()
 	var market_routing: Dictionary = Dictionary(generation_contract.get("market_routing", {}))
+	var lifecycle_routing: Dictionary = Dictionary(generation_contract.get("lifecycle_routing", {}))
 	var risk_bias := 0
 	if pressure_tokens.has("fragmentation") or pressure_tokens.has("misdirection"):
 		risk_bias += 1
@@ -320,6 +354,7 @@ func _risk_for_slot(rng: RandomNumberGenerator, slot: int, room_count: int, room
 		risk_bias += 1
 	if int(market_routing.get("hoard_heat", 0)) >= 2:
 		risk_bias += 1
+	risk_bias += _lifecycle_risk_bias(lifecycle_routing)
 	if item_ecology_bias.find("rescue") != -1 or convergence_axis.find("custody") != -1 or pressure_tokens.has("convergence"):
 		risk_bias -= 1
 	if int(market_routing.get("scarcity_recovery", 0)) > 0:
@@ -744,8 +779,10 @@ func _branch_family_weight(branch_family: Dictionary, generation_contract: Dicti
 	var protocol_state := str(generation_contract.get("protocol_state", "")).strip_edges()
 	var pressure_tokens := _contract_pressure_tokens(generation_contract)
 	var ontology_route_tags := _ontology_route_tags(generation_contract)
+	var lifecycle_routing: Dictionary = Dictionary(generation_contract.get("lifecycle_routing", {}))
 	var item_ecology_bias := str(generation_contract.get("item_ecology_bias", "")).to_lower()
 	weight += _protocol_branch_bonus(branch_family, protocol_state)
+	weight += _lifecycle_branch_bonus(branch_family, lifecycle_routing)
 	if motif_ids.has("threshold_marks") and str(branch_family.get("witness_pressure", "")) in ["high", "public", "focused"]:
 		weight += 3
 	if motif_ids.has("sealed_ribs") and str(branch_family.get("escape_bandwidth", "")) in ["uncertain", "narrow", "tight"]:
@@ -883,6 +920,61 @@ func _public_summary_branch_bonus(branch_family: Dictionary, generation_contract
 	if ontology_route_tags.has("taboo_threshold") and (symbolic_places.has("threshold") or confrontation_climate.find("cutoff") != -1):
 		bonus += 1
 	return bonus
+
+func _lifecycle_branch_bonus(branch_family: Dictionary, lifecycle_routing: Dictionary) -> int:
+	var bonus := 0
+	var branch_id := str(branch_family.get("id", "")).strip_edges()
+	for family_raw in Array(lifecycle_routing.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw)
+		var family_kind := str(family.get("family_kind", "")).strip_edges()
+		var source_id := str(family.get("source_id", "")).strip_edges()
+		var heat := int(family.get("heat", 0))
+		var cooldown_band := str(family.get("cooldown_band", "open")).strip_edges()
+		var successor_hint := str(family.get("successor_hint", "")).strip_edges().to_lower()
+		var routing_tags := _string_array(family.get("routing_tags", []))
+		if family_kind == "combo_family" and heat >= 3:
+			if branch_id in ["relay_hollows", "watcher_steps", "oath_terraces"] and (_lifecycle_has_any_tag(routing_tags, ["route", "return", "artifact_custody", "route_memory"]) or successor_hint.find("route") != -1):
+				bonus += 2
+			if branch_id in ["grave_lattice", "forge_veins"] and (_lifecycle_has_any_tag(routing_tags, ["memory", "witness", "combo_private_archive_ritual"]) or successor_hint.find("archive") != -1):
+				bonus += 2
+			if cooldown_band == "deep_cooling" and branch_id in ["grave_lattice", "murmur_warrens"]:
+				bonus += 1
+		elif family_kind == "artifact_continuity":
+			match source_id:
+				"burial", "archive_only_residue":
+					if branch_id in ["grave_lattice", "forge_veins"]:
+						bonus += 3
+				"recoverable_loss", "successor_emergence":
+					if branch_id in ["relay_hollows", "oath_terraces", "watcher_steps"]:
+						bonus += 3
+				"extinction":
+					if branch_id in ["sundered_span", "murmur_warrens"]:
+						bonus += 2
+	return bonus
+
+func _lifecycle_risk_bias(lifecycle_routing: Dictionary) -> int:
+	var risk_bias := 0
+	for family_raw in Array(lifecycle_routing.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw)
+		var family_kind := str(family.get("family_kind", "")).strip_edges()
+		var source_id := str(family.get("source_id", "")).strip_edges()
+		var cooldown_band := str(family.get("cooldown_band", "open")).strip_edges()
+		if family_kind == "combo_family" and cooldown_band == "deep_cooling":
+			risk_bias += 1
+		elif family_kind == "artifact_continuity":
+			if source_id == "extinction":
+				risk_bias += 1
+			elif source_id in ["recoverable_loss", "successor_emergence"]:
+				risk_bias -= 1
+	return risk_bias
+
+func _lifecycle_has_any_tag(tags: Array[String], needles: Array[String]) -> bool:
+	for tag in tags:
+		var lowered := tag.to_lower()
+		for needle in needles:
+			if lowered.find(needle) != -1:
+				return true
+	return false
 
 func _protocol_branch_bonus(branch_family: Dictionary, protocol_state: String) -> int:
 	var bonus := 0

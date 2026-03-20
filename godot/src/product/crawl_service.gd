@@ -32,6 +32,7 @@ static func normalize_profile_fields(profile: Dictionary) -> void:
 
 static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: Dictionary, frame: Dictionary) -> Dictionary:
 	normalize_profile_fields(profile)
+	var outcome_summary: Dictionary = Dictionary(run_record.get("outcome_summary", {}))
 	var active_crawl: Dictionary = Dictionary(profile.get("active_crawl", {}))
 	if active_crawl.is_empty():
 		active_crawl = _new_crawl(profile, run_record, diagnostics, frame)
@@ -74,6 +75,11 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 	var artifact_memory_hints := _string_array(diagnostics.get("artifact_memory_hints", []))
 	var artifact_prestige_indicators := _string_array(diagnostics.get("artifact_prestige_indicators", []))
 	var artifact_cultural_association := str(diagnostics.get("artifact_cultural_association", "")).strip_edges()
+	var public_consequence_tags := _string_array(outcome_summary.get("public_consequence_tags", []))
+	var return_pressure_tags := _string_array(outcome_summary.get("return_pressure_tags", []))
+	var burden_band := str(outcome_summary.get("burden_band", "")).strip_edges()
+	var valuation_band := str(outcome_summary.get("valuation_band", "")).strip_edges()
+	var return_consequence_state := str(outcome_summary.get("return_consequence_state", "")).strip_edges()
 	var branch_caution_markers := _string_array(diagnostics.get("branch_caution_markers", []))
 	var branch_reputation_drift := str(diagnostics.get("branch_reputation_drift", "")).strip_edges()
 	var quiet_play_signals := _string_array(diagnostics.get("quiet_play_signals", []))
@@ -132,7 +138,12 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 		active_crawl["push_pressure"] = clampi(int(active_crawl.get("push_pressure", 0)) + 1, 0, 14)
 	active_crawl["signature_tags"] = _merge_limited(
 		Array(active_crawl.get("signature_tags", [])),
-		Array(frame.get("story_axes", []))
+		public_consequence_tags
+		+ return_pressure_tags
+		+ ([burden_band] if not burden_band.is_empty() else [])
+		+ ([valuation_band] if not valuation_band.is_empty() else [])
+		+ ([return_consequence_state] if not return_consequence_state.is_empty() else [])
+		+ Array(frame.get("story_axes", []))
 		+ Array(diagnostics.get("quest_pressure", []))
 		+ Array(diagnostics.get("room_identity_highlights", []))
 		+ Array(diagnostics.get("run_shapes", []))
@@ -181,6 +192,8 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 		+ resource_pressure
 		+ inhabitant_pressure
 		+ artifact_memory_hints
+		+ public_consequence_tags
+		+ return_pressure_tags
 		+ branch_caution_markers
 		+ ([doctrine_pressure_line] if not doctrine_pressure_line.is_empty() else [])
 		+ ([governance_line] if not governance_line.is_empty() else []),
@@ -199,6 +212,8 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 		+ resource_pressure
 		+ inhabitant_pressure
 		+ artifact_memory_hints
+		+ public_consequence_tags
+		+ return_pressure_tags
 		+ branch_caution_markers
 		+ ([doctrine_pressure_line] if not doctrine_pressure_line.is_empty() else [])
 		+ ([governance_line] if not governance_line.is_empty() else []),
@@ -247,6 +262,8 @@ static func apply_run(profile: Dictionary, run_record: Dictionary, diagnostics: 
 		Array(frame.get("quest_briefs", []))
 		+ Array(diagnostics.get("recovery_ecology", []))
 		+ Array(diagnostics.get("pressure_persistence", []))
+		+ public_consequence_tags
+		+ return_pressure_tags
 		+ artifact_memory_hints
 		+ curriculum_lines
 		+ model_pressure

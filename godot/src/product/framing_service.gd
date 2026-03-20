@@ -30,6 +30,7 @@ static func build_run_frame(run_record: Dictionary, diagnostics: Dictionary, pro
 	var governance_line := _governance_line(diagnostics, profile)
 	var quiet_play_line := _quiet_play_line(diagnostics)
 	var reentry_line := _reentry_line(diagnostics, profile)
+	var social_consequence_line := _social_consequence_line(diagnostics)
 	var social_safety_line := _social_safety_line(diagnostics)
 	var institutional_line := _institutional_line(diagnostics)
 	var reputation_line := _reputation_line(diagnostics)
@@ -71,6 +72,7 @@ static func build_run_frame(run_record: Dictionary, diagnostics: Dictionary, pro
 		"governance_line": guard_text(governance_line),
 		"quiet_play_line": guard_text(quiet_play_line),
 		"reentry_line": guard_text(reentry_line),
+		"social_consequence_line": guard_text(social_consequence_line),
 		"social_safety_line": guard_text(social_safety_line),
 		"institutional_line": guard_text(institutional_line),
 		"reputation_line": guard_text(reputation_line),
@@ -112,6 +114,9 @@ static func build_focus_lines(frame: Dictionary) -> Array[String]:
 	var quiet_play_line := str(frame.get("quiet_play_line", "")).strip_edges()
 	if not quiet_play_line.is_empty():
 		lines.append("Quiet play: %s" % quiet_play_line)
+	var social_consequence_line := str(frame.get("social_consequence_line", "")).strip_edges()
+	if not social_consequence_line.is_empty():
+		lines.append("Social: %s" % social_consequence_line)
 	var institutional_line := str(frame.get("institutional_line", "")).strip_edges()
 	if not institutional_line.is_empty():
 		lines.append("Institution: %s" % institutional_line)
@@ -172,6 +177,9 @@ static func build_archive_preview_lines(frame: Dictionary) -> Array[String]:
 	var quiet_play_line := str(frame.get("quiet_play_line", "")).strip_edges()
 	if not quiet_play_line.is_empty():
 		lines.append("Quiet play: %s" % quiet_play_line)
+	var social_consequence_line := str(frame.get("social_consequence_line", "")).strip_edges()
+	if not social_consequence_line.is_empty():
+		lines.append("Social: %s" % social_consequence_line)
 	var anomaly_pull := str(frame.get("anomaly_pull", "")).strip_edges()
 	if not anomaly_pull.is_empty():
 		lines.append("Uneasy pull: %s" % anomaly_pull)
@@ -179,6 +187,19 @@ static func build_archive_preview_lines(frame: Dictionary) -> Array[String]:
 	if not inhabitant_line.is_empty():
 		lines.append("Presence: %s" % inhabitant_line)
 	return guard_lines(lines)
+
+static func build_onboarding_public_signal_line(surface: Dictionary) -> String:
+	var parts: Array[String] = []
+	var public_consequence_tags := _string_array(surface.get("public_consequence_tags", []))
+	var world_aftermath_tags := _string_array(surface.get("world_aftermath_tags", []))
+	var public_evidence_tags := _string_array(surface.get("public_evidence_tags", []))
+	if not public_consequence_tags.is_empty():
+		parts.append("consequence %s" % _onboarding_surface_phrase(public_consequence_tags.slice(0, 2)))
+	if not world_aftermath_tags.is_empty():
+		parts.append("aftermath %s" % _onboarding_surface_phrase(world_aftermath_tags.slice(0, 2)))
+	if not public_evidence_tags.is_empty():
+		parts.append("public reads %s" % _onboarding_surface_phrase(public_evidence_tags.slice(0, 2)))
+	return guard_text(" | ".join(parts))
 
 static func build_home_heat_line(frame: Dictionary) -> String:
 	var heat := int(frame.get("public_heat", 0))
@@ -1246,6 +1267,24 @@ static func _reentry_line(diagnostics: Dictionary, profile: Dictionary) -> Strin
 		return meaningful_non_action
 	return _first_string(_string_array(diagnostics.get("anticipation_hooks", [])), "")
 
+static func _social_consequence_line(diagnostics: Dictionary) -> String:
+	var witness_pressure := str(diagnostics.get("witness_pressure", "")).strip_edges()
+	var relationship_pressure := str(diagnostics.get("relationship_pressure", "")).strip_edges()
+	var public_evidence_tags := _string_array(diagnostics.get("public_evidence_tags", []))
+	var blame_surface_tags := _string_array(diagnostics.get("blame_surface_tags", []))
+	var parts: Array[String] = []
+	if not witness_pressure.is_empty():
+		parts.append("witness %s" % witness_pressure.replace("_", " "))
+	if not relationship_pressure.is_empty():
+		parts.append("relationship %s" % relationship_pressure.replace("_", " "))
+	if not public_evidence_tags.is_empty():
+		parts.append(public_evidence_tags[0].replace("_", " "))
+	if not blame_surface_tags.is_empty():
+		parts.append("blame %s" % blame_surface_tags[0].replace("_", " "))
+	if parts.is_empty():
+		return ""
+	return "; ".join(parts)
+
 static func _social_safety_line(diagnostics: Dictionary) -> String:
 	var flags := _string_array(diagnostics.get("social_safety_flags", []))
 	if flags.has("quiet_play_viable") and flags.has("non_performative_viable"):
@@ -1290,6 +1329,44 @@ static func _string_array(values: Variant) -> Array[String]:
 			if not text.is_empty():
 				result.append(text)
 	return result
+
+static func _onboarding_surface_phrase(tags: Array[String]) -> String:
+	var phrases: Array[String] = []
+	for tag in tags:
+		var text := str(tag).strip_edges()
+		if text.is_empty():
+			continue
+		var phrase := text.replace("_", " ")
+		match text:
+			"artifact_return_visible":
+				phrase = "return pressure is readable"
+			"artifact_counterfeit_resolution":
+				phrase = "artifact disputes are readable"
+			"artifact_custody_visible":
+				phrase = "custody is readable"
+			"witness_visible":
+				phrase = "witness pressure is public"
+			"custody_visible":
+				phrase = "custody is public"
+			"relationship_visible":
+				phrase = "relationship pressure is public"
+			"witness_surface":
+				phrase = "witness pressure is surfacing"
+			"custody_surface":
+				phrase = "custody pressure is surfacing"
+			"relationship_surface":
+				phrase = "relationship pressure is surfacing"
+			"counterfeit_surface":
+				phrase = "artifact doubt is surfacing"
+			"rerouted":
+				phrase = "the route is rerouted"
+			"stabilized":
+				phrase = "the route is stabilized"
+			"contested":
+				phrase = "the route is contested"
+		if not phrase.is_empty() and not phrases.has(phrase):
+			phrases.append(phrase)
+	return ", ".join(phrases)
 
 static func _take_unique(values: Array, limit: int) -> Array[String]:
 	var result: Array[String] = []

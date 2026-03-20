@@ -474,6 +474,9 @@ func _apex_visual_profile_for_room(apex_preview: Dictionary, room_type: String, 
 	return {
 		"apex_manifest_ids": apex_manifest_ids,
 		"apex_class_ids": apex_class_ids,
+		"encounter_apex_consequence_version": int(apex_preview.get("encounter_apex_consequence_version", 0)),
+		"anchored_pressures": _string_array(apex_preview.get("anchored_pressures", [])),
+		"world_aftermath_tags": _string_array(apex_preview.get("world_aftermath_tags", [])),
 		"peak_spacing_score": int(apex_preview.get("peak_spacing_score", 0)),
 		"telegraph_emphasis": "crisis_window" if int(apex_preview.get("peak_spacing_score", 0)) >= 3 or room_type == "hazard" or hazard != "none" else "announce_window",
 		"summary_lines": _string_array(apex_preview.get("apex_lines", [])) + _string_array(apex_preview.get("peak_structure_lines", []))

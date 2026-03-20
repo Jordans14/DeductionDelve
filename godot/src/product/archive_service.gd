@@ -177,6 +177,9 @@ static func _build_case_entry(run_context: Dictionary) -> Dictionary:
 	var quiet_play_line := _first_string(_string_array(diagnostics.get("quiet_play_signals", [])), "")
 	if not quiet_play_line.is_empty():
 		detail_lines.append("Quiet play: %s" % quiet_play_line)
+	var social_consequence_line := str(frame.get("social_consequence_line", "")).strip_edges()
+	if not social_consequence_line.is_empty():
+		detail_lines.append("Social: %s" % social_consequence_line)
 	var meaningful_non_action := str(diagnostics.get("meaningful_non_action", "")).strip_edges()
 	if not meaningful_non_action.is_empty():
 		detail_lines.append("Still mattered: %s" % meaningful_non_action)
@@ -918,8 +921,24 @@ static func _comparison_line(archive_state: Dictionary, run_context: Dictionary,
 
 static func _artifact_signal_line(diagnostics: Dictionary) -> String:
 	var continuity_text := str(diagnostics.get("artifact_continuity_text", "")).strip_edges()
+	var burden_band := str(diagnostics.get("burden_band", "")).strip_edges().replace("_", " ")
+	var valuation_band := str(diagnostics.get("valuation_band", "")).strip_edges().replace("_", " ")
+	var return_consequence_state := str(diagnostics.get("return_consequence_state", "")).strip_edges().replace("_", " ")
+	var consequence_line := ""
+	if not return_consequence_state.is_empty() or not valuation_band.is_empty():
+		consequence_line = _first_string([
+			"%s under %s" % [return_consequence_state, valuation_band],
+			return_consequence_state,
+			valuation_band
+		], "").strip_edges()
+	if consequence_line.is_empty() and not burden_band.is_empty():
+		consequence_line = "%s burden" % burden_band
 	if not continuity_text.is_empty():
+		if not consequence_line.is_empty():
+			return "%s (%s)" % [continuity_text, consequence_line]
 		return continuity_text
+	if not consequence_line.is_empty():
+		return consequence_line
 	var cultural_association := str(diagnostics.get("artifact_cultural_association", "")).strip_edges()
 	if not cultural_association.is_empty():
 		return cultural_association

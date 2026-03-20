@@ -25,6 +25,8 @@ const STANDARD_RUN_ROOM_COUNT := 10
 const RUN_TICK_LIMIT := 50400  # 14 minutes at 60 ticks/sec
 const CAMERA_JAM_MAX_WARDEN_SCORE := 84
 const EXTRACTION_WINDOW_TICKS := 600
+const ENCOUNTER_APEX_CONSEQUENCE_VERSION := 1
+const SOCIAL_CONSEQUENCE_VERSION := 1
 const START_BOMB_COUNT := 4
 const START_ROPE_COUNT := 4
 const MAX_CARRIED_TOOL_ITEMS := 2
@@ -85,6 +87,8 @@ var artifact_service = ARTIFACT_SERVICE_SCRIPT.new()
 var item_service: RefCounted = ITEM_SERVICE_SCRIPT.new()
 var forge_counter_by_room: Dictionary = {}
 var next_event_id: int = 1
+var startup_mutation_broadcast_ready: bool = false
+var pending_startup_mutation_events: Array[Dictionary] = []
 var check_counter_by_peer: Dictionary = {}
 var role_pressure_by_peer: Dictionary = {}
 var custody_debt_by_peer: Dictionary = {}
@@ -147,6 +151,8 @@ var echo_lure_state := {
 var signals_wired: bool = false
 var peer_reconcile_accum: float = 0.0
 const PEER_RECONCILE_INTERVAL_SEC := 0.25
+const LOCAL_HOST_START_DELAY_SEC := 0.12
+const POST_START_SYNC_DELAY_SEC := 0.35
 var enet_peer: ENetMultiplayerPeer = null
 var enet_peer_mode: String = ""
 var _active_mp: MultiplayerAPI = null
@@ -158,6 +164,7 @@ var _captured_public_events_for_test: Array = []
 var _captured_private_events_for_test: Array = []
 var _run_state_override_for_test: Node = null
 var _event_log_override_for_test: Node = null
+var _pending_local_run_start_payload: Dictionary = {}
 var reconnect_offer: Dictionary = {}
 var last_connection_status: String = "Not connected"
 
@@ -310,6 +317,13 @@ func build_session_policy_lines(overview: Dictionary = {}) -> Array[String]:
 	var reason := str(current.get("reconnect_reason", ""))
 	if not reason.is_empty():
 		lines.append("Reason: %s" % reason)
+	var live_brief := PROFILE_SERVICE_SCRIPT._session_delve_brief_line(current)
+	if bool(current.get("first_run_pending", false)):
+		lines.append("Guide: Primer on authentic extraction, asymmetric roles, notebook clues, and extraction hold.")
+	elif not live_brief.is_empty():
+		lines.append("Guide: %s" % live_brief)
+	else:
+		lines.append("Guide: Live brief on route pressure, continuity, and public reads.")
 	return lines
 
 func build_session_policy_lines_for_test(overview: Dictionary = {}) -> Array[String]:
@@ -598,9 +612,10 @@ func start_host(port: int = -1, preferred_join_address: String = "", bind_overri
 	enet_peer_mode = "server"
 	var node_mp := _node_mp_candidate()
 	var tree_mp := _tree_mp_candidate()
-	var assign_mp := node_mp if node_mp != null else tree_mp
-	if assign_mp != null:
-		assign_mp.multiplayer_peer = enet_peer
+	if node_mp != null:
+		node_mp.multiplayer_peer = enet_peer
+	if tree_mp != null and tree_mp != node_mp:
+		tree_mp.multiplayer_peer = enet_peer
 	_select_active_mp("after_assign_peer")
 	_ensure_signals_wired_to_active_mp()
 	_warn_if_double_peer_assignment("start_host_after_assign")
@@ -649,9 +664,10 @@ func join_host(address: String, port: int = -1) -> bool:
 	enet_peer_mode = "client"
 	var node_mp := _node_mp_candidate()
 	var tree_mp := _tree_mp_candidate()
-	var assign_mp := node_mp if node_mp != null else tree_mp
-	if assign_mp != null:
-		assign_mp.multiplayer_peer = enet_peer
+	if node_mp != null:
+		node_mp.multiplayer_peer = enet_peer
+	if tree_mp != null and tree_mp != node_mp:
+		tree_mp.multiplayer_peer = enet_peer
 	_select_active_mp("after_assign_peer")
 	_ensure_signals_wired_to_active_mp()
 	_warn_if_double_peer_assignment("join_host_after_assign")
@@ -665,9 +681,7 @@ func join_host(address: String, port: int = -1) -> bool:
 
 func disconnect_peer(reason: String = "manual") -> void:
 	var scene_mp := _mp()
-	var local_id := -1
-	if scene_mp != null:
-		local_id = scene_mp.get_unique_id()
+	var local_id := _safe_mp_unique_id(scene_mp)
 	_nm_log("DISCONNECT_PEER is_host=%s local=%d reason=%s" % [str(is_host), local_id, reason])
 	if enet_peer != null:
 		enet_peer.close()
@@ -696,6 +710,8 @@ func disconnect_peer(reason: String = "manual") -> void:
 	current_server_tick = 0
 	next_artifact_id = 1
 	next_event_id = 1
+	startup_mutation_broadcast_ready = false
+	pending_startup_mutation_events.clear()
 	local_sabotage_cooldown_until_tick = 0
 	run_active = false
 	current_expedition_constitution.clear()
@@ -737,6 +753,19 @@ func stop_host() -> void:
 		return
 	_set_connection_status("Stopping host...")
 	disconnect_peer("stop_host")
+
+func refresh_active_peer_bindings() -> void:
+	if enet_peer == null:
+		return
+	var node_mp := _node_mp_candidate()
+	var tree_mp := _tree_mp_candidate()
+	if node_mp != null and node_mp.multiplayer_peer != enet_peer:
+		node_mp.multiplayer_peer = enet_peer
+	if tree_mp != null and tree_mp.multiplayer_peer != enet_peer:
+		tree_mp.multiplayer_peer = enet_peer
+	_select_active_mp("refresh_active_peer_bindings")
+	_ensure_signals_wired_to_active_mp()
+	_log_mp_state("refresh_active_peer_bindings")
 
 func set_local_ready(ready_flag: bool) -> void:
 	var mp := _mp()
@@ -820,6 +849,8 @@ func start_run(seed_override: int = 0, room_count: int = 0) -> void:
 	_clear_role_custody_state()
 	reset_tool_inventory_for_test(connected_peers)
 	next_event_id = 1
+	startup_mutation_broadcast_ready = false
+	pending_startup_mutation_events.clear()
 	local_sabotage_cooldown_until_tick = 0
 	run_active = true
 	extraction_room_slot = maxi(chain.size() - 1, 0)
@@ -841,12 +872,13 @@ func start_run(seed_override: int = 0, room_count: int = 0) -> void:
 		current_constitution_hash,
 		get_current_expedition_constitution_summary()
 	)
-	host_start_run.rpc(payload["seed"], payload["room_chain"], payload["peer_ids"], payload["directive_summary"], payload["constitution_hash"], payload["constitution_summary"])
-	_reveal_roles_to_clients()
-	_broadcast_artifact_state()
-	_broadcast_item_state()
-	_broadcast_ghost_state()
-	record_public_event("run_started", -1, -1, {"seed": run_seed})
+	var host_local_id := _safe_mp_unique_id(_mp())
+	for peer_id_value in connected_peers:
+		var peer_id := int(peer_id_value)
+		if peer_id == host_local_id:
+			continue
+		host_start_run.rpc_id(peer_id, payload["seed"], payload["room_chain"], payload["peer_ids"], payload["directive_summary"], payload["constitution_hash"], payload["constitution_summary"])
+	_schedule_local_host_start_run(payload)
 
 func send_client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO, pack_flags: int = 0) -> void:
 	var mp := _mp()
@@ -867,6 +899,8 @@ func broadcast_state(snapshot: Dictionary, tick: int) -> void:
 		return
 	current_server_tick = tick
 	_advance_runtime_ecology()
+	if tick <= 10:
+		_nm_log("HOST_PUSH_STATE_SEND tick=%d peers=%d entries=%d" % [tick, _remote_peers_from_mp(_mp()).size(), snapshot.size()])
 	host_push_state.rpc(snapshot, tick)
 	if run_active:
 		var reason := compute_end_reason_for_tick(current_server_tick)
@@ -955,6 +989,21 @@ func _on_connection_failed() -> void:
 func _on_server_disconnected() -> void:
 	_log_connection_event("server_disconnected", "")
 	_remember_client_reconnect("Host disconnected", run_active, run_active)
+	call_deferred("_finalize_server_disconnected")
+
+func _finalize_server_disconnected() -> void:
+	_select_active_mp("server_disconnected_finalize")
+	var active_mp := _mp()
+	var active_status := _mp_connection_status(active_mp)
+	var node_status := _mp_connection_status(_node_mp_candidate())
+	var tree_status := _mp_connection_status(_tree_mp_candidate())
+	var live_statuses := [
+		MultiplayerPeer.CONNECTION_CONNECTED,
+		MultiplayerPeer.CONNECTION_CONNECTING
+	]
+	if live_statuses.has(active_status) or live_statuses.has(node_status) or live_statuses.has(tree_status):
+		_nm_log("SERVER_DISCONNECT_IGNORED active=%d node=%d tree=%d" % [active_status, node_status, tree_status])
+		return
 	disconnect_peer("server_disconnected")
 	_set_connection_status("Host disconnected")
 
@@ -1026,6 +1075,12 @@ func host_start_run(
 	constitution_hash: String = "",
 	constitution_summary: Dictionary = {}
 ) -> void:
+	_nm_log("HOST_START_RUN_APPLY local=%d is_host=%s seed=%d chain_size=%d" % [
+		_safe_mp_unique_id(_mp()),
+		str(is_host),
+		seed_value,
+		room_chain.size()
+	])
 	var local_players: Array[int] = []
 	for peer_id in peer_ids:
 		local_players.append(int(peer_id))
@@ -1045,10 +1100,24 @@ func host_start_run(
 	reset_tool_inventory_for_test(local_players)
 	var run_state := _run_state()
 	if run_state != null:
+		var runtime_constitution_summary := Dictionary(current_expedition_constitution.get("constitution_summary", get_current_expedition_constitution_summary())).duplicate(true)
+		var run_state_public_summary := public_constitution_summary.duplicate(true)
+		if run_state_public_summary.is_empty():
+			run_state_public_summary = get_current_expedition_constitution_summary()
 		run_state.set_run(seed_value, room_chain, local_players, {
 			"constitution": current_expedition_constitution,
 			"constitution_hash": current_constitution_hash,
-			"constitution_summary": get_current_expedition_constitution_summary(),
+			"constitution_summary": run_state_public_summary.duplicate(true),
+			"truth_state": {
+				"public_trace_classes": Array(runtime_constitution_summary.get("public_trace_classes", [])).duplicate(true),
+				"private_trace_classes": Array(runtime_constitution_summary.get("private_trace_classes", [])).duplicate(true)
+			},
+			"provenance_state": {
+				"provenance_contract_version": int(run_state_public_summary.get("provenance_contract_version", runtime_constitution_summary.get("provenance_contract_version", 0))),
+				"explanation_packet_digest": str(run_state_public_summary.get("explanation_packet_digest", runtime_constitution_summary.get("explanation_packet_digest", ""))).strip_edges(),
+				"public_surface_tags": Array(run_state_public_summary.get("public_surface_tags", runtime_constitution_summary.get("public_surface_tags", []))).duplicate(true),
+				"provenance_source_refs": Array(runtime_constitution_summary.get("provenance_source_refs", [])).duplicate(true)
+			},
 			"generation_surface": get_current_generation_contract(),
 			"encounter_history": [],
 			"active_encounter_state": {},
@@ -1067,6 +1136,7 @@ func host_start_run(
 	_clear_predator_state()
 	_clear_protocol_watch_state()
 	_clear_echo_lure_state()
+	_nm_log("HOST_START_RUN_EMIT_SIGNAL local=%d is_host=%s" % [_safe_mp_unique_id(_mp()), str(is_host)])
 	emit_signal("run_started", seed_value, room_chain)
 
 @rpc("authority", "call_local", "reliable")
@@ -1075,7 +1145,7 @@ func host_join_denied(reason: String) -> void:
 	disconnect_peer("join_denied")
 	_set_connection_status(reason)
 
-@rpc("any_peer", "unreliable_ordered")
+@rpc("any_peer", "reliable")
 func client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO, pack_flags: int = 0) -> void:
 	if not is_host:
 		return
@@ -1086,10 +1156,12 @@ func client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 =
 	input_by_peer[sender] = {"move": move_axis, "jump": jump_pressed, "seq": seq, "pos": pos, "flags": pack_flags}
 
 
-@rpc("authority", "call_local", "unreliable_ordered")
+@rpc("authority", "call_local", "reliable")
 func host_push_state(snapshot: Dictionary, tick: int) -> void:
 	latest_snapshot = snapshot
 	latest_tick = tick
+	if not is_host and tick <= 10:
+		_nm_log("HOST_PUSH_STATE_RECV tick=%d entries=%d" % [tick, snapshot.size()])
 	emit_signal("state_snapshot", snapshot, tick)
 
 func update_authoritative_player_state(peer_id: int, world_pos: Vector2, room_slot: int) -> void:
@@ -1405,7 +1477,16 @@ func build_outcome_summary(reason: String, artifacts_state: Dictionary, extracti
 		sabotage_success = true
 	var summary_text := "Expedition success" if expedition_success else "Sabotage success" if sabotage_success else "Run unresolved"
 	var continuity_summary := _build_artifact_continuity_summary(reason, artifacts_state, extraction_details, false)
-	return {
+	var market_context := _current_market_consequence_context()
+	var consequence_summary := artifact_service.build_consequence_contract(
+		reason,
+		artifacts_state,
+		continuity_summary,
+		extraction_details,
+		str(market_context.get("market_regime_id", "")),
+		str(market_context.get("market_carrier_risk_band", ""))
+	)
+	var summary := {
 		"artifact_result": artifact_result,
 		"artifact_result_text": artifact_result_text,
 		"artifact_continuity_state": str(continuity_summary.get("state", "")),
@@ -1420,6 +1501,9 @@ func build_outcome_summary(reason: String, artifacts_state: Dictionary, extracti
 		"authentic_count": int(authenticity.get("authentic", 0)),
 		"counterfeit_count": int(authenticity.get("counterfeit", 0))
 	}
+	for key in consequence_summary.keys():
+		summary[key] = consequence_summary[key]
+	return summary
 
 func build_outcome_summary_for_test(reason: String, artifacts_state: Dictionary, extraction_details: Dictionary = {}) -> Dictionary:
 	return build_outcome_summary(reason, artifacts_state, extraction_details)
@@ -1442,18 +1526,29 @@ func build_run_end_payload(reason: String, seed_override: int = -1) -> Dictionar
 	if event_log != null:
 		events = event_log.events
 	var extraction_details := _find_extraction_completion_details() if reason == "extraction_objective" else {}
+	var synced_local_aftermath := get_local_aftermath()
 	return {
 		"seed": run_seed_value,
 		"reason": reason,
 		"end_tick": current_server_tick,
 		"roles_reveal": roles_reveal,
 		"summary_by_peer": compute_summary_from_events(events, players, artifacts_by_id),
-		"outcome_summary": build_outcome_summary(reason, artifacts_by_id, extraction_details)
+		"outcome_summary": build_outcome_summary(reason, artifacts_by_id, extraction_details),
+		"local_aftermath": synced_local_aftermath.duplicate(true)
 	}
 
 func _build_interrupted_outcome_summary(reason: String, artifacts_state: Dictionary) -> Dictionary:
 	var continuity_summary := _build_artifact_continuity_summary(reason, artifacts_state, {}, true)
-	return {
+	var market_context := _current_market_consequence_context()
+	var consequence_summary := artifact_service.build_consequence_contract(
+		"session_interrupted",
+		artifacts_state,
+		continuity_summary,
+		{},
+		str(market_context.get("market_regime_id", "")),
+		str(market_context.get("market_carrier_risk_band", ""))
+	)
+	var summary := {
 		"summary_text": "Session interrupted",
 		"artifact_result_text": "Run interrupted before extraction",
 		"artifact_result": "interrupted",
@@ -1467,6 +1562,9 @@ func _build_interrupted_outcome_summary(reason: String, artifacts_state: Diction
 		"sabotage_success": false,
 		"interrupt_reason": reason
 	}
+	for key in consequence_summary.keys():
+		summary[key] = consequence_summary[key]
+	return summary
 
 func _build_artifact_continuity_summary(reason: String, artifacts_state: Dictionary, extraction_details: Dictionary = {}, interrupted: bool = false) -> Dictionary:
 	var extracted_artifact_id := int(extraction_details.get("artifact_id", 0))
@@ -1521,6 +1619,15 @@ func _build_artifact_continuity_summary(reason: String, artifacts_state: Diction
 		"unresolved_counterfeit_count": unresolved_counterfeit,
 		"carried_unresolved_count": carried_unresolved,
 		"buried_unresolved_count": buried_unresolved
+	}
+
+func _current_market_consequence_context() -> Dictionary:
+	var constitution: Dictionary = _effective_constitution()
+	var market_regime_state: Dictionary = Dictionary(constitution.get("market_regime_state", {}))
+	var constitution_summary := get_current_expedition_constitution_summary()
+	return {
+		"market_regime_id": str(constitution_summary.get("market_regime_id", market_regime_state.get("regime_id", ""))).strip_edges(),
+		"market_carrier_risk_band": str(constitution_summary.get("market_carrier_risk_band", market_regime_state.get("carrier_risk_band", ""))).strip_edges()
 	}
 
 func get_local_carried_artifact_id() -> int:
@@ -1614,6 +1721,9 @@ func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: D
 	var build_identities: Array[String] = []
 	var resource_pressure: Array[String] = []
 	var inhabitant_pressure: Array[String] = []
+	var combo_family_ids: Array[String] = []
+	var combo_pressure_tags: Array[String] = []
+	var combo_public_surface_tags: Array[String] = []
 	var pathology_state := get_pathology_state()
 	var active_encounter_state := get_active_encounter_state()
 	var active_apex_state := get_active_apex_state()
@@ -1668,6 +1778,11 @@ func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: D
 			"build_stability": int(loadout_state.get("build_stability", 0)),
 			"risk_profile": str(loadout_state.get("risk_profile", "mixed")).strip_edges(),
 			"model_pressure": Array(loadout_state.get("model_pressure", [])).duplicate(),
+			"combo_contract_version": int(loadout_state.get("combo_contract_version", 0)),
+			"combo_contract_digest": str(loadout_state.get("combo_contract_digest", "")).strip_edges(),
+			"combo_family_ids": Array(loadout_state.get("combo_family_ids", [])).duplicate(true),
+			"combo_pressure_tags": Array(loadout_state.get("combo_pressure_tags", [])).duplicate(true),
+			"public_surface_tags": Array(loadout_state.get("public_surface_tags", [])).duplicate(true),
 			"latent_totals": Dictionary(loadout_state.get("latent_totals", {})).duplicate(true),
 			"inhabitant_signals": inhabitant_signals
 		}
@@ -1677,6 +1792,18 @@ func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: D
 			var text := str(signal_value).strip_edges()
 			if not text.is_empty() and not resource_pressure.has(text):
 				resource_pressure.append(text)
+		for family_id_variant in Array(model.get("combo_family_ids", [])):
+			var family_id := str(family_id_variant).strip_edges()
+			if not family_id.is_empty() and not combo_family_ids.has(family_id):
+				combo_family_ids.append(family_id)
+		for tag_variant in Array(model.get("combo_pressure_tags", [])):
+			var combo_tag := str(tag_variant).strip_edges()
+			if not combo_tag.is_empty() and not combo_pressure_tags.has(combo_tag):
+				combo_pressure_tags.append(combo_tag)
+		for surface_tag_variant in Array(model.get("public_surface_tags", [])):
+			var surface_tag := str(surface_tag_variant).strip_edges()
+			if not surface_tag.is_empty() and not combo_public_surface_tags.has(surface_tag):
+				combo_public_surface_tags.append(surface_tag)
 		for signal_value in inhabitant_signals:
 			var pressure_text := str(signal_value).strip_edges()
 			if not pressure_text.is_empty() and not inhabitant_pressure.has(pressure_text):
@@ -1690,6 +1817,9 @@ func build_gameplay_signal_snapshot(peer_identities: Dictionary = {}, profile: D
 		"player_count": peer_ids.size(),
 		"peer_models": peer_models,
 		"build_identities": build_identities,
+		"combo_family_ids": combo_family_ids,
+		"combo_pressure_tags": combo_pressure_tags,
+		"combo_public_surface_tags": combo_public_surface_tags,
 		"resource_pressure": resource_pressure,
 		"inhabitant_pressure": inhabitant_pressure,
 		"active_pathology_ids": _string_array(pathology_state.get("active_family_ids", [])),
@@ -1834,6 +1964,46 @@ func _build_group_gameplay_model(peer_models: Dictionary, protocol_state: String
 		protocol_weighting = "split pressure"
 	elif protocol_state == "Expedition Protocol":
 		protocol_weighting = "spectacle pressure"
+	var role_custody_pressure := _role_custody_group_pressure()
+	var witness_pressure := "contained"
+	var suspicion_total := int(role_custody_pressure.get("suspicion_heat", 0))
+	var custody_total := int(role_custody_pressure.get("custody_debt", 0))
+	var counterfeit_total := int(role_custody_pressure.get("counterfeit_heat", 0))
+	if suspicion_total >= 4 or int(role_custody_pressure.get("warden_duty", 0)) >= 3:
+		witness_pressure = "focused"
+	elif suspicion_total >= 2 or custody_total >= 2:
+		witness_pressure = "public"
+	var counterfeit_pressure := "contained"
+	if counterfeit_total >= 3:
+		counterfeit_pressure = "active"
+	elif counterfeit_total > 0:
+		counterfeit_pressure = "present"
+	var relationship_pressure := "steady"
+	if trust_fragility >= 2:
+		relationship_pressure = "strained"
+	elif obligation_heat >= 3 or alliance_stability >= 3 or loyalty_pressure >= 3:
+		relationship_pressure = "binding"
+	var public_evidence_tags: Array[String] = []
+	if witness_pressure != "contained":
+		public_evidence_tags.append("witness_visible")
+	if custody_total >= 2:
+		public_evidence_tags.append("custody_visible")
+	if relationship_pressure != "steady":
+		public_evidence_tags.append("relationship_visible")
+	var blame_surface_tags: Array[String] = []
+	if witness_pressure != "contained":
+		blame_surface_tags.append("witness_surface")
+	if custody_total >= 2:
+		blame_surface_tags.append("custody_surface")
+	if relationship_pressure == "strained":
+		blame_surface_tags.append("relationship_surface")
+	var consequence_read_refs: Array[String] = []
+	if witness_pressure != "contained":
+		consequence_read_refs.append("public_event_visibility")
+	if relationship_pressure != "steady":
+		consequence_read_refs.append("relationship_model")
+	if counterfeit_pressure != "contained":
+		consequence_read_refs.append("artifact_truth")
 	var build_spread: Array[String] = []
 	for build_label in build_totals.keys():
 		build_spread.append(str(build_label))
@@ -1854,7 +2024,14 @@ func _build_group_gameplay_model(peer_models: Dictionary, protocol_state: String
 		"trust_fragility": trust_fragility,
 		"friendship_pressure": friendship_pressure,
 		"loyalty_pressure": loyalty_pressure,
-		"obligation_heat": obligation_heat
+		"obligation_heat": obligation_heat,
+		"social_consequence_version": SOCIAL_CONSEQUENCE_VERSION,
+		"public_evidence_tags": public_evidence_tags,
+		"witness_pressure": witness_pressure,
+		"counterfeit_pressure": counterfeit_pressure,
+		"relationship_pressure": relationship_pressure,
+		"blame_surface_tags": blame_surface_tags,
+		"consequence_read_refs": consequence_read_refs
 	}
 
 func _build_relationship_gameplay_model(profile: Dictionary, cards: Dictionary, peer_ids: Array[int], protocol_state: String) -> Dictionary:
@@ -2105,6 +2282,8 @@ func _apply_runtime_encounter_state(species_id: String, room_slot: int, target_p
 		"intent_id": str(encounter.get("intent_id", "")).strip_edges(),
 		"topology_id": str(encounter.get("topology_id", "")).strip_edges(),
 		"anchored_pressures": _string_array(encounter.get("anchored_pressures", [])),
+		"local_aftermath_tags": _string_array(encounter.get("local_aftermath_tags", [])),
+		"world_aftermath_tags": _string_array(encounter.get("world_aftermath_tags", [])),
 		"role_vectors": _string_array(encounter.get("role_vectors", [])),
 		"consequence_classes": _string_array(encounter.get("consequence_classes", [])),
 		"pathology_family_ids": _string_array(encounter.get("pathology_family_ids", [])),
@@ -2176,6 +2355,8 @@ func _apply_runtime_apex_state(species_id: String, room_slot: int, target_peer_i
 		"function": str(apex.get("function", "")).strip_edges(),
 		"arena": str(apex.get("arena", "")).strip_edges(),
 		"anchored_pressures": _string_array(apex.get("anchored_pressures", [])),
+		"local_aftermath_tags": _string_array(apex.get("local_aftermath_tags", [])),
+		"world_aftermath_tags": _string_array(apex.get("world_aftermath_tags", [])),
 		"phase_model": _string_array(apex.get("phase_model", [])),
 		"resolution_classes": _string_array(apex.get("resolution_classes", [])),
 		"telegraph_channels": _string_array(Dictionary(apex.get("telegraph_profile", {})).get("channels", [])),
@@ -2230,6 +2411,27 @@ func _build_local_aftermath_record(encounter_state: Dictionary, apex_state: Dict
 		Array(encounter_state.get("consequence_classes", [])),
 		Array(apex_state.get("resolution_classes", []))
 	)
+	var consequence_context := _build_aftermath_consequence_context(reason)
+	var local_aftermath_tags := _merge_arrays(
+		Array(encounter_state.get("local_aftermath_tags", [])),
+		Array(apex_state.get("local_aftermath_tags", []))
+	)
+	var world_aftermath_tags := _merge_arrays(
+		Array(encounter_state.get("world_aftermath_tags", [])),
+		Array(apex_state.get("world_aftermath_tags", []))
+	)
+	var market_regime_id := str(consequence_context.get("market_regime_id", "")).strip_edges()
+	var market_carrier_risk_band := str(consequence_context.get("market_carrier_risk_band", "")).strip_edges()
+	if not market_regime_id.is_empty():
+		world_aftermath_tags = _merge_arrays(world_aftermath_tags, [market_regime_id])
+	if not market_carrier_risk_band.is_empty():
+		world_aftermath_tags = _merge_arrays(world_aftermath_tags, ["carrier_%s" % market_carrier_risk_band])
+	var aftermath_consequence_refs := _merge_arrays(
+		([str(consequence_context.get("consequence_event_family", "")).strip_edges()] if not str(consequence_context.get("consequence_event_family", "")).strip_edges().is_empty() else []),
+		_string_array(consequence_context.get("encounter_hook_tags", []))
+		+ _string_array(consequence_context.get("return_pressure_tags", []))
+		+ _string_array(consequence_context.get("public_consequence_tags", []))
+	)
 	var custody_state_delta := "contested" if anchored_pressures.has("custody_pressure") else "stable"
 	var evidence_state_delta := "exposed" if anchored_pressures.has("evidence_pressure") else "contained"
 	var resource_state_delta := "strained" if consequence_classes.has("resource_drain") or anchored_pressures.has("burden_pressure") else "stable"
@@ -2237,18 +2439,59 @@ func _build_local_aftermath_record(encounter_state: Dictionary, apex_state: Dict
 	return {
 		"schema_name": "LocalAftermath",
 		"schema_version": 1,
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"aftermath_id": "local_aftermath_%s_%d" % [source_id, maxi(current_server_tick, 0)],
 		"source_id": source_id,
 		"source_kind": source_kind,
+		"encounter_resolution_state": _encounter_resolution_state(reason, encounter_state, anchored_pressures),
+		"apex_resolution_state": _apex_resolution_state(reason, apex_state, anchored_pressures),
+		"anchored_pressures": anchored_pressures.duplicate(),
+		"consequence_classes": consequence_classes.duplicate(),
+		"local_aftermath_tags": local_aftermath_tags.slice(0, 4),
+		"world_aftermath_tags": world_aftermath_tags.slice(0, 4),
+		"aftermath_consequence_refs": aftermath_consequence_refs.slice(0, 8),
 		"affected_room_slots": [room_slot] if room_slot >= 0 else [],
 		"immediate_route_state": immediate_route_state,
 		"custody_state_delta": custody_state_delta,
 		"evidence_state_delta": evidence_state_delta,
 		"resource_state_delta": resource_state_delta,
-		"residual_telegraph_tags": _merge_arrays(Array(encounter_state.get("anchored_pressures", [])), Array(apex_state.get("telegraph_channels", []))),
+		"residual_telegraph_tags": _merge_arrays(
+			_merge_arrays(Array(encounter_state.get("anchored_pressures", [])), Array(apex_state.get("telegraph_channels", []))),
+			_string_array(consequence_context.get("return_pressure_tags", []))
+		),
 		"narrative_residue_tags": _merge_arrays(Array(encounter_state.get("pathology_family_ids", [])), Array(apex_state.get("anchored_pressures", []))),
 		"resolution_reason": reason
 	}
+
+func _build_aftermath_consequence_context(reason: String) -> Dictionary:
+	var extraction_details := _find_extraction_completion_details() if reason == "extraction_objective" else {}
+	return build_outcome_summary(reason, artifacts_by_id, extraction_details)
+
+func _encounter_resolution_state(reason: String, encounter_state: Dictionary, anchored_pressures: Array[String]) -> String:
+	if encounter_state.is_empty():
+		return ""
+	if reason == "superseded":
+		return "superseded"
+	if reason == "session_interrupted":
+		return "interrupted"
+	if anchored_pressures.has("route_pressure") or anchored_pressures.has("extraction_pressure"):
+		return "rerouted"
+	if anchored_pressures.has("custody_pressure") or anchored_pressures.has("evidence_pressure"):
+		return "contested"
+	return "contained"
+
+func _apex_resolution_state(reason: String, apex_state: Dictionary, anchored_pressures: Array[String]) -> String:
+	if apex_state.is_empty():
+		return ""
+	if reason == "superseded":
+		return "superseded"
+	if reason == "session_interrupted":
+		return "interrupted"
+	if anchored_pressures.has("route_pressure") or anchored_pressures.has("extraction_pressure"):
+		return "route_resolution"
+	if anchored_pressures.has("burden_pressure") or anchored_pressures.has("custody_pressure"):
+		return "pressured_resolution"
+	return "contained"
 
 func get_tool_counts_for_peer(peer_id: int) -> Dictionary:
 	var counts: Dictionary = tool_inventory_by_peer.get(peer_id, {})
@@ -2375,12 +2618,23 @@ func _broadcast_mutation_event(event: Dictionary) -> void:
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
 		return
+	if not startup_mutation_broadcast_ready:
+		pending_startup_mutation_events.append(event.duplicate(true))
+		return
+	_dispatch_mutation_event(event, mp)
+
+func _dispatch_mutation_event(event: Dictionary, mp: MultiplayerAPI = null) -> void:
+	var active_mp := mp
+	if active_mp == null:
+		active_mp = _mp()
+	if not _has_live_network_peer(active_mp):
+		return
 	var visibility := str(event.get("visibility", "private"))
 	if visibility == "public":
 		host_push_mutation_event.rpc(event)
 		return
 	var target_peer_id := int(event.get("actor_peer_id", -1))
-	var local_id := mp.get_unique_id()
+	var local_id := active_mp.get_unique_id()
 	if target_peer_id > 0 and target_peer_id != local_id:
 		host_push_mutation_event.rpc_id(target_peer_id, event)
 
@@ -2467,12 +2721,14 @@ func host_reveal_role(payload: Dictionary) -> void:
 	var run_state := _run_state()
 	if run_state == null:
 		return
+	_nm_log("HOST_REVEAL_ROLE_RECV role=%s" % str(payload.get("role", "Unknown")))
 	run_state.local_role = str(payload.get("role", "Unknown"))
 	run_state.local_role_payload = payload.duplicate(true)
 	emit_signal("role_revealed", str(run_state.local_role))
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_artifact_state(payload: Array) -> void:
+	_nm_log("HOST_SYNC_ARTIFACT_STATE_RECV count=%d" % payload.size())
 	var next_artifacts: Dictionary = {}
 	for artifact_raw in payload:
 		var artifact: Dictionary = artifact_raw
@@ -2498,6 +2754,7 @@ func host_sync_artifact_state(payload: Array) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_item_state(payload: Array) -> void:
+	_nm_log("HOST_SYNC_ITEM_STATE_RECV count=%d" % payload.size())
 	items_by_id.clear()
 	var run_state := _run_state()
 	if run_state != null:
@@ -2512,6 +2769,7 @@ func host_sync_item_state(payload: Array) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_ghost_state(state: Dictionary) -> void:
+	_nm_log("HOST_SYNC_GHOST_STATE_RECV active=%s" % str(bool(state.get("active", false))))
 	ghost_state = state.duplicate(true)
 	emit_signal("ghost_state_changed", ghost_state.duplicate(true))
 
@@ -2574,6 +2832,7 @@ func reset_to_lobby(_reason: String = "manual") -> void:
 		next_artifact_id = 1
 		next_event_id = 1
 		local_sabotage_cooldown_until_tick = 0
+		_pending_local_run_start_payload.clear()
 		run_active = false
 		extraction_room_slot = -1
 		host_port = -1
@@ -3177,6 +3436,62 @@ func _find_carried_artifact_by_peer(peer_id: int) -> int:
 			return int(artifact_id)
 	return 0
 
+func _apply_local_host_start_run(payload: Dictionary) -> void:
+	host_start_run(
+		int(payload.get("seed", 0)),
+		Array(payload.get("room_chain", [])).duplicate(true),
+		Array(payload.get("peer_ids", [])).duplicate(true),
+		Dictionary(payload.get("directive_summary", {})).duplicate(true),
+		str(payload.get("constitution_hash", "")).strip_edges(),
+		Dictionary(payload.get("constitution_summary", {})).duplicate(true)
+	)
+
+func _schedule_local_host_start_run(payload: Dictionary) -> void:
+	_pending_local_run_start_payload = payload.duplicate(true)
+	var tree := get_tree()
+	if tree == null:
+		_finalize_local_host_start_run()
+		return
+	var timer := tree.create_timer(LOCAL_HOST_START_DELAY_SEC)
+	timer.timeout.connect(Callable(self, "_finalize_local_host_start_run"), CONNECT_ONE_SHOT)
+
+func _finalize_local_host_start_run() -> void:
+	if _pending_local_run_start_payload.is_empty():
+		return
+	var payload := _pending_local_run_start_payload.duplicate(true)
+	_pending_local_run_start_payload.clear()
+	_apply_local_host_start_run(payload)
+	record_public_event("run_started", -1, -1, {"seed": int(payload.get("seed", 0))})
+	_schedule_post_start_state_broadcast()
+
+func _schedule_post_start_state_broadcast() -> void:
+	var tree := get_tree()
+	if tree == null:
+		_broadcast_post_start_state()
+		return
+	var timer := tree.create_timer(POST_START_SYNC_DELAY_SEC)
+	timer.timeout.connect(Callable(self, "_broadcast_post_start_state"), CONNECT_ONE_SHOT)
+
+func _broadcast_post_start_state() -> void:
+	if not is_host or not run_active:
+		return
+	startup_mutation_broadcast_ready = true
+	_nm_log("POST_START_BROADCAST role_peers=%d artifact_count=%d item_count=%d ghost_active=%s" % [
+		players.size(),
+		artifacts_by_id.size(),
+		items_by_id.size(),
+		str(bool(ghost_state.get("active", false)))
+	])
+	_reveal_roles_to_clients()
+	_broadcast_artifact_state()
+	_broadcast_item_state()
+	_broadcast_ghost_state()
+	if not pending_startup_mutation_events.is_empty():
+		var pending_events := pending_startup_mutation_events.duplicate(true)
+		pending_startup_mutation_events.clear()
+		for event in pending_events:
+			_dispatch_mutation_event(Dictionary(event).duplicate(true))
+
 func _reveal_roles_to_clients() -> void:
 	var role_service := ROLE_SERVICE_SCRIPT.new()
 	var mp := _mp()
@@ -3198,24 +3513,29 @@ func _reveal_roles_to_clients() -> void:
 func _broadcast_artifact_state() -> void:
 	if not is_host:
 		return
+	var payload := _serialize_artifacts()
+	_nm_log("HOST_SYNC_ARTIFACT_STATE_SEND count=%d" % payload.size())
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
-		host_sync_artifact_state(_serialize_artifacts())
+		host_sync_artifact_state(payload)
 		return
-	host_sync_artifact_state.rpc(_serialize_artifacts())
+	host_sync_artifact_state.rpc(payload)
 
 func _broadcast_item_state() -> void:
 	if not is_host:
 		return
+	var payload := _serialize_items()
+	_nm_log("HOST_SYNC_ITEM_STATE_SEND count=%d" % payload.size())
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
-		host_sync_item_state(_serialize_items())
+		host_sync_item_state(payload)
 		return
-	host_sync_item_state.rpc(_serialize_items())
+	host_sync_item_state.rpc(payload)
 
 func _broadcast_ghost_state() -> void:
 	if not is_host:
 		return
+	_nm_log("HOST_SYNC_GHOST_STATE_SEND active=%s" % str(bool(ghost_state.get("active", false))))
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
 		host_sync_ghost_state(ghost_state.duplicate(true))
@@ -3227,7 +3547,7 @@ func _serialize_artifacts() -> Array:
 	ids.sort()
 	var data: Array = []
 	for artifact_id in ids:
-		data.append(artifacts_by_id[artifact_id])
+		data.append(_network_safe_artifact_state(Dictionary(artifacts_by_id[artifact_id])))
 	return data
 
 func _serialize_items() -> Array:
@@ -3235,8 +3555,28 @@ func _serialize_items() -> Array:
 	ids.sort()
 	var data: Array = []
 	for item_id in ids:
-		data.append(Dictionary(items_by_id[item_id]).duplicate(true))
+		data.append(_network_safe_item_state(Dictionary(items_by_id[item_id])))
 	return data
+
+func _network_safe_artifact_state(artifact: Dictionary) -> Dictionary:
+	return {
+		"artifact_id": int(artifact.get("artifact_id", 0)),
+		"room_slot": int(artifact.get("room_slot", -1)),
+		"signature": str(artifact.get("signature", "")),
+		"is_forged": bool(artifact.get("is_forged", false)),
+		"owner_peer_id": int(artifact.get("owner_peer_id", 0)),
+		"world_pos": artifact.get("world_pos", Vector2.ZERO)
+	}
+
+func _network_safe_item_state(item: Dictionary) -> Dictionary:
+	return {
+		"item_id": int(item.get("item_id", 0)),
+		"item_def_id": str(item.get("item_def_id", "")),
+		"display_name": str(item.get("display_name", item.get("item_def_id", ""))),
+		"owner_peer_id": int(item.get("owner_peer_id", 0)),
+		"consumed": bool(item.get("consumed", false)),
+		"world_pos": item.get("world_pos", Vector2.ZERO)
+	}
 
 func _build_event(visibility: String, event_type: String, room_slot: int, actor_peer_id: int, meta: Dictionary, target_peer_id: int = -1) -> Dictionary:
 	var event := {
@@ -4724,9 +5064,8 @@ func choose_mp_kind_for_test(node_has_peer: bool, tree_has_peer: bool) -> String
 func _log_connection_event(event_name: String, detail: String) -> void:
 	var local_id := -1
 	var mp := _mp()
-	var has_peer := mp != null and mp.multiplayer_peer != null
-	if mp != null:
-		local_id = mp.get_unique_id()
+	var has_peer := _has_live_network_peer(mp)
+	local_id = _safe_mp_unique_id(mp)
 	var is_server := has_peer and mp.is_server()
 	_nm_log("NET_EVENT name=%s local=%d is_host=%s is_server=%s peers=%s %s" % [
 		event_name,
@@ -4847,11 +5186,25 @@ func _peer_kind(mp: MultiplayerAPI) -> String:
 		return "no_peer"
 	return mp.multiplayer_peer.get_class()
 
+func _mp_connection_status(mp: MultiplayerAPI) -> int:
+	if mp == null or mp.multiplayer_peer == null:
+		return MultiplayerPeer.CONNECTION_DISCONNECTED
+	if mp.multiplayer_peer.get_class() == "OfflineMultiplayerPeer":
+		return MultiplayerPeer.CONNECTION_DISCONNECTED
+	if mp.multiplayer_peer.has_method("get_connection_status"):
+		return int(mp.multiplayer_peer.get_connection_status())
+	return MultiplayerPeer.CONNECTION_CONNECTED
+
 func _has_live_network_peer(mp: MultiplayerAPI) -> bool:
-	return mp != null and mp.multiplayer_peer != null and mp.multiplayer_peer.get_class() != "OfflineMultiplayerPeer"
+	return _mp_connection_status(mp) != MultiplayerPeer.CONNECTION_DISCONNECTED
+
+func _safe_mp_unique_id(mp: MultiplayerAPI) -> int:
+	if not _has_live_network_peer(mp):
+		return -1
+	return mp.get_unique_id()
 
 func _peer_id_text(mp: MultiplayerAPI) -> String:
-	if mp == null or mp.multiplayer_peer == null:
+	if not _has_live_network_peer(mp):
 		return "none"
 	return "%s#%d" % [mp.multiplayer_peer.get_class(), mp.multiplayer_peer.get_instance_id()]
 
@@ -4860,16 +5213,33 @@ func _log_mp_state(tag: String) -> void:
 	if mp == null:
 		_nm_log("MP_STATE tag=%s mp=null" % tag)
 		return
-	var remote_peers := _remote_peers_from_mp(mp)
+	var remote_peers: Array[int] = []
+	if _has_live_network_peer(mp):
+		remote_peers = _remote_peers_from_mp(mp)
 	_nm_log("MP_STATE tag=%s local=%d has_peer=%s is_server=%s remote_peers=%s" % [
 		tag,
-		mp.get_unique_id(),
-		str(mp.multiplayer_peer != null),
-		str(mp.multiplayer_peer != null and mp.is_server()),
+		_safe_mp_unique_id(mp),
+		str(_has_live_network_peer(mp)),
+		str(_has_live_network_peer(mp) and mp.is_server()),
 		str(remote_peers)
 	])
 
 func _nm_log(message: String) -> void:
+	var allowed_prefixes := [
+		"HOST_ONLINE",
+		"START_RUN_REQUEST",
+		"READY_RPC",
+		"READY_RPC_ACCEPT",
+		"READY_RPC_REJECT",
+		"NET_EVENT"
+	]
+	var should_print := false
+	for prefix in allowed_prefixes:
+		if message.begins_with(prefix):
+			should_print = true
+			break
+	if not should_print:
+		return
 	var path_text := "<detached>"
 	if is_inside_tree():
 		path_text = str(get_path())
@@ -4916,7 +5286,22 @@ func _select_active_mp(tag: String) -> void:
 	var tree_mp := _tree_mp_candidate()
 	var node_has_peer := node_mp != null and node_mp.multiplayer_peer != null
 	var tree_has_peer := tree_mp != null and tree_mp.multiplayer_peer != null
+	var node_remote_count := -1
+	var tree_remote_count := -1
+	if _has_live_network_peer(node_mp):
+		node_remote_count = _remote_peers_from_mp(node_mp).size()
+	if _has_live_network_peer(tree_mp):
+		tree_remote_count = _remote_peers_from_mp(tree_mp).size()
 	var chosen_kind := choose_mp_kind_for_test(node_has_peer, tree_has_peer)
+	if node_has_peer and tree_has_peer and node_mp != tree_mp:
+		if tree_remote_count > node_remote_count:
+			chosen_kind = "tree"
+		elif node_remote_count > tree_remote_count:
+			chosen_kind = "node"
+		elif _active_mp == tree_mp:
+			chosen_kind = "tree"
+		else:
+			chosen_kind = "tree"
 	if chosen_kind == "node":
 		_active_mp = node_mp
 	elif chosen_kind == "tree":

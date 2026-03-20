@@ -56,6 +56,11 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var activation_lines := _take_unique(_string_array(expedition_constitution_summary.get("activation_lines", [])), 3)
 	var safe_mode_active := bool(expedition_constitution_summary.get("safe_mode_active", false))
 	var safe_mode_lines := _take_unique(_string_array(expedition_constitution_summary.get("safe_mode_lines", [])), 3)
+	var provenance_contract_version := int(run_record.get("provenance_contract_version", expedition_constitution_summary.get("provenance_contract_version", 0)))
+	var public_trace_classes := _take_unique(_string_array(run_record.get("public_trace_classes", expedition_constitution_summary.get("public_trace_classes", []))), 8)
+	var private_trace_classes := _take_unique(_string_array(run_record.get("private_trace_classes", expedition_constitution_summary.get("private_trace_classes", []))), 8)
+	var public_surface_tags := _take_unique(_string_array(run_record.get("public_surface_tags", expedition_constitution_summary.get("public_surface_tags", []))), 8)
+	var provenance_source_refs := _take_unique(_string_array(run_record.get("provenance_source_refs", expedition_constitution_summary.get("provenance_source_refs", []))), 8)
 	var packet_schema_version := int(expedition_constitution_summary.get("packet_schema_version", 0))
 	var explanation_packet_digest := str(expedition_constitution_summary.get("explanation_packet_digest", "")).strip_edges()
 	var explanation_packet_lines := _take_unique(_string_array(expedition_constitution_summary.get("explanation_packet_lines", [])), 3)
@@ -80,6 +85,21 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var active_apex_state: Dictionary = Dictionary(run_record.get("active_apex_state", {}))
 	var local_aftermath: Dictionary = Dictionary(run_record.get("local_aftermath", {}))
 	var world_aftermath_refs := Array(CIVILIZATION_STATE_SERVICE_SCRIPT.world_aftermath_ref_entries(run_record.get("world_aftermath_refs", [])))
+	var encounter_apex_consequence_version := int(run_record.get("encounter_apex_consequence_version", local_aftermath.get("encounter_apex_consequence_version", 0)))
+	var encounter_resolution_state := str(run_record.get("encounter_resolution_state", local_aftermath.get("encounter_resolution_state", ""))).strip_edges()
+	var apex_resolution_state := str(run_record.get("apex_resolution_state", local_aftermath.get("apex_resolution_state", ""))).strip_edges()
+	var anchored_pressures := _take_unique(_string_array(run_record.get("anchored_pressures", local_aftermath.get("anchored_pressures", []))), 8)
+	var consequence_classes := _take_unique(_string_array(run_record.get("consequence_classes", local_aftermath.get("consequence_classes", []))), 8)
+	var local_aftermath_tags := _take_unique(_string_array(run_record.get("local_aftermath_tags", local_aftermath.get("local_aftermath_tags", []))), 8)
+	var world_aftermath_tags := _take_unique(
+		_string_array(run_record.get("world_aftermath_tags", [])) + _aftermath_ref_string_values(world_aftermath_refs, "world_aftermath_tags"),
+		8
+	)
+	var aftermath_consequence_refs := _take_unique(
+		_string_array(run_record.get("aftermath_consequence_refs", local_aftermath.get("aftermath_consequence_refs", [])))
+		+ _aftermath_ref_string_values(world_aftermath_refs, "aftermath_consequence_refs"),
+		8
+	)
 	var mutation_surface_lines := _mutation_surface_lines(Dictionary(run_record.get("mutation_public_summary", {})))
 	var replay_id := str(Dictionary(run_record.get("replay_identity", {})).get("replay_id", Dictionary(run_record.get("forensic_bundle", {})).get("replay_id", ""))).strip_edges()
 	var forensic_bundle_digest := str(Dictionary(run_record.get("forensic_bundle", {})).get("bundle_digest", "")).strip_edges()
@@ -94,6 +114,35 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 	var build_identity := str(gameplay_model.get("build_identity", "")).strip_edges()
 	var build_stability := int(gameplay_model.get("build_stability", 0))
 	var risk_profile := str(gameplay_model.get("risk_profile", "")).strip_edges()
+	var combo_contract_version := int(run_record.get("combo_contract_version", gameplay_model.get("combo_contract_version", 0)))
+	var combo_contract_digest := str(run_record.get("combo_contract_digest", gameplay_model.get("combo_contract_digest", ""))).strip_edges()
+	var combo_family_ids := _take_unique(_string_array(run_record.get("combo_family_ids", gameplay_model.get("combo_family_ids", []))), 8)
+	var combo_entries := _dict_array(run_record.get("combo_entries", []))
+	var combo_pressure_tags := _take_unique(_string_array(run_record.get("combo_pressure_tags", gameplay_model.get("combo_pressure_tags", []))), 8)
+	var combo_public_surface_tags := _take_unique(_string_array(run_record.get("combo_public_surface_tags", gameplay_model.get("public_surface_tags", []))), 8)
+	var outcome_summary: Dictionary = Dictionary(run_record.get("outcome_summary", {}))
+	var artifact_consequence_version := int(outcome_summary.get("artifact_consequence_version", 0))
+	var authenticity_state := str(outcome_summary.get("authenticity_state", "")).strip_edges()
+	var custody_chain_summary := str(outcome_summary.get("custody_chain_summary", "")).strip_edges()
+	var burden_band := str(outcome_summary.get("burden_band", "")).strip_edges()
+	var valuation_band := str(outcome_summary.get("valuation_band", "")).strip_edges()
+	var return_consequence_state := str(outcome_summary.get("return_consequence_state", "")).strip_edges()
+	var public_consequence_tags := _take_unique(_string_array(outcome_summary.get("public_consequence_tags", [])), 8)
+	var consequence_event_family := str(outcome_summary.get("consequence_event_family", "")).strip_edges()
+	var encounter_hook_tags := _take_unique(_string_array(outcome_summary.get("encounter_hook_tags", [])), 8)
+	var social_hook_tags := _take_unique(_string_array(outcome_summary.get("social_hook_tags", [])), 8)
+	var return_pressure_tags := _take_unique(_string_array(outcome_summary.get("return_pressure_tags", [])), 8)
+	var market_regime_id := str(outcome_summary.get("market_regime_id", expedition_constitution_summary.get("market_regime_id", ""))).strip_edges()
+	var market_carrier_risk_band := str(outcome_summary.get("market_carrier_risk_band", expedition_constitution_summary.get("market_carrier_risk_band", ""))).strip_edges()
+	var artifact_unresolved_counterfeit_count := int(outcome_summary.get("artifact_unresolved_counterfeit_count", 0))
+	var social_consequence_version := int(run_record.get("social_consequence_version", group_gameplay_model.get("social_consequence_version", 0)))
+	var public_evidence_tags := _take_unique(_string_array(run_record.get("public_evidence_tags", group_gameplay_model.get("public_evidence_tags", []))), 8)
+	var private_evidence_tags := _take_unique(_string_array(run_record.get("private_evidence_tags", [])), 8)
+	var witness_pressure := str(run_record.get("witness_pressure", group_gameplay_model.get("witness_pressure", ""))).strip_edges()
+	var counterfeit_pressure := str(run_record.get("counterfeit_pressure", group_gameplay_model.get("counterfeit_pressure", ""))).strip_edges()
+	var relationship_pressure := str(run_record.get("relationship_pressure", group_gameplay_model.get("relationship_pressure", ""))).strip_edges()
+	var blame_surface_tags := _take_unique(_string_array(run_record.get("blame_surface_tags", group_gameplay_model.get("blame_surface_tags", []))), 8)
+	var consequence_read_refs := _take_unique(_string_array(run_record.get("consequence_read_refs", group_gameplay_model.get("consequence_read_refs", []))), 8)
 	var gameplay_feature_scores: Dictionary = Dictionary(gameplay_model.get("feature_scores", {}))
 	var gameplay_feature_signals := _string_array(gameplay_model.get("feature_signals", []))
 	var gameplay_behavior_signals := _string_array(gameplay_model.get("behavior_signals", []))
@@ -369,6 +418,11 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"activation_lines": activation_lines,
 		"safe_mode_active": safe_mode_active,
 		"safe_mode_lines": safe_mode_lines,
+		"provenance_contract_version": provenance_contract_version,
+		"public_trace_classes": public_trace_classes,
+		"private_trace_classes": private_trace_classes,
+		"public_surface_tags": public_surface_tags,
+		"provenance_source_refs": provenance_source_refs,
 		"packet_schema_version": packet_schema_version,
 		"explanation_packet_digest": explanation_packet_digest,
 		"explanation_packet_lines": explanation_packet_lines,
@@ -382,6 +436,14 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"apex_class_ids": apex_class_ids,
 		"apex_lines": apex_lines,
 		"peak_structure_lines": peak_structure_lines,
+		"encounter_apex_consequence_version": encounter_apex_consequence_version,
+		"encounter_resolution_state": encounter_resolution_state,
+		"apex_resolution_state": apex_resolution_state,
+		"anchored_pressures": anchored_pressures,
+		"consequence_classes": consequence_classes,
+		"local_aftermath_tags": local_aftermath_tags,
+		"world_aftermath_tags": world_aftermath_tags,
+		"aftermath_consequence_refs": aftermath_consequence_refs,
 		"active_apex_id": str(active_apex_state.get("apex_id", "")).strip_edges(),
 		"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
 		"world_aftermath_ids": _dict_values_to_string_array(world_aftermath_refs, "aftermath_id"),
@@ -394,6 +456,34 @@ static func analyze(run_record: Dictionary) -> Dictionary:
 		"build_identity": build_identity,
 		"build_stability": build_stability,
 		"risk_profile": risk_profile,
+		"combo_contract_version": combo_contract_version,
+		"combo_contract_digest": combo_contract_digest,
+		"combo_family_ids": combo_family_ids,
+		"combo_entries": combo_entries,
+		"combo_pressure_tags": combo_pressure_tags,
+		"combo_public_surface_tags": combo_public_surface_tags,
+		"artifact_consequence_version": artifact_consequence_version,
+		"authenticity_state": authenticity_state,
+		"custody_chain_summary": custody_chain_summary,
+		"burden_band": burden_band,
+		"valuation_band": valuation_band,
+		"return_consequence_state": return_consequence_state,
+		"public_consequence_tags": public_consequence_tags,
+		"consequence_event_family": consequence_event_family,
+		"encounter_hook_tags": encounter_hook_tags,
+		"social_hook_tags": social_hook_tags,
+		"return_pressure_tags": return_pressure_tags,
+		"market_regime_id": market_regime_id,
+		"market_carrier_risk_band": market_carrier_risk_band,
+		"artifact_unresolved_counterfeit_count": artifact_unresolved_counterfeit_count,
+		"social_consequence_version": social_consequence_version,
+		"public_evidence_tags": public_evidence_tags,
+		"private_evidence_tags": private_evidence_tags,
+		"witness_pressure": witness_pressure,
+		"counterfeit_pressure": counterfeit_pressure,
+		"relationship_pressure": relationship_pressure,
+		"blame_surface_tags": blame_surface_tags,
+		"consequence_read_refs": consequence_read_refs,
 		"build_scores": Dictionary(gameplay_model.get("build_scores", {})).duplicate(true),
 		"gameplay_feature_scores": gameplay_feature_scores.duplicate(true),
 		"gameplay_feature_signals": gameplay_feature_signals,
@@ -513,6 +603,14 @@ static func _dict_values_to_string_array(values: Array[Dictionary], key: String)
 		var text := str(Dictionary(entry).get(key, "")).strip_edges()
 		if not text.is_empty() and not result.has(text):
 			result.append(text)
+	return result
+
+static func _aftermath_ref_string_values(values: Array[Dictionary], key: String) -> Array[String]:
+	var result: Array[String] = []
+	for entry in values:
+		for text in _string_array(Dictionary(entry).get(key, [])):
+			if not result.has(text):
+				result.append(text)
 	return result
 
 static func _public_safe_delve_directive(raw: Dictionary) -> Dictionary:

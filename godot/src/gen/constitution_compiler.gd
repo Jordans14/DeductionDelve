@@ -16,6 +16,7 @@ const DEDUCTION_CONSTITUTION_SCRIPT = preload("res://src/delve/constitution/dedu
 const COHERENCE_CONSTITUTION_SCRIPT = preload("res://src/delve/constitution/coherence_constitution.gd")
 const EPISTEMIC_CONSTITUTION_SCRIPT = preload("res://src/delve/constitution/epistemic_constitution.gd")
 const CONTROL_SURFACE_REGISTRY_SCRIPT = preload("res://src/delve/control_surface_registry.gd")
+const ENCOUNTER_APEX_CONSEQUENCE_VERSION := 1
 
 static func compile(
 	seed_value: int,
@@ -148,6 +149,14 @@ static func compile(
 		{
 			"priority_channels": ["immediate", "run", "meta"],
 			"fairness_flags": ["runtime_non_mutation_required", "no_hidden_targeting_required"],
+			"public_surface_tags": ["movement", "burden", "witness", "route_choice", "artifact_custody", "extraction", "return"],
+			"provenance_source_refs": [
+				"compiler_public_summary",
+				"theory_surface",
+				"civilization_surface",
+				"review_surface",
+				"activation_state"
+			],
 			"max_visible_channels": 3,
 			"max_lines_per_layer": 2,
 			"max_total_lines": 6,
@@ -156,8 +165,9 @@ static func compile(
 	)
 	var market_regime_state := _build_market_regime_state(world_model, compiled_policy, compiler_public_summary, compiled_generation_surface)
 	var market_memory_state := _build_market_memory_state(world_model, market_regime_state)
-	var lifecycle_registry := _build_lifecycle_registry(market_regime_state, market_memory_state)
+	var lifecycle_registry := _build_lifecycle_registry(market_regime_state, market_memory_state, world_model)
 	compiled_generation_surface["market_routing"] = _build_market_routing(compiled_generation_surface, market_regime_state, market_memory_state, lifecycle_registry)
+	compiled_generation_surface["lifecycle_routing"] = _build_lifecycle_routing(lifecycle_registry)
 	compiler_public_summary = _apply_phase3_public_summary(compiler_public_summary, market_regime_state, lifecycle_registry)
 	var encounter_language_profile := _build_encounter_language_profile(compiled_generation_surface, compiler_public_summary)
 	var pathology_profile := _build_pathology_profile(market_regime_state, compiler_public_summary)
@@ -172,6 +182,7 @@ static func compile(
 	compiler_public_summary = _apply_phase5_public_summary(compiler_public_summary, apex_manifest, peak_structure_profile)
 	lifecycle_registry = _expand_phase6_lifecycle_registry(lifecycle_registry, pathology_state, encounter_manifest, apex_manifest, peak_structure_profile)
 	compiled_generation_surface["market_routing"] = _build_market_routing(compiled_generation_surface, market_regime_state, market_memory_state, lifecycle_registry)
+	compiled_generation_surface["lifecycle_routing"] = _build_lifecycle_routing(lifecycle_registry)
 	compiler_public_summary = _apply_phase3_public_summary(compiler_public_summary, market_regime_state, lifecycle_registry)
 	var lineage_registry := _build_compile_lineage_registry(experimental_ontology_state, theory_surface)
 	var doctrine_variant_id := _build_doctrine_variant_id(compiled_doctrine, compiled_generation_surface)
@@ -254,13 +265,15 @@ static func compile(
 			"topology_ids": _string_array(_encounter_topology_ids(encounter_manifest)),
 			"active_pathology_ids": _string_array(pathology_state.get("active_family_ids", [])),
 			"encounter_manifest_ids": _encounter_manifest_ids(encounter_manifest),
-			"anchored_pressures": _encounter_anchor_coverage(encounter_manifest)
+			"anchored_pressures": _encounter_anchor_coverage(encounter_manifest),
+			"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION
 		},
 		"apex_framework": {
 			"apex_manifest_ids": _apex_manifest_ids(apex_manifest),
 			"apex_class_ids": _apex_class_ids(apex_manifest),
 			"resolution_classes": _apex_resolution_coverage(apex_manifest),
-			"peak_spacing_score": int(peak_structure_profile.get("peak_spacing_score", 0))
+			"peak_spacing_score": int(peak_structure_profile.get("peak_spacing_score", 0)),
+			"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION
 		}
 	}
 	var compile_metadata := {
@@ -313,6 +326,7 @@ static func compile(
 		"apex_class_ids": _apex_class_ids(apex_manifest),
 		"apex_resolution_classes": _apex_resolution_coverage(apex_manifest),
 		"peak_spacing_score": int(peak_structure_profile.get("peak_spacing_score", 0)),
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"required_generation_surface_keys": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_generation_surface_keys", [])).duplicate(true),
 		"required_symbolic_fields": Array(SCHEMA_REGISTRY_SCRIPT.constitution_schema().get("required_symbolic_fields", [])).duplicate(true),
 		"validation_failures": Array(compiler_trace.get("validation_failures", [])).duplicate(true),
@@ -724,7 +738,7 @@ static func _build_market_memory_state(world_model: Dictionary, market_regime_st
 		"lines": lines
 	}
 
-static func _build_lifecycle_registry(market_regime_state: Dictionary, market_memory_state: Dictionary) -> Dictionary:
+static func _build_lifecycle_registry(market_regime_state: Dictionary, market_memory_state: Dictionary, world_model: Dictionary = {}) -> Dictionary:
 	var active_regime_ids := _string_array(market_regime_state.get("active_regime_ids", []))
 	var families: Array[Dictionary] = []
 	var extraction_debt := int(market_memory_state.get("extraction_debt", 0))
@@ -741,18 +755,33 @@ static func _build_lifecycle_registry(market_regime_state: Dictionary, market_me
 			state = "active"
 		elif recovery_credit >= extraction_debt and recovery_credit >= 2:
 			state = "cooling"
-		families.append({
+		families.append(_normalize_phase6_lifecycle_family({
 			"family_id": regime_id,
 			"family_kind": "market",
+			"source_id": regime_id,
 			"state": state,
 			"heat": heat,
 			"saturation": saturation,
 			"strain": strain,
 			"cooling_tags": ["recovery_credit"] if recovery_credit >= extraction_debt else ["extraction_debt"],
+			"cooldown_band": _cooldown_band_for_family(heat, saturation, state, "market"),
 			"successor_hint": "market_recovery_weave" if regime_id == "market_extraction_austerity" else ("market_prestige_showcase" if regime_id == "market_balanced_exchange" else "market_balanced_exchange"),
-			"return_window": "near_horizon" if state in ["active", "cooling"] else "mid_horizon"
-		})
+			"return_window": "near_horizon" if state in ["active", "cooling"] else "mid_horizon",
+			"routing_tags": _merge_arrays(["market", "return"], _market_family_routing_tags(regime_id, market_regime_state, market_memory_state)),
+			"dominance_strain": strain,
+			"throttle_state": "cooling" if state in ["cooling", "saturated"] else "open",
+			"resurrection_priority": clampi(heat / 2, 0, 4)
+		}))
 	var lines: Array[String] = []
+	families.append_array(_combo_lifecycle_families(world_model))
+	families.append_array(_artifact_continuity_lifecycle_families(world_model))
+	families.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_rank := int(a.get("heat", 0)) + int(a.get("saturation", 0)) + int(a.get("dominance_strain", a.get("strain", 0)))
+		var b_rank := int(b.get("heat", 0)) + int(b.get("saturation", 0)) + int(b.get("dominance_strain", b.get("strain", 0)))
+		if a_rank == b_rank:
+			return str(a.get("family_id", "")) < str(b.get("family_id", ""))
+		return a_rank > b_rank
+	)
 	for family_raw in families:
 		var family: Dictionary = Dictionary(family_raw)
 		lines.append("%s is %s with %s strain." % [
@@ -761,8 +790,8 @@ static func _build_lifecycle_registry(market_regime_state: Dictionary, market_me
 			_market_band(int(family.get("strain", 0)))
 		])
 	return {
-		"families": families,
-		"active_state_ids": active_regime_ids,
+		"families": families.slice(0, 12),
+		"active_state_ids": _active_lifecycle_state_ids(families),
 		"lines": lines.slice(0, 3)
 	}
 
@@ -780,13 +809,16 @@ static func _expand_phase6_lifecycle_registry(base_registry: Dictionary, patholo
 		var family := _normalize_phase6_lifecycle_family({
 			"family_id": pathology_id,
 			"family_kind": "pathology",
+			"source_id": pathology_id,
 			"state": "saturated" if spread_heat >= 4 else ("active" if spread_heat >= 2 else "cooling"),
 			"heat": clampi(spread_heat + 1, 0, 8),
 			"saturation": clampi(maxi(spread_heat, recurrence_heat - 1), 0, 8),
 			"strain": clampi(abs(spread_heat - recurrence_heat), 0, 8),
 			"cooling_tags": ["remission", "suppression"],
+			"cooldown_band": _cooldown_band_for_family(clampi(spread_heat + 1, 0, 8), clampi(maxi(spread_heat, recurrence_heat - 1), 0, 8), "active" if spread_heat >= 2 else "cooling", "pathology"),
 			"successor_hint": "%s_successor" % pathology_id,
 			"return_window": "near_horizon",
+			"routing_tags": ["pathology", "hazard", "return"],
 			"dominance_strain": clampi(spread_heat + recurrence_heat - 1, 0, 8),
 			"throttle_state": "cooling" if spread_heat >= 4 else "open",
 			"resurrection_priority": clampi(recurrence_heat + 1, 0, 4)
@@ -807,13 +839,16 @@ static func _expand_phase6_lifecycle_registry(base_registry: Dictionary, patholo
 		var family := _normalize_phase6_lifecycle_family({
 			"family_id": family_id,
 			"family_kind": "encounter",
+			"source_id": str(intent_id),
 			"state": "saturated" if count >= 3 else ("active" if count >= 1 else "cooling"),
 			"heat": clampi(count + 1, 0, 8),
 			"saturation": clampi(count, 0, 8),
 			"strain": clampi(count - 1, 0, 8),
 			"cooling_tags": ["resolution_diversity", "quiet_play"],
+			"cooldown_band": _cooldown_band_for_family(clampi(count + 1, 0, 8), clampi(count, 0, 8), "active" if count >= 1 else "cooling", "encounter"),
 			"successor_hint": str(encounter_topology_hints.get(intent_id, "encounter_successor")).strip_edges(),
 			"return_window": "near_horizon",
+			"routing_tags": ["encounter", str(intent_id), str(encounter_topology_hints.get(intent_id, "")).strip_edges()],
 			"dominance_strain": clampi(count + 1, 0, 8),
 			"throttle_state": "cooling" if count >= 3 else "open",
 			"resurrection_priority": clampi(4 - mini(count, 3), 0, 4)
@@ -833,13 +868,16 @@ static func _expand_phase6_lifecycle_registry(base_registry: Dictionary, patholo
 		var family := _normalize_phase6_lifecycle_family({
 			"family_id": family_id,
 			"family_kind": "apex",
+			"source_id": str(class_id),
 			"state": "saturated" if count >= 2 and peak_spacing_score <= 2 else "active",
 			"heat": clampi(count + 2, 0, 8),
 			"saturation": clampi(count + maxi(0, 3 - peak_spacing_score), 0, 8),
 			"strain": clampi(maxi(0, 3 - peak_spacing_score), 0, 8),
 			"cooling_tags": ["peak_spacing", "aftermath_space"],
+			"cooldown_band": _cooldown_band_for_family(clampi(count + 2, 0, 8), clampi(count + maxi(0, 3 - peak_spacing_score), 0, 8), "active", "apex"),
 			"successor_hint": "encounter_%s" % class_id,
 			"return_window": "mid_horizon",
+			"routing_tags": ["apex", str(class_id), "return"],
 			"dominance_strain": clampi(count + maxi(0, 3 - peak_spacing_score), 0, 8),
 			"throttle_state": "cooling" if peak_spacing_score <= 2 else "open",
 			"resurrection_priority": clampi(peak_spacing_score, 0, 4)
@@ -884,8 +922,11 @@ static func _merge_phase6_lifecycle_family(existing: Dictionary, incoming: Dicti
 	merged["saturation"] = maxi(int(merged.get("saturation", 0)), int(incoming.get("saturation", 0)))
 	merged["strain"] = maxi(int(merged.get("strain", 0)), int(incoming.get("strain", 0)))
 	merged["cooling_tags"] = _merge_arrays(_string_array(merged.get("cooling_tags", [])), _string_array(incoming.get("cooling_tags", [])))
+	merged["source_id"] = str(incoming.get("source_id", merged.get("source_id", merged.get("family_id", "")))).strip_edges()
+	merged["cooldown_band"] = str(incoming.get("cooldown_band", merged.get("cooldown_band", "open"))).strip_edges()
 	merged["successor_hint"] = str(incoming.get("successor_hint", merged.get("successor_hint", ""))).strip_edges()
 	merged["return_window"] = str(incoming.get("return_window", merged.get("return_window", ""))).strip_edges()
+	merged["routing_tags"] = _merge_arrays(_string_array(merged.get("routing_tags", [])), _string_array(incoming.get("routing_tags", [])))
 	merged["dominance_strain"] = maxi(int(merged.get("dominance_strain", 0)), int(incoming.get("dominance_strain", 0)))
 	merged["throttle_state"] = str(incoming.get("throttle_state", merged.get("throttle_state", "open"))).strip_edges()
 	merged["resurrection_priority"] = maxi(int(merged.get("resurrection_priority", 0)), int(incoming.get("resurrection_priority", 0)))
@@ -900,8 +941,11 @@ static func _normalize_phase6_lifecycle_family(raw: Dictionary) -> Dictionary:
 	family["saturation"] = clampi(int(family.get("saturation", 0)), 0, 8)
 	family["strain"] = clampi(int(family.get("strain", 0)), 0, 8)
 	family["cooling_tags"] = _string_array(family.get("cooling_tags", []))
+	family["source_id"] = str(family.get("source_id", family.get("family_id", ""))).strip_edges()
+	family["cooldown_band"] = str(family.get("cooldown_band", _cooldown_band_for_family(int(family.get("heat", 0)), int(family.get("saturation", 0)), str(family.get("state", "emerging")), str(family.get("family_kind", "market"))))).strip_edges()
 	family["successor_hint"] = str(family.get("successor_hint", "")).strip_edges()
 	family["return_window"] = str(family.get("return_window", "near_horizon")).strip_edges()
+	family["routing_tags"] = _string_array(family.get("routing_tags", []))
 	family["dominance_strain"] = clampi(int(family.get("dominance_strain", family.get("strain", 0))), 0, 8)
 	family["throttle_state"] = str(family.get("throttle_state", "open")).strip_edges()
 	if family["throttle_state"].is_empty():
@@ -916,6 +960,175 @@ static func _lifecycle_family_kinds(lifecycle_registry: Dictionary) -> Array[Str
 		if not family_kind.is_empty() and not result.has(family_kind):
 			result.append(family_kind)
 	return result
+
+static func _active_lifecycle_state_ids(families: Array) -> Array[String]:
+	var result: Array[String] = []
+	for family_raw in families:
+		var family_id := str(Dictionary(family_raw).get("family_id", "")).strip_edges()
+		if not family_id.is_empty() and not result.has(family_id):
+			result.append(family_id)
+	return result.slice(0, 12)
+
+static func _cooldown_band_for_family(heat: int, saturation: int, state: String, family_kind: String) -> String:
+	if state == "cooling":
+		return "cooling"
+	if heat >= 6 or saturation >= 5:
+		return "deep_cooling"
+	if family_kind in ["combo_family", "artifact_continuity"] and heat >= 3:
+		return "warming"
+	if heat >= 3:
+		return "watchful"
+	return "open"
+
+static func _market_family_routing_tags(regime_id: String, market_regime_state: Dictionary, market_memory_state: Dictionary) -> Array[String]:
+	var tags := [regime_id]
+	if str(market_regime_state.get("carrier_risk_band", "")).strip_edges().find("high") != -1:
+		tags.append("artifact_custody")
+	if int(market_memory_state.get("recovery_credit", 0)) >= int(market_memory_state.get("extraction_debt", 0)):
+		tags.append("return")
+	if int(market_memory_state.get("hoard_heat", 0)) >= 2:
+		tags.append("scarcity")
+	return _string_array(tags)
+
+static func _combo_lifecycle_families(world_model: Dictionary) -> Array[Dictionary]:
+	var counts := {}
+	var routing_index := {}
+	for run_raw in Array(world_model.get("recent_runs", [])):
+		var run_record: Dictionary = Dictionary(run_raw)
+		var diagnostics: Dictionary = Dictionary(run_record.get("diagnostics", {}))
+		var combo_family_ids := _string_array(diagnostics.get("combo_family_ids", []))
+		var routing_tags := _merge_arrays(
+			_string_array(run_record.get("combo_pressure_tags", [])),
+			_string_array(run_record.get("combo_public_surface_tags", []))
+		)
+		var gameplay_snapshot: Dictionary = Dictionary(run_record.get("gameplay_signal_snapshot", {}))
+		for peer_model_raw in Dictionary(gameplay_snapshot.get("peer_models", {})).values():
+			var peer_model: Dictionary = Dictionary(peer_model_raw)
+			combo_family_ids = _merge_arrays(combo_family_ids, _string_array(peer_model.get("combo_family_ids", [])))
+			routing_tags = _merge_arrays(routing_tags, _string_array(peer_model.get("combo_pressure_tags", [])))
+			routing_tags = _merge_arrays(routing_tags, _string_array(peer_model.get("public_surface_tags", [])))
+		for family_id in combo_family_ids:
+			counts[family_id] = int(counts.get(family_id, 0)) + 1
+			routing_index[family_id] = _merge_arrays(_string_array(routing_index.get(family_id, [])), routing_tags)
+	var families: Array[Dictionary] = []
+	for family_id_variant in counts.keys():
+		var family_id := str(family_id_variant).strip_edges()
+		if family_id.is_empty():
+			continue
+		var count := int(counts.get(family_id, 0))
+		var routing_tags := _string_array(routing_index.get(family_id, []))
+		var heat := clampi(count + maxi(int(routing_tags.size() / 2), 1), 0, 8)
+		var saturation := clampi(count, 0, 8)
+		var state := "saturated" if heat >= 6 else ("active" if heat >= 3 else "cooling")
+		families.append(_normalize_phase6_lifecycle_family({
+			"family_id": family_id,
+			"family_kind": "combo_family",
+			"source_id": family_id,
+			"state": state,
+			"heat": heat,
+			"saturation": saturation,
+			"strain": clampi(maxi(count - 1, routing_tags.size() - 2), 0, 8),
+			"cooling_tags": ["combo_repeat", "build_memory"],
+			"cooldown_band": _cooldown_band_for_family(heat, saturation, state, "combo_family"),
+			"successor_hint": "%s_successor" % family_id,
+			"return_window": "near_horizon",
+			"routing_tags": _merge_arrays(["route_choice", "build_memory"], routing_tags),
+			"dominance_strain": clampi(count + maxi(routing_tags.size() - 1, 0), 0, 8),
+			"throttle_state": "cooling" if heat >= 6 else "open",
+			"resurrection_priority": clampi(4 - mini(count, 3), 0, 4)
+		}))
+	return families
+
+static func _artifact_continuity_lifecycle_families(world_model: Dictionary) -> Array[Dictionary]:
+	var counts := {}
+	var routing_index := {}
+	for run_raw in Array(world_model.get("recent_runs", [])):
+		var run_record: Dictionary = Dictionary(run_raw)
+		var outcome_summary: Dictionary = Dictionary(run_record.get("outcome_summary", {}))
+		var continuity_state := str(outcome_summary.get("artifact_continuity_state", "")).strip_edges()
+		if continuity_state.is_empty():
+			continue
+		var family_id := "artifact_continuity_%s" % continuity_state
+		counts[family_id] = int(counts.get(family_id, 0)) + 1
+		var routing_tags := ["artifact_custody", "return", continuity_state]
+		var market_regime_id := str(outcome_summary.get("market_regime_id", "")).strip_edges()
+		if not market_regime_id.is_empty():
+			routing_tags.append(market_regime_id)
+		routing_index[family_id] = _merge_arrays(_string_array(routing_index.get(family_id, [])), routing_tags)
+	var families: Array[Dictionary] = []
+	for family_id_variant in counts.keys():
+		var family_id := str(family_id_variant).strip_edges()
+		if family_id.is_empty():
+			continue
+		var count := int(counts.get(family_id, 0))
+		var continuity_state := family_id.trim_prefix("artifact_continuity_")
+		var routing_tags := _string_array(routing_index.get(family_id, []))
+		var heat := clampi(count + 1, 0, 8)
+		var saturation := clampi(count - 1, 0, 8)
+		var state := "active" if count >= 2 else "cooling"
+		families.append(_normalize_phase6_lifecycle_family({
+			"family_id": family_id,
+			"family_kind": "artifact_continuity",
+			"source_id": continuity_state,
+			"state": state,
+			"heat": heat,
+			"saturation": saturation,
+			"strain": clampi(routing_tags.size() - 1, 0, 8),
+			"cooling_tags": ["return_window", "custody_memory"],
+			"cooldown_band": _cooldown_band_for_family(heat, saturation, state, "artifact_continuity"),
+			"successor_hint": _artifact_continuity_successor_hint(continuity_state),
+			"return_window": "mid_horizon" if continuity_state in ["burial", "archive_only_residue"] else "near_horizon",
+			"routing_tags": routing_tags,
+			"dominance_strain": clampi(count + routing_tags.size() - 1, 0, 8),
+			"throttle_state": "cooling" if count >= 2 else "open",
+			"resurrection_priority": clampi(count + 1, 0, 4)
+		}))
+	return families
+
+static func _artifact_continuity_successor_hint(continuity_state: String) -> String:
+	match continuity_state:
+		"burial":
+			return "artifact_recovery_weave"
+		"recoverable_loss":
+			return "artifact_return_window"
+		"successor_emergence":
+			return "artifact_successor_line"
+		"archive_only_residue":
+			return "artifact_archive_echo"
+		"extinction":
+			return "artifact_memory_only"
+		_:
+			return "artifact_continuity_return"
+
+static func _build_lifecycle_routing(lifecycle_registry: Dictionary) -> Dictionary:
+	var families: Array[Dictionary] = []
+	var routing_tags: Array[String] = []
+	var cooling_family_ids: Array[String] = []
+	for family_raw in Array(lifecycle_registry.get("families", [])):
+		var family := _normalize_phase6_lifecycle_family(Dictionary(family_raw))
+		families.append({
+			"family_id": str(family.get("family_id", "")).strip_edges(),
+			"family_kind": str(family.get("family_kind", "")).strip_edges(),
+			"source_id": str(family.get("source_id", family.get("family_id", ""))).strip_edges(),
+			"heat": int(family.get("heat", 0)),
+			"cooldown_band": str(family.get("cooldown_band", "open")).strip_edges(),
+			"successor_hint": str(family.get("successor_hint", "")).strip_edges(),
+			"routing_tags": _string_array(family.get("routing_tags", []))
+		})
+		routing_tags = _merge_arrays(routing_tags, _string_array(family.get("routing_tags", [])))
+		if str(family.get("cooldown_band", "")).strip_edges() in ["cooling", "deep_cooling", "warming"]:
+			cooling_family_ids.append(str(family.get("family_id", "")).strip_edges())
+	var top_family: Dictionary = Dictionary(families[0]) if not families.is_empty() else {}
+	return {
+		"families": families.slice(0, 8),
+		"active_family_ids": _active_lifecycle_state_ids(families),
+		"cooling_family_ids": _string_array(cooling_family_ids),
+		"routing_tags": routing_tags.slice(0, 8),
+		"top_family_id": str(top_family.get("family_id", "")).strip_edges(),
+		"top_successor_hint": str(top_family.get("successor_hint", "")).strip_edges(),
+		"top_cooldown_band": str(top_family.get("cooldown_band", "open")).strip_edges(),
+		"top_routing_tags": _string_array(top_family.get("routing_tags", []))
+	}
 
 static func _build_market_routing(generation_surface: Dictionary, market_regime_state: Dictionary, market_memory_state: Dictionary, lifecycle_registry: Dictionary) -> Dictionary:
 	var current := Dictionary(generation_surface.get("market_routing", {})).duplicate(true)
@@ -1167,6 +1380,8 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"intent_id": "pursuit",
 			"topology_id": "corridor_chase",
 			"anchored_pressures": ["route_pressure", "extraction_pressure"],
+			"local_aftermath_tags": ["route_residue", "extraction_residue"],
+			"world_aftermath_tags": ["return_pressure", "residue_record"],
 			"role_vectors": ["carrier", "escort", "decoy"],
 			"telegraph_channels": ["position_shadow", "noise_trace", "hazard_pulse"],
 			"consequence_classes": ["route_displacement", "stability_loss", "aftermath_seed"],
@@ -1186,6 +1401,8 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"intent_id": "interdiction",
 			"topology_id": "carrier_intercept",
 			"anchored_pressures": ["custody_pressure", "burden_pressure"],
+			"local_aftermath_tags": ["custody_residue", "burden_strain"],
+			"world_aftermath_tags": ["successor_claim", "world_mutation"],
 			"role_vectors": ["carrier", "escort", "breaker"],
 			"telegraph_channels": ["hazard_pulse", "position_shadow"],
 			"consequence_classes": ["custody_disruption", "stability_loss", "resource_drain"],
@@ -1205,6 +1422,8 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"intent_id": "suppression",
 			"topology_id": "pack_surround",
 			"anchored_pressures": ["regroup_pressure", "burden_pressure"],
+			"local_aftermath_tags": ["regroup_pressure", "burden_strain"],
+			"world_aftermath_tags": ["world_mutation", "return_pressure"],
 			"role_vectors": ["carrier", "escort", "decoy", "rescuer"],
 			"telegraph_channels": ["hazard_pulse", "noise_trace"],
 			"consequence_classes": ["route_displacement", "pathology_spread", "regroup_pressure"],
@@ -1224,6 +1443,8 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"intent_id": "suppression",
 			"topology_id": "threshold_hold",
 			"anchored_pressures": ["evidence_pressure", "custody_pressure"],
+			"local_aftermath_tags": ["evidence_exposure", "custody_residue"],
+			"world_aftermath_tags": ["institutional_response", "successor_claim"],
 			"role_vectors": ["carrier", "witness", "breaker", "recoverer"],
 			"telegraph_channels": ["noise_trace", "hazard_pulse"],
 			"consequence_classes": ["evidence_exposure", "route_displacement", "resource_drain"],
@@ -1243,6 +1464,8 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"intent_id": "interdiction",
 			"topology_id": "extraction_lane",
 			"anchored_pressures": ["extraction_pressure", "custody_pressure"],
+			"local_aftermath_tags": ["extraction_residue", "custody_residue"],
+			"world_aftermath_tags": ["return_pressure", "institutional_response"],
 			"role_vectors": ["carrier", "escort", "rescuer", "suppressor"],
 			"telegraph_channels": ["hazard_pulse", "noise_trace"],
 			"consequence_classes": ["custody_disruption", "regroup_pressure", "aftermath_seed"],
@@ -1262,6 +1485,8 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"intent_id": "displacement",
 			"topology_id": "split_room",
 			"anchored_pressures": ["route_pressure", "regroup_pressure"],
+			"local_aftermath_tags": ["route_residue", "regroup_pressure"],
+			"world_aftermath_tags": ["world_mutation", "residue_record"],
 			"role_vectors": ["decoy", "recoverer", "escort"],
 			"telegraph_channels": ["noise_trace", "hazard_pulse"],
 			"consequence_classes": ["route_displacement", "noise_witness_generation", "pathology_spread"],
@@ -1275,6 +1500,18 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 			"summary_lines": ["Echo lure pressure is splitting the route into false answers."]
 		}
 	]
+	for i in range(encounters.size()):
+		var encounter := Dictionary(encounters[i]).duplicate(true)
+		encounter["encounter_apex_consequence_version"] = ENCOUNTER_APEX_CONSEQUENCE_VERSION
+		encounter["local_aftermath_tags"] = _merge_arrays(
+			_encounter_local_aftermath_tags(encounter),
+			_string_array(encounter.get("local_aftermath_tags", []))
+		).slice(0, 4)
+		encounter["world_aftermath_tags"] = _merge_arrays(
+			_encounter_world_aftermath_tags(encounter),
+			_string_array(encounter.get("world_aftermath_tags", []))
+		).slice(0, 4)
+		encounters[i] = encounter
 	var summary_lines: Array[String] = []
 	for encounter_raw in encounters:
 		summary_lines = _merge_arrays(summary_lines, _string_array(Dictionary(encounter_raw).get("summary_lines", [])))
@@ -1287,6 +1524,7 @@ static func _build_encounter_manifest(pathology_profile: Dictionary, encounter_l
 	return {
 		"schema_name": "EncounterManifest",
 		"schema_version": 2,
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"encounters": encounters,
 		"summary_lines": summary_lines.slice(0, 3)
 	}
@@ -1402,6 +1640,10 @@ static func _build_apex_manifest(apex_framework_profile: Dictionary, encounter_m
 			"summary_lines": ["Protocol extraction pressure is turning the return lane into a readable public trial."]
 		}
 	]
+	for i in range(apexes.size()):
+		var apex := Dictionary(apexes[i]).duplicate(true)
+		apex["encounter_apex_consequence_version"] = ENCOUNTER_APEX_CONSEQUENCE_VERSION
+		apexes[i] = apex
 	var summary_lines := _merge_arrays(_string_array(public_summary.get("apex_lines", [])), _string_array(Dictionary(encounter_manifest).get("summary_lines", [])))
 	for apex_raw in apexes:
 		summary_lines = _merge_arrays(summary_lines, _string_array(Dictionary(apex_raw).get("summary_lines", [])))
@@ -1410,6 +1652,7 @@ static func _build_apex_manifest(apex_framework_profile: Dictionary, encounter_m
 	return {
 		"schema_name": "ApexManifest",
 		"schema_version": 2,
+		"encounter_apex_consequence_version": ENCOUNTER_APEX_CONSEQUENCE_VERSION,
 		"apexes": apexes,
 		"summary_lines": summary_lines.slice(0, 3)
 	}
@@ -1441,12 +1684,17 @@ static func _build_apex_routing(generation_surface: Dictionary, apex_manifest: D
 	current["apex_lines"] = _string_array(apex_manifest.get("summary_lines", []))
 	current["peak_structure_lines"] = _string_array(peak_structure_profile.get("summary_lines", []))
 	current["peak_spacing_score"] = int(peak_structure_profile.get("peak_spacing_score", 0))
+	current["encounter_apex_consequence_version"] = int(apex_manifest.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION))
+	current["anchored_pressures"] = _apex_anchor_coverage(apex_manifest)
+	current["local_aftermath_tags"] = _apex_local_aftermath_coverage(apex_manifest)
+	current["world_aftermath_tags"] = _apex_world_aftermath_coverage(apex_manifest)
 	current["primary_apex_id"] = _first_string(current.get("apex_manifest_ids", []), "")
 	current["branch_family"] = str(generation_surface.get("branch_family", "")).strip_edges()
 	return current
 
 static func _apply_phase5_public_summary(summary: Dictionary, apex_manifest: Dictionary, peak_structure_profile: Dictionary) -> Dictionary:
 	var next := summary.duplicate(true)
+	next["encounter_apex_consequence_version"] = int(apex_manifest.get("encounter_apex_consequence_version", next.get("encounter_apex_consequence_version", ENCOUNTER_APEX_CONSEQUENCE_VERSION)))
 	next["apex_manifest_ids"] = _apex_manifest_ids(apex_manifest)
 	next["apex_class_ids"] = _apex_class_ids(apex_manifest)
 	next["apex_lines"] = _string_array(apex_manifest.get("summary_lines", []))
@@ -1600,6 +1848,48 @@ static func _encounter_anchor_coverage(encounter_manifest: Dictionary) -> Array[
 				ids.append(pressure_id)
 	return ids
 
+static func _encounter_local_aftermath_tags(encounter: Dictionary) -> Array[String]:
+	var tags: Array[String] = []
+	for pressure_id in _string_array(encounter.get("anchored_pressures", [])):
+		match pressure_id:
+			"route_pressure":
+				tags.append("route_residue")
+			"custody_pressure":
+				tags.append("custody_residue")
+			"evidence_pressure":
+				tags.append("evidence_exposure")
+			"burden_pressure":
+				tags.append("burden_strain")
+			"regroup_pressure":
+				tags.append("regroup_pressure")
+			"extraction_pressure":
+				tags.append("extraction_residue")
+	for consequence_class in _string_array(encounter.get("consequence_classes", [])):
+		match consequence_class:
+			"resource_drain":
+				tags.append("resource_drain")
+			"route_displacement":
+				tags.append("route_residue")
+			"evidence_exposure":
+				tags.append("evidence_exposure")
+	return _string_array(tags)
+
+static func _encounter_world_aftermath_tags(encounter: Dictionary) -> Array[String]:
+	var tags: Array[String] = []
+	var anchored_pressures := _string_array(encounter.get("anchored_pressures", []))
+	var consequence_classes := _string_array(encounter.get("consequence_classes", []))
+	if anchored_pressures.has("route_pressure") or anchored_pressures.has("extraction_pressure"):
+		tags.append("return_pressure")
+	if anchored_pressures.has("custody_pressure") or consequence_classes.has("custody_disruption"):
+		tags.append("successor_claim")
+	if anchored_pressures.has("evidence_pressure") or consequence_classes.has("evidence_exposure"):
+		tags.append("institutional_response")
+	if consequence_classes.has("resource_drain") or consequence_classes.has("pathology_spread") or consequence_classes.has("aftermath_seed"):
+		tags.append("world_mutation")
+	if tags.is_empty():
+		tags.append("residue_record")
+	return _string_array(tags)
+
 static func _encounter_anchor_categories() -> Array[String]:
 	return [
 		"custody_pressure",
@@ -1632,6 +1922,30 @@ static func _apex_resolution_coverage(apex_manifest: Dictionary) -> Array[String
 		for resolution_id in _string_array(Dictionary(apex_raw).get("resolution_classes", [])):
 			if not ids.has(resolution_id):
 				ids.append(resolution_id)
+	return ids
+
+static func _apex_anchor_coverage(apex_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		for pressure_id in _string_array(Dictionary(apex_raw).get("anchored_pressures", [])):
+			if not ids.has(pressure_id):
+				ids.append(pressure_id)
+	return ids
+
+static func _apex_local_aftermath_coverage(apex_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		for tag in _string_array(Dictionary(apex_raw).get("local_aftermath_tags", [])):
+			if not ids.has(tag):
+				ids.append(tag)
+	return ids
+
+static func _apex_world_aftermath_coverage(apex_manifest: Dictionary) -> Array[String]:
+	var ids: Array[String] = []
+	for apex_raw in Array(apex_manifest.get("apexes", [])):
+		for tag in _string_array(Dictionary(apex_raw).get("world_aftermath_tags", [])):
+			if not ids.has(tag):
+				ids.append(tag)
 	return ids
 
 static func _apply_experiment_generation_weighting(generation_surface: Dictionary, experimental_ontology_state: Dictionary) -> Dictionary:

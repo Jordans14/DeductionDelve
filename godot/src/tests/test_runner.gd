@@ -41,6 +41,7 @@ const EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT = preload("res://src/delve/constitut
 const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const MULTIMODAL_CONTRACT_SERVICE_SCRIPT = preload("res://src/product/multimodal_contract_service.gd")
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
+const LOBBY_CONTROLLER_SCRIPT = preload("res://src/ui/lobby_controller.gd")
 
 class DummyDamageTarget:
 	var health: int = 3
@@ -216,6 +217,20 @@ func _init() -> void:
 	_test_delve_kernel_stabilization_and_trace(failures)
 	_test_visual_doctrine_refactor(failures)
 	_test_phase1_visual_signal_compression_contract(failures)
+	_test_execution_provenance_contract_visibility(failures)
+	_test_execution_combo_contract_determinism_and_public_projection(failures)
+	_test_execution_lifecycle_registry_combo_and_artifact_adoption(failures)
+	_test_execution_lifecycle_runtime_bias_and_ev4(failures)
+	_test_execution_lifecycle_persistence_and_governance_adoption(failures)
+	_test_execution_artifact_consequence_runtime_and_public_projection(failures)
+	_test_execution_artifact_consequence_persistence_and_ev5(failures)
+	_test_execution_encounter_apex_consequence_runtime_and_persistence(failures)
+	_test_execution_encounter_apex_consequence_visibility_and_ev6(failures)
+	_test_execution_public_fact_extensions_and_diagnostics_contract(failures)
+	_test_execution_social_consequence_runtime_and_public_projection(failures)
+	_test_execution_social_consequence_persistence_and_ev7(failures)
+	_test_execution_onboarding_first_run_and_returning_run_surfaces(failures)
+	_test_execution_onboarding_hidden_set_and_c7_contract(failures)
 	_test_lobby_shell_scene_contract(failures)
 
 	_pending_failures = failures.duplicate()
@@ -7989,6 +8004,7 @@ func _test_generation_contract_narrowing(failures: Array[String]) -> void:
 		"cookbook_routing",
 		"civilization_routing",
 		"market_routing",
+		"lifecycle_routing",
 		"encounter_routing",
 		"apex_routing",
 		"ontology_routing"
@@ -11873,6 +11889,1457 @@ func _test_phase1_visual_signal_compression_contract(failures: Array[String]) ->
 		failures.append("Phase 1 room visual packets should expose residue_layers")
 	if not governance.validate_room_packet(packet).is_empty():
 		failures.append("Phase 1 room visual packets should remain inside visual doctrine budgets")
+
+func _test_execution_provenance_contract_visibility(failures: Array[String]) -> void:
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(PRODUCT_CATALOG_SCRIPT.load_catalog())
+	var session_context := {
+		"player_count": 3,
+		"peer_ids": [2, 3, 4],
+		"protocol_state": "Fracture Protocol",
+		"public_cards": {
+			"2": {"public_id": "delver_A", "display_name": "Aster"},
+			"3": {"public_id": "delver_B", "display_name": "Bram"},
+			"4": {"public_id": "delver_C", "display_name": "Cleo"}
+		},
+		"ready_state": {2: true, 3: true, 4: true}
+	}
+	var constitution := DELVE_KERNEL_SCRIPT.plan_constitution(profile, session_context, 20260319, 10)
+	var public_summary := EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.public_summary(constitution)
+	var constitution_summary: Dictionary = Dictionary(constitution.get("constitution_summary", {}))
+	if int(public_summary.get("provenance_contract_version", 0)) != GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION:
+		failures.append("execution provenance contract should expose provenance_contract_version on public summaries")
+	if _string_array_for_test(Array(public_summary.get("public_trace_classes", []))).is_empty():
+		failures.append("execution provenance contract should expose public_trace_classes on public summaries")
+	if _string_array_for_test(Array(public_summary.get("public_surface_tags", []))).is_empty():
+		failures.append("execution provenance contract should expose public_surface_tags on public summaries")
+	if public_summary.has("private_trace_classes"):
+		failures.append("execution provenance contract should keep private_trace_classes out of public summaries")
+	if public_summary.has("provenance_source_refs"):
+		failures.append("execution provenance contract should keep provenance_source_refs out of public summaries")
+	if _string_array_for_test(Array(constitution_summary.get("private_trace_classes", []))).is_empty():
+		failures.append("execution provenance contract should retain private_trace_classes on constitution summaries")
+	if _string_array_for_test(Array(constitution_summary.get("provenance_source_refs", []))).is_empty():
+		failures.append("execution provenance contract should retain provenance_source_refs on constitution summaries")
+
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 2,
+		"event_id": 1,
+		"event_type": "run_started",
+		"room_slot": 0,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	event_log.add_event({
+		"tick": 4,
+		"event_id": 2,
+		"event_type": "artifact_picked",
+		"room_slot": 1,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var bundle := controller.build_forensic_bundle_for_test(20260319, str(constitution.get("constitution_hash", "")).strip_edges(), constitution_summary, event_log, [])
+	if int(bundle.get("provenance_contract_version", 0)) != GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION:
+		failures.append("execution provenance contract should carry provenance_contract_version into forensic bundles")
+	if _string_array_for_test(Array(bundle.get("public_trace_classes", []))).is_empty():
+		failures.append("execution provenance contract should carry public_trace_classes into forensic bundles")
+	if _string_array_for_test(Array(bundle.get("private_trace_classes", []))).is_empty():
+		failures.append("execution provenance contract should carry private_trace_classes into forensic bundles")
+	if _string_array_for_test(Array(bundle.get("provenance_source_refs", []))).is_empty():
+		failures.append("execution provenance contract should carry provenance_source_refs into forensic bundles")
+	controller.free()
+	event_log.free()
+
+func _test_execution_combo_contract_determinism_and_public_projection(failures: Array[String]) -> void:
+	var item_service := ITEM_SERVICE_SCRIPT.new()
+	var combo_context := {
+		"protocol_state": "Exposure Protocol",
+		"tool_counts": {"bomb": 1, "rope": 2},
+		"carrying_artifact": true,
+		"ghost_active": true
+	}
+	var loadout_a: Dictionary = item_service.resolve_loadout_state(["timeline_bookmark", "lantern_snuffer", "zipline_kit"], combo_context)
+	var loadout_b: Dictionary = item_service.resolve_loadout_state(["zipline_kit", "timeline_bookmark", "lantern_snuffer"], combo_context)
+	if int(loadout_a.get("combo_contract_version", 0)) != 1:
+		failures.append("execution combo contract should expose combo_contract_version on loadout state")
+	if str(loadout_a.get("combo_contract_digest", "")).strip_edges().is_empty():
+		failures.append("execution combo contract should expose combo_contract_digest on loadout state")
+	if str(loadout_a.get("combo_contract_digest", "")).strip_edges() != str(loadout_b.get("combo_contract_digest", "")).strip_edges():
+		failures.append("execution combo contract should stay stable across reordered equivalent loadouts")
+	if _string_array_for_test(Array(loadout_a.get("combo_family_ids", []))).is_empty():
+		failures.append("execution combo contract should expose combo_family_ids on loadout state")
+	if _dict_array_for_test(Array(loadout_a.get("combo_entries", []))).is_empty():
+		failures.append("execution combo contract should expose combo_entries on loadout state")
+	if _string_array_for_test(Array(loadout_a.get("combo_pressure_tags", []))).is_empty():
+		failures.append("execution combo contract should expose combo_pressure_tags on loadout state")
+
+	var affordances: Dictionary = item_service.build_runtime_affordances(["timeline_bookmark", "lantern_snuffer", "zipline_kit"], combo_context)
+	if str(affordances.get("combo_contract_digest", "")).strip_edges() != str(loadout_a.get("combo_contract_digest", "")).strip_edges():
+		failures.append("execution combo contract should propagate the same combo_contract_digest into runtime affordances")
+
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.players = [2]
+	manager.profile_cards_by_peer = {2: {"public_id": "delver_A", "display_name": "Aster"}}
+	manager.items_by_id = {
+		1: {"item_id": 1, "item_def_id": "timeline_bookmark", "owner_peer_id": 2, "consumed": false},
+		2: {"item_id": 2, "item_def_id": "lantern_snuffer", "owner_peer_id": 2, "consumed": false},
+		3: {"item_id": 3, "item_def_id": "zipline_kit", "owner_peer_id": 2, "consumed": false}
+	}
+	manager.player_room_by_peer = {2: 1}
+	manager.ghost_state["active"] = true
+	manager.ghost_state["target_peer_id"] = 2
+	manager.reset_tool_inventory_for_test([2], 1, 2)
+	var snapshot: Dictionary = manager.build_gameplay_signal_snapshot()
+	var peer_models: Dictionary = Dictionary(snapshot.get("peer_models", {}))
+	var aster: Dictionary = Dictionary(peer_models.get("delver_A", {}))
+	if str(aster.get("combo_contract_digest", "")).strip_edges().is_empty():
+		failures.append("execution combo contract should project combo_contract_digest into gameplay snapshots")
+	if _string_array_for_test(Array(aster.get("combo_family_ids", []))).is_empty():
+		failures.append("execution combo contract should project combo_family_ids into gameplay snapshots")
+	if _string_array_for_test(Array(aster.get("combo_pressure_tags", []))).is_empty():
+		failures.append("execution combo contract should project combo_pressure_tags into gameplay snapshots")
+	if aster.has("combo_entries"):
+		failures.append("execution combo contract should keep combo_entries out of public gameplay snapshots")
+	if JSON.stringify(snapshot).find("\"combo_entries\"") != -1:
+		failures.append("execution combo contract should keep raw combo_entries out of public gameplay snapshot payloads")
+	manager.free()
+
+func _test_execution_public_fact_extensions_and_diagnostics_contract(failures: Array[String]) -> void:
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 5,
+		"event_id": 1,
+		"event_type": "run_started",
+		"room_slot": 0,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	var gameplay_snapshot := {
+		"peer_models": {
+			"delver_A": {
+				"peer_id": 2,
+				"combo_contract_digest": "combo_digest_alpha",
+				"combo_family_ids": ["combo_family_private_archive_ritual"],
+				"combo_pressure_tags": ["pressure_route_control_answer", "combo_private_archive_ritual"],
+				"public_surface_tags": ["combo_private_archive_ritual", "route_memory"]
+			},
+			"delver_B": {
+				"peer_id": 3,
+				"combo_contract_digest": "combo_digest_beta",
+				"combo_family_ids": ["combo_family_threshold_echo"],
+				"combo_pressure_tags": ["pressure_threshold_echo", "combo_threshold_echo"],
+				"public_surface_tags": ["combo_threshold_echo", "threshold_memory"]
+			}
+		}
+	}
+	var constitution_summary := {
+		"constitution_hash": "constitution_alpha",
+		"explanation_packet_digest": "packet_alpha",
+		"provenance_contract_version": GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION,
+		"public_trace_classes": ["artifact", "hazard"],
+		"public_surface_tags": ["movement", "burden"]
+	}
+	var peer_cards := {
+		"2": {"public_id": "delver_A", "display_name": "Aster"},
+		"3": {"public_id": "delver_B", "display_name": "Bram"}
+	}
+	var fact_extensions := controller.build_public_fact_extensions_for_test(event_log, gameplay_snapshot, constitution_summary, peer_cards, 2)
+	var mirrored_fact_extensions := controller.build_public_fact_extensions_for_test(event_log, gameplay_snapshot, constitution_summary, peer_cards, 3)
+	if fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[PROVENANCE]")).is_empty():
+		failures.append("execution fact extensions should emit public provenance lines")
+	if fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[COMBO]")).is_empty():
+		failures.append("execution fact extensions should emit public combo lines")
+	if JSON.stringify(fact_extensions).find("combo_entries") != -1:
+		failures.append("execution fact extensions should never leak raw combo_entries")
+	if JSON.stringify(fact_extensions) != JSON.stringify(mirrored_fact_extensions):
+		failures.append("execution fact extensions should keep shared combo lines identical across local peer viewpoints")
+
+	var run_record := {
+		"seed": 20260319,
+		"local_peer_id": 2,
+		"peer_identities": peer_cards.duplicate(true),
+		"timeline_public_events": [{"event_id": 1, "tick": 5, "room_slot": 0, "actor_peer_id": 2, "event_type": "run_started", "visibility": "public"}],
+		"communication_summary": {"total": 0, "danger": 0, "regroup": 0, "artifact": 0},
+		"narrative_motion_facts": {},
+		"gameplay_signal_snapshot": gameplay_snapshot.duplicate(true),
+		"expedition_constitution_summary": constitution_summary.duplicate(true),
+		"forensic_bundle": {"bundle_digest": "bundle_alpha", "replay_id": "replay_alpha"},
+		"replay_identity": {"replay_id": "replay_alpha"},
+		"outcome_summary": {"artifact_continuity_state": "burial", "artifact_continuity_text": "Buried.", "summary_text": "Sabotage success"},
+		"provenance_contract_version": GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION,
+		"public_trace_classes": ["artifact", "hazard"],
+		"private_trace_classes": ["inspection"],
+		"public_surface_tags": ["movement", "burden"],
+		"provenance_source_refs": ["constitution_summary", "event_log"],
+		"combo_contract_version": 1,
+		"combo_contract_digest": "combo_digest_alpha",
+		"combo_family_ids": ["combo_family_private_archive_ritual"],
+		"combo_entries": [{
+			"combo_id": "combo_private_archive_ritual",
+			"family_id": "combo_family_private_archive_ritual",
+			"source_item_ids": ["lantern_snuffer", "timeline_bookmark"],
+			"source_hooks": ["ritual_hooks"],
+			"context_tags": ["protocol_exposure_protocol"],
+			"effect_tags": ["quiet_revision"],
+			"public_surface_tags": ["combo_private_archive_ritual"],
+			"lifecycle_candidate_id": "combo_family_private_archive_ritual",
+			"visibility": "private"
+		}],
+		"combo_pressure_tags": ["pressure_route_control_answer", "combo_private_archive_ritual"],
+		"combo_public_surface_tags": ["combo_private_archive_ritual", "route_memory"]
+	}
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	if int(diagnostics.get("provenance_contract_version", 0)) != GOVERNANCE_SERVICE_SCRIPT.PROVENANCE_CONTRACT_VERSION:
+		failures.append("execution diagnostics should preserve provenance_contract_version")
+	if str(diagnostics.get("combo_contract_digest", "")).strip_edges() != "combo_digest_alpha":
+		failures.append("execution diagnostics should preserve combo_contract_digest")
+	if _string_array_for_test(Array(diagnostics.get("combo_family_ids", []))).is_empty():
+		failures.append("execution diagnostics should preserve combo_family_ids")
+	if _string_array_for_test(Array(diagnostics.get("public_trace_classes", []))).is_empty():
+		failures.append("execution diagnostics should preserve public_trace_classes")
+	controller.free()
+	event_log.free()
+
+func _test_execution_social_consequence_runtime_and_public_projection(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	profile["persona_state"] = {"public_expectations": ["escort", "witness", "return"]}
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.players = [2, 3]
+	manager.profile_cards_by_peer = {
+		2: {"public_id": "delver_A", "display_name": "Aster"},
+		3: {"public_id": "delver_B", "display_name": "Bram"}
+	}
+	manager.items_by_id = {
+		1: {"item_id": 1, "item_def_id": "timeline_bookmark", "owner_peer_id": 2, "consumed": false},
+		2: {"item_id": 2, "item_def_id": "lantern_snuffer", "owner_peer_id": 2, "consumed": false}
+	}
+	manager.player_room_by_peer = {2: 7, 3: 6}
+	manager.role_pressure_by_peer = {2: 2}
+	manager.custody_debt_by_peer = {2: 2}
+	manager.suspicion_heat_by_peer = {2: 3}
+	manager.counterfeit_heat_by_peer = {2: 2}
+	var gameplay_snapshot := manager.build_gameplay_signal_snapshot({}, profile)
+	var group_model := Dictionary(gameplay_snapshot.get("group_model", {}))
+	if int(group_model.get("social_consequence_version", 0)) != 1:
+		failures.append("M7 gameplay snapshots should expose social_consequence_version on group_model")
+	if _string_array_for_test(Array(group_model.get("public_evidence_tags", []))).is_empty():
+		failures.append("M7 gameplay snapshots should expose public_evidence_tags on group_model")
+	if str(group_model.get("witness_pressure", "")).strip_edges().is_empty():
+		failures.append("M7 gameplay snapshots should expose witness_pressure on group_model")
+	if str(group_model.get("relationship_pressure", "")).strip_edges().is_empty():
+		failures.append("M7 gameplay snapshots should expose relationship_pressure on group_model")
+	if _string_array_for_test(Array(group_model.get("blame_surface_tags", []))).is_empty():
+		failures.append("M7 gameplay snapshots should expose blame_surface_tags on group_model")
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	manager.current_expedition_constitution = {
+		"market_regime_state": {
+			"regime_id": "market_recovery_weave",
+			"carrier_risk_band": "volatile"
+		}
+	}
+	manager.artifacts_by_id = counterfeit_artifacts.duplicate(true)
+	manager.extraction_room_slot = 7
+	var outcome_summary := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	var local_aftermath := manager._build_local_aftermath_record(
+		{
+			"encounter_id": "encounter_social_runtime",
+			"room_slot": 7,
+			"anchored_pressures": ["witness_pressure", "custody_pressure"],
+			"consequence_classes": ["escort_break"],
+			"pathology_family_ids": ["pathology_pressure"],
+			"local_aftermath_tags": ["escort_trace"],
+			"world_aftermath_tags": ["route_memory"]
+		},
+		{
+			"apex_id": "apex_social_runtime",
+			"room_slot": 7,
+			"anchored_pressures": ["route_pressure"],
+			"resolution_classes": ["resource_drain"],
+			"telegraph_channels": ["hazard_pulse"],
+			"local_aftermath_tags": ["threshold_scars"],
+			"world_aftermath_tags": ["institutional_echo"]
+		},
+		"extraction_objective"
+	)
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var constitution_summary := {
+		"constitution_hash": "m7_runtime_hash",
+		"public_trace_classes": ["artifact", "hazard"],
+		"public_surface_tags": ["movement", "burden"],
+		"apex_class_ids": ["threshold_trial_apex"]
+	}
+	var world_aftermath_refs := controller._build_world_aftermath_refs(local_aftermath, {"apex_id": "apex_social_runtime"}, constitution_summary)
+	var timeline_public_events := [
+		{"event_id": 1, "tick": 8, "room_slot": 7, "actor_peer_id": 2, "event_type": "artifact_picked", "visibility": "public", "meta": {"artifact_id": 12}},
+		{"event_id": 2, "tick": 10, "room_slot": 7, "actor_peer_id": 2, "event_type": "room_callout", "visibility": "public", "meta": {"kind": "artifact"}}
+	]
+	var timeline_private_events := [
+		{"event_id": 3, "tick": 11, "room_slot": 7, "actor_peer_id": 2, "event_type": "sabotage_private_confirm", "visibility": "private", "target_peer_id": 2, "meta": {}}
+	]
+	var social_consequence := controller._build_social_consequence_summary(
+		gameplay_snapshot,
+		timeline_public_events,
+		timeline_private_events,
+		outcome_summary,
+		local_aftermath,
+		world_aftermath_refs
+	)
+	if int(social_consequence.get("social_consequence_version", 0)) != 1:
+		failures.append("M7 runtime social consequence should expose social_consequence_version")
+	if _string_array_for_test(Array(social_consequence.get("public_evidence_tags", []))).is_empty():
+		failures.append("M7 runtime social consequence should expose public_evidence_tags")
+	if _string_array_for_test(Array(social_consequence.get("private_evidence_tags", []))).is_empty():
+		failures.append("M7 runtime social consequence should expose private_evidence_tags on private-safe surfaces")
+	if str(social_consequence.get("witness_pressure", "")).strip_edges().is_empty():
+		failures.append("M7 runtime social consequence should expose witness_pressure")
+	if str(social_consequence.get("counterfeit_pressure", "")).strip_edges().is_empty():
+		failures.append("M7 runtime social consequence should expose counterfeit_pressure")
+	if str(social_consequence.get("relationship_pressure", "")).strip_edges().is_empty():
+		failures.append("M7 runtime social consequence should expose relationship_pressure")
+	if _string_array_for_test(Array(social_consequence.get("blame_surface_tags", []))).is_empty():
+		failures.append("M7 runtime social consequence should expose blame_surface_tags")
+	var consequence_read_refs := _string_array_for_test(Array(social_consequence.get("consequence_read_refs", [])))
+	if consequence_read_refs.find("timeline_public") == -1 or consequence_read_refs.find("timeline_private") == -1:
+		failures.append("M7 runtime social consequence should remain rooted in public/private event visibility")
+	if consequence_read_refs.find(str(outcome_summary.get("consequence_event_family", ""))) == -1:
+		failures.append("M7 runtime social consequence should consume the existing C4 consequence_event_family without renaming")
+	controller.end_payload = {
+		"outcome_summary": outcome_summary.duplicate(true),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": Array(world_aftermath_refs).duplicate(true)
+	}
+	var event_log := EVENT_LOG_SCRIPT.new()
+	for event in timeline_public_events:
+		event_log.add_event(event)
+	for event in timeline_private_events:
+		event_log.add_event(event)
+	var fact_extensions := controller.build_public_fact_extensions_for_test(event_log, gameplay_snapshot, constitution_summary, {"2": {"public_id": "delver_A", "display_name": "Aster"}}, 2, outcome_summary)
+	if fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[SOCIAL]")).is_empty():
+		failures.append("M7 public fact extensions should emit public-safe social consequence lines")
+	var fact_text := JSON.stringify(fact_extensions)
+	for forbidden_fragment in ["private_evidence_tags", "counterfeit_pressure", "sabotage_private_confirm"]:
+		if fact_text.find(forbidden_fragment) != -1:
+			failures.append("M7 public fact extensions should not leak %s" % forbidden_fragment)
+	var run_record := _execution_apply_social_consequence(
+		_execution_encounter_apex_test_run_record(727272, outcome_summary, constitution_summary, local_aftermath, world_aftermath_refs, {"apex_id": "apex_social_runtime"}),
+		gameplay_snapshot,
+		timeline_public_events,
+		timeline_private_events,
+		social_consequence
+	)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	if int(diagnostics.get("social_consequence_version", 0)) != 1:
+		failures.append("M7 diagnostics should preserve social_consequence_version")
+	if _string_array_for_test(Array(diagnostics.get("public_evidence_tags", []))).is_empty():
+		failures.append("M7 diagnostics should preserve public_evidence_tags")
+	if _string_array_for_test(Array(diagnostics.get("private_evidence_tags", []))).is_empty():
+		failures.append("M7 diagnostics should preserve private_evidence_tags")
+	if str(diagnostics.get("witness_pressure", "")).strip_edges() != str(social_consequence.get("witness_pressure", "")).strip_edges():
+		failures.append("M7 diagnostics should preserve witness_pressure")
+	controller.free()
+	event_log.free()
+	manager.free()
+
+func _test_execution_social_consequence_persistence_and_ev7(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	profile["persona_state"] = {"public_expectations": ["escort", "witness", "return"]}
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.players = [2]
+	manager.profile_cards_by_peer = {2: {"public_id": "delver_A", "display_name": "Aster"}}
+	manager.items_by_id = {
+		1: {"item_id": 1, "item_def_id": "timeline_bookmark", "owner_peer_id": 2, "consumed": false}
+	}
+	manager.player_room_by_peer = {2: 7}
+	manager.role_pressure_by_peer = {2: 1}
+	manager.custody_debt_by_peer = {2: 1}
+	manager.suspicion_heat_by_peer = {2: 1}
+	manager.counterfeit_heat_by_peer = {2: 1}
+	var gameplay_snapshot := manager.build_gameplay_signal_snapshot({}, profile)
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	manager.current_expedition_constitution = {
+		"market_regime_state": {
+			"regime_id": "market_recovery_weave",
+			"carrier_risk_band": "volatile"
+		}
+	}
+	manager.artifacts_by_id = counterfeit_artifacts.duplicate(true)
+	manager.extraction_room_slot = 7
+	var outcome_summary := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	var local_aftermath := manager._build_local_aftermath_record(
+		{
+			"encounter_id": "encounter_social_ev7",
+			"room_slot": 7,
+			"anchored_pressures": ["witness_pressure"],
+			"consequence_classes": ["escort_break"],
+			"pathology_family_ids": ["pathology_pressure"],
+			"local_aftermath_tags": ["escort_trace"],
+			"world_aftermath_tags": ["route_memory"]
+		},
+		{
+			"apex_id": "apex_social_ev7",
+			"room_slot": 7,
+			"anchored_pressures": ["route_pressure"],
+			"resolution_classes": ["resource_drain"],
+			"telegraph_channels": ["hazard_pulse"],
+			"local_aftermath_tags": ["threshold_scars"],
+			"world_aftermath_tags": ["institutional_echo"]
+		},
+		"extraction_objective"
+	)
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var constitution_summary := {
+		"constitution_hash": "m7_ev7_hash",
+		"public_trace_classes": ["artifact", "hazard"],
+		"public_surface_tags": ["movement", "burden"],
+		"apex_class_ids": ["threshold_trial_apex"]
+	}
+	var world_aftermath_refs := controller._build_world_aftermath_refs(local_aftermath, {"apex_id": "apex_social_ev7"}, constitution_summary)
+	var control_public_events := [
+		{"event_id": 1, "tick": 8, "room_slot": 7, "actor_peer_id": 2, "event_type": "artifact_picked", "visibility": "public", "meta": {"artifact_id": 12}}
+	]
+	var control_private_events: Array = []
+	var variant_public_events := control_public_events.duplicate(true)
+	variant_public_events.append({"event_id": 2, "tick": 10, "room_slot": 7, "actor_peer_id": 2, "event_type": "room_callout", "visibility": "public", "meta": {"kind": "artifact"}})
+	var variant_private_events := [
+		{"event_id": 3, "tick": 11, "room_slot": 7, "actor_peer_id": 2, "event_type": "sabotage_private_confirm", "visibility": "private", "target_peer_id": 2, "meta": {}}
+	]
+	var control_social := controller._build_social_consequence_summary(
+		gameplay_snapshot,
+		control_public_events,
+		control_private_events,
+		outcome_summary,
+		local_aftermath,
+		world_aftermath_refs
+	)
+	var variant_social := controller._build_social_consequence_summary(
+		gameplay_snapshot,
+		variant_public_events,
+		variant_private_events,
+		outcome_summary,
+		local_aftermath,
+		world_aftermath_refs
+	)
+	if str(control_social.get("witness_pressure", "")).strip_edges() == str(variant_social.get("witness_pressure", "")).strip_edges():
+		failures.append("EV7 should change witness_pressure when public event visibility changes")
+	if JSON.stringify(control_social.get("blame_surface_tags", [])) == JSON.stringify(variant_social.get("blame_surface_tags", [])):
+		failures.append("EV7 should change blame_surface_tags when public/private evidence visibility changes")
+	var control_event_log := EVENT_LOG_SCRIPT.new()
+	for event in control_public_events:
+		control_event_log.add_event(event)
+	var variant_event_log := EVENT_LOG_SCRIPT.new()
+	for event in variant_public_events:
+		variant_event_log.add_event(event)
+	for event in variant_private_events:
+		variant_event_log.add_event(event)
+	controller.end_payload = {
+		"outcome_summary": outcome_summary.duplicate(true),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": Array(world_aftermath_refs).duplicate(true)
+	}
+	var control_fact_extensions := controller.build_public_fact_extensions_for_test(control_event_log, gameplay_snapshot, constitution_summary, {"2": {"public_id": "delver_A", "display_name": "Aster"}}, 2, outcome_summary)
+	controller.end_payload = {
+		"outcome_summary": outcome_summary.duplicate(true),
+		"local_aftermath": local_aftermath.duplicate(true),
+		"world_aftermath_refs": Array(world_aftermath_refs).duplicate(true)
+	}
+	var variant_fact_extensions := controller.build_public_fact_extensions_for_test(variant_event_log, gameplay_snapshot, constitution_summary, {"2": {"public_id": "delver_A", "display_name": "Aster"}}, 2, outcome_summary)
+	if JSON.stringify(control_fact_extensions) == JSON.stringify(variant_fact_extensions):
+		failures.append("EV7 should materially change public-safe social consequence report lines when event visibility changes")
+	var run_record := _execution_apply_social_consequence(
+		_execution_encounter_apex_test_run_record(737373, outcome_summary, constitution_summary, local_aftermath, world_aftermath_refs, {"apex_id": "apex_social_ev7"}),
+		gameplay_snapshot,
+		variant_public_events,
+		variant_private_events,
+		variant_social
+	)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	var frame := FRAMING_SERVICE_SCRIPT.build_run_frame(run_record, diagnostics, profile)
+	if str(frame.get("social_consequence_line", "")).strip_edges().is_empty():
+		failures.append("M7 framing outputs should expose a social_consequence_line")
+	var world_memory := WORLD_MEMORY_SERVICE_SCRIPT.apply_run(WORLD_MEMORY_SERVICE_SCRIPT.default_state(), {
+		"run_record": run_record,
+		"diagnostics": diagnostics,
+		"frame": frame,
+		"profile": profile
+	})
+	if int(Dictionary(world_memory.get("social_consequence_state", {})).get("social_consequence_version", 0)) != 1:
+		failures.append("M7 world memory should persist social_consequence_state")
+	var world_lines := "\n".join(WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory))
+	if world_lines.find("Social:") == -1:
+		failures.append("M7 world memory lines should expose a compact social consequence review")
+	var archive_state := ARCHIVE_SERVICE_SCRIPT.apply_run({}, {
+		"run_record": run_record,
+		"diagnostics": diagnostics,
+		"frame": frame,
+		"world_memory": world_memory,
+		"profile": profile
+	})
+	if JSON.stringify(archive_state).find("Social:") == -1:
+		failures.append("M7 archive outputs should retain a public-safe social consequence reading")
+	if JSON.stringify(frame).find("private_evidence_tags") != -1 or JSON.stringify(archive_state).find("private_evidence_tags") != -1:
+		failures.append("M7 framing and archive outputs should not leak private_evidence_tags")
+	controller.free()
+	control_event_log.free()
+	variant_event_log.free()
+	manager.free()
+
+func _test_execution_onboarding_first_run_and_returning_run_surfaces(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var first_run_profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var returning_profile := first_run_profile.duplicate(true)
+	returning_profile["first_run_pending"] = false
+	var first_quick_start := LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(first_run_profile, {})
+	for required_fragment in [
+		"First run: recover an authentic Artifact and hold it in Extraction.",
+		"Roles stay asymmetric:",
+		"Artifacts are the objective. Tools are active. Relics are passive.",
+		"Use notebook notes and hints early;",
+		"Continuity matters:"
+	]:
+		if first_quick_start.find(required_fragment) == -1:
+			failures.append("M8 first-run home quick-start should surface %s" % required_fragment)
+	var returning_quick_start := LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(returning_profile, {
+		"delve_protocol": {
+			"protocol_state": "Exposure Protocol",
+			"doctrine_label": "Return Pressure",
+			"pressure_line": "Public reads are hardening on the route."
+		}
+	})
+	if returning_quick_start.find("Live brief:") == -1 or returning_quick_start.find("Current read: Exposure Protocol | Return Pressure | Public reads are hardening on the route.") == -1:
+		failures.append("M8 returning-run home quick-start should shift from primer text to the live brief")
+	if returning_quick_start.find("First run:") != -1:
+		failures.append("M8 returning-run home quick-start should not reuse first-run primer wording")
+
+	var first_continue := "\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(first_run_profile, {}))
+	if first_continue.find("authentic extraction") == -1 or first_continue.find("Home quick-start summary") == -1:
+		failures.append("M8 first-run continue guidance should explain authentic extraction and direct players back to the primer")
+	var connected_continue := "\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(returning_profile, {
+		"connected": true,
+		"delve_protocol": {
+			"protocol_state": "Fracture Protocol",
+			"doctrine_label": "Burden Chain",
+			"pressure_line": "Split accountability is loading the route."
+		}
+	}))
+	if connected_continue.find("ready up and start another run") == -1 or connected_continue.find("Fracture Protocol") == -1:
+		failures.append("M8 returning-run continue guidance should stay live-context driven while connected")
+
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	var first_policy := "\n".join(manager.build_session_policy_lines_for_test({
+		"mode": "host",
+		"host_bind": "0.0.0.0",
+		"host_port": 2456,
+		"first_run_pending": true
+	}))
+	if first_policy.find("Guide: Primer on authentic extraction, asymmetric roles, notebook clues, and extraction hold.") == -1:
+		failures.append("M8 first-run session policy lines should expose the bounded primer")
+	var returning_policy := "\n".join(manager.build_session_policy_lines_for_test({
+		"mode": "client",
+		"join_address": "127.0.0.1",
+		"join_port": 2456,
+		"first_run_pending": false,
+		"delve_protocol": {
+			"protocol_state": "Exposure Protocol",
+			"doctrine_label": "Return Pressure",
+			"pressure_line": "Public reads are hardening on the route."
+		}
+	}))
+	if returning_policy.find("Guide: Exposure Protocol | Return Pressure | Public reads are hardening on the route.") == -1:
+		failures.append("M8 returning-run session policy lines should use the live brief instead of the primer")
+	if returning_policy.find("Guide: Primer") != -1:
+		failures.append("M8 returning-run session policy lines should not reuse the primer text")
+	manager.free()
+
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var role_payload := ROLE_SERVICE_SCRIPT.new().build_private_role_payload(ROLE_SERVICE_SCRIPT.ROLE_WARDEN)
+	var public_summary := {
+		"protocol_state": "Exposure Protocol",
+		"doctrine_label": "Return Pressure",
+		"pressure_line": "Public reads are hardening on the route.",
+		"world_goal": "Return with a readable custody line.",
+		"group_tension_bias": "trust-fragile but obligation-heavy",
+		"item_ecology_bias": "custody burden",
+		"convergence_axis": "artifact custody"
+	}
+	var branch_context := {
+		"branch_family_name": "Relay Hollows",
+		"challenge_texture": "route_revision",
+		"rescue_climate": "covering_retreat",
+		"witness_pressure": "public",
+		"route_commitment": "staged_commitment"
+	}
+	var first_packet := controller.build_run_guidance_packet_for_test(public_summary, branch_context, role_payload, {
+		"first_run_pending": true
+	})
+	var first_focus := "\n".join(Array(first_packet.get("focus_lines", [])))
+	if first_focus.find("Primer: authentic extraction wins;") == -1 or first_focus.find("Primer: roles stay asymmetric;") == -1:
+		failures.append("M8 first-run run-guidance packets should prepend the primer through the existing HUD owner")
+	var first_help := controller.build_help_overlay_text_for_test(first_packet, true, false)
+	if first_help.find("First-run primer") == -1 or first_help.find("Continuity: what returns from this run can shape later reads.") == -1:
+		failures.append("M8 first-run help overlay should explain primer rules and continuity weight")
+	var empty_log := EVENT_LOG_SCRIPT.new()
+	var first_hint := controller.compute_next_step_hint_for_test_with_first_run_state(empty_log, 2, false, 7, true)
+	if first_hint.find("First run -> N notebook") == -1:
+		failures.append("M8 first-run next-step hints should keep notebook use explicit")
+	empty_log.free()
+
+	var returning_packet := controller.build_run_guidance_packet_for_test(public_summary, branch_context, role_payload, {
+		"first_run_pending": false,
+		"public_consequence_tags": ["artifact_return_visible"],
+		"world_aftermath_tags": ["rerouted"],
+		"public_evidence_tags": ["witness_visible", "custody_visible"]
+	})
+	var returning_focus := "\n".join(Array(returning_packet.get("focus_lines", [])))
+	if returning_focus.find("Continuity:") == -1 or returning_focus.find("return pressure is readable") == -1:
+		failures.append("M8 returning-run guidance should compress public-safe C4/C5/C6 meaning into a live continuity line")
+	if returning_focus.find("Primer:") != -1:
+		failures.append("M8 returning-run guidance should not reuse first-run primer lines")
+	var returning_help := controller.build_help_overlay_text_for_test(returning_packet, false, false)
+	if returning_help.find("Live continuity:") == -1 or returning_help.find("First-run primer") != -1:
+		failures.append("M8 returning-run help overlay should switch to live continuity instead of primer text")
+	controller.free()
+
+func _test_execution_onboarding_hidden_set_and_c7_contract(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var first_run_profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var returning_profile := first_run_profile.duplicate(true)
+	returning_profile["first_run_pending"] = false
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var role_payload := ROLE_SERVICE_SCRIPT.new().build_private_role_payload(ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER)
+	var packet := controller.build_run_guidance_packet_for_test({
+		"protocol_state": "Exposure Protocol",
+		"doctrine_label": "Return Pressure",
+		"pressure_line": "Public reads are hardening on the route.",
+		"world_goal": "Return with a readable custody line."
+	}, {
+		"branch_family_name": "Relay Hollows",
+		"route_commitment": "staged_commitment"
+	}, role_payload, {
+		"first_run_pending": false,
+		"public_consequence_tags": ["artifact_return_visible"],
+		"world_aftermath_tags": ["rerouted"],
+		"public_evidence_tags": ["witness_visible"]
+	})
+	for rule in [
+		"authentic_extraction",
+		"role_asymmetry",
+		"artifact_tool_relic_categories",
+		"danger_pressure",
+		"notebook_hint_usage",
+		"extraction_hold_behavior",
+		"continuity_weight"
+	]:
+		if not _string_array_for_test(Array(packet.get("first_run_surface_rules", []))).has(rule):
+			failures.append("M8 C7 packets should preserve first_run_surface_rules entry %s" % rule)
+	for rule in [
+		"combo_entries",
+		"combo_family_ids",
+		"lifecycle_math",
+		"private_trace_classes",
+		"unrevealed_counterfeit_truth",
+		"deeper_social_auto_solve",
+		"phenomenon_manifest"
+	]:
+		if not _string_array_for_test(Array(packet.get("hidden_surface_rules", []))).has(rule):
+			failures.append("M8 C7 packets should preserve hidden_surface_rules entry %s" % rule)
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	var surface_blob := "\n".join([
+		LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(first_run_profile, {}),
+		LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(returning_profile, {
+			"delve_protocol": {
+				"protocol_state": "Exposure Protocol",
+				"doctrine_label": "Return Pressure",
+				"pressure_line": "Public reads are hardening on the route."
+			}
+		}),
+		"\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(first_run_profile, {})),
+		"\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(returning_profile, {
+			"connected": true,
+			"delve_protocol": {
+				"protocol_state": "Exposure Protocol",
+				"doctrine_label": "Return Pressure",
+				"pressure_line": "Public reads are hardening on the route."
+			}
+		})),
+		"\n".join(manager.build_session_policy_lines_for_test({
+			"mode": "host",
+			"host_bind": "0.0.0.0",
+			"host_port": 2456,
+			"first_run_pending": true
+		})),
+		"\n".join(Array(packet.get("focus_lines", []))),
+		controller.build_help_overlay_text_for_test(packet, false, false),
+		str(packet.get("action_tip", "")),
+		str(packet.get("public_signal_line", ""))
+	])
+	manager.free()
+	for banned_fragment in [
+		"combo_entries",
+		"combo_family_ids",
+		"private_trace_classes",
+		"phenomenon_manifest",
+		"lifecycle_math",
+		"artifact_return_visible",
+		"witness_visible",
+		"counterfeit_pressure",
+		"private_evidence_tags",
+		"aftermath_consequence_refs"
+	]:
+		if surface_blob.find(banned_fragment) != -1:
+			failures.append("M8 onboarding surfaces should not leak hidden/internal fragment %s" % banned_fragment)
+	controller.free()
+
+func _test_execution_lifecycle_registry_combo_and_artifact_adoption(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	profile["run_history"] = [{
+		"seed": 4101,
+		"diagnostics": {
+			"combo_family_ids": ["combo_family_private_archive_ritual"]
+		},
+		"gameplay_signal_snapshot": {
+			"peer_models": {
+				"delver_A": {
+					"combo_family_ids": ["combo_family_private_archive_ritual"],
+					"combo_pressure_tags": ["pressure_route_control_answer"],
+					"public_surface_tags": ["combo_private_archive_ritual", "route_memory"]
+				}
+			}
+		},
+		"outcome_summary": {
+			"artifact_continuity_state": "burial",
+			"market_regime_id": "market_balanced_exchange"
+		}
+	}, {
+		"seed": 4102,
+		"diagnostics": {
+			"combo_family_ids": ["combo_family_private_archive_ritual"]
+		},
+		"gameplay_signal_snapshot": {
+			"peer_models": {
+				"delver_B": {
+					"combo_family_ids": ["combo_family_private_archive_ritual"],
+					"combo_pressure_tags": ["pressure_route_control_answer"],
+					"public_surface_tags": ["route_memory"]
+				}
+			}
+		},
+		"outcome_summary": {
+			"artifact_continuity_state": "successor_emergence",
+			"market_regime_id": "market_recovery_weave"
+		}
+	}]
+	var constitution := DELVE_KERNEL_SCRIPT.plan_constitution(profile, {
+		"player_count": 4,
+		"protocol_state": "Exposure Protocol",
+		"gameplay_snapshot": {
+			"resource_pressure": ["rope reserves"],
+			"group_model": {"model_pressure": ["route memory"]}
+		}
+	}, 515151, 10)
+	var lifecycle_registry: Dictionary = Dictionary(constitution.get("lifecycle_registry", {}))
+	var family_kinds: Array[String] = []
+	var combo_family: Dictionary = {}
+	var continuity_family: Dictionary = {}
+	for family_raw in _dict_array_for_test(lifecycle_registry.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw)
+		var family_kind := str(family.get("family_kind", "")).strip_edges()
+		if not family_kind.is_empty() and not family_kinds.has(family_kind):
+			family_kinds.append(family_kind)
+		if family_kind == "combo_family" and str(family.get("family_id", "")) == "combo_family_private_archive_ritual":
+			combo_family = family
+		elif family_kind == "artifact_continuity" and str(family.get("family_id", "")) == "artifact_continuity_burial":
+			continuity_family = family
+	for required_kind in ["combo_family", "artifact_continuity"]:
+		if not family_kinds.has(required_kind):
+			failures.append("M4 lifecycle registry should include %s family kinds in compiler outputs" % required_kind)
+	if combo_family.is_empty():
+		failures.append("M4 lifecycle registry should emit combo_family entries from recent combo history")
+	if continuity_family.is_empty():
+		failures.append("M4 lifecycle registry should emit artifact_continuity entries from recent artifact continuity history")
+	for family in [combo_family, continuity_family]:
+		if family.is_empty():
+			continue
+		for field in ["source_id", "heat", "cooldown_band", "successor_hint", "routing_tags", "resurrection_priority"]:
+			if not family.has(field):
+				failures.append("M4 lifecycle families should expose %s" % field)
+				break
+	var normalized := EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.normalize(constitution)
+	var normalized_registry: Dictionary = Dictionary(normalized.get("lifecycle_registry", {}))
+	var normalized_kinds: Array[String] = []
+	for family_raw in _dict_array_for_test(normalized_registry.get("families", [])):
+		var family_kind := str(Dictionary(family_raw).get("family_kind", "")).strip_edges()
+		if not family_kind.is_empty() and not normalized_kinds.has(family_kind):
+			normalized_kinds.append(family_kind)
+	for required_kind in ["combo_family", "artifact_continuity"]:
+		if not normalized_kinds.has(required_kind):
+			failures.append("M4 lifecycle registry should preserve %s family kinds through schema normalization" % required_kind)
+
+func _test_execution_lifecycle_runtime_bias_and_ev4(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	profile["run_history"] = [{
+		"seed": 4201,
+		"diagnostics": {"combo_family_ids": ["combo_family_private_archive_ritual"]},
+		"gameplay_signal_snapshot": {
+			"peer_models": {
+				"delver_A": {
+					"combo_family_ids": ["combo_family_private_archive_ritual"],
+					"combo_pressure_tags": ["pressure_route_control_answer"],
+					"public_surface_tags": ["combo_private_archive_ritual", "route_memory"]
+				}
+			}
+		},
+		"outcome_summary": {"artifact_continuity_state": "burial", "market_regime_id": "market_balanced_exchange"}
+	}, {
+		"seed": 4202,
+		"diagnostics": {"combo_family_ids": ["combo_family_private_archive_ritual"]},
+		"gameplay_signal_snapshot": {
+			"peer_models": {
+				"delver_A": {
+					"combo_family_ids": ["combo_family_private_archive_ritual"],
+					"combo_pressure_tags": ["pressure_route_control_answer"],
+					"public_surface_tags": ["combo_private_archive_ritual", "route_memory"]
+				}
+			}
+		},
+		"outcome_summary": {"artifact_continuity_state": "burial", "market_regime_id": "market_balanced_exchange"}
+	}]
+	var constitution := DELVE_KERNEL_SCRIPT.plan_constitution(profile, {
+		"player_count": 4,
+		"protocol_state": "Exposure Protocol"
+	}, 616161, 10)
+	var generation_surface: Dictionary = EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.generation_surface(constitution)
+	var lifecycle_routing: Dictionary = Dictionary(generation_surface.get("lifecycle_routing", {})).duplicate(true)
+	if _dict_array_for_test(lifecycle_routing.get("families", [])).is_empty():
+		failures.append("M4 generation surfaces should carry lifecycle_routing families")
+		return
+	var variant := generation_surface.duplicate(true)
+	var variant_routing: Dictionary = Dictionary(variant.get("lifecycle_routing", {})).duplicate(true)
+	var variant_families := _dict_array_for_test(variant_routing.get("families", []))
+	for index in range(variant_families.size()):
+		var family := Dictionary(variant_families[index]).duplicate(true)
+		if str(family.get("family_kind", "")).strip_edges() == "combo_family":
+			family["heat"] = 7
+			family["cooldown_band"] = "deep_cooling"
+			variant_families[index] = family
+			break
+	variant_routing["families"] = variant_families
+	variant["lifecycle_routing"] = variant_routing
+	var generator := RUN_GENERATOR_SCRIPT.new()
+	var control_branch_weights: Dictionary = generator.branch_family_weights_for_test(generation_surface)
+	var variant_branch_weights: Dictionary = generator.branch_family_weights_for_test(variant)
+	if JSON.stringify(control_branch_weights) == JSON.stringify(variant_branch_weights):
+		failures.append("EV4 should change branch weighting when lifecycle combo heat and cooldown band change")
+	var control_room_weights: Dictionary = generator.room_type_weights_for_slot_for_test(4, 10, generation_surface)
+	var variant_room_weights: Dictionary = generator.room_type_weights_for_slot_for_test(4, 10, variant)
+	if JSON.stringify(control_room_weights) == JSON.stringify(variant_room_weights):
+		failures.append("EV4 should change room weighting when lifecycle combo heat and cooldown band change")
+	var item_service := ITEM_SERVICE_SCRIPT.new()
+	var room := {"branch_family_id": "relay_hollows", "protocol_state": "Exposure Protocol"}
+	var control_bonus := item_service.directive_bonus_for_item_for_test("zipline_kit", generation_surface, room)
+	var variant_bonus := item_service.directive_bonus_for_item_for_test("zipline_kit", variant, room)
+	if control_bonus == variant_bonus:
+		failures.append("EV4 should change item lifecycle bias when lifecycle combo heat and cooldown band change")
+
+func _test_execution_lifecycle_persistence_and_governance_adoption(failures: Array[String]) -> void:
+	var lifecycle_registry := {
+		"families": [{
+			"family_id": "combo_family_private_archive_ritual",
+			"family_kind": "combo_family",
+			"source_id": "combo_family_private_archive_ritual",
+			"state": "active",
+			"heat": 5,
+			"saturation": 3,
+			"strain": 2,
+			"cooling_tags": ["combo_repeat"],
+			"cooldown_band": "warming",
+			"successor_hint": "combo_family_private_archive_ritual_successor",
+			"return_window": "near_horizon",
+			"routing_tags": ["route_memory", "artifact_custody"],
+			"dominance_strain": 4,
+			"throttle_state": "open",
+			"resurrection_priority": 3
+		}, {
+			"family_id": "artifact_continuity_burial",
+			"family_kind": "artifact_continuity",
+			"source_id": "burial",
+			"state": "cooling",
+			"heat": 3,
+			"saturation": 1,
+			"strain": 1,
+			"cooling_tags": ["return_window"],
+			"cooldown_band": "cooling",
+			"successor_hint": "artifact_recovery_weave",
+			"return_window": "mid_horizon",
+			"routing_tags": ["artifact_custody", "return"],
+			"dominance_strain": 2,
+			"throttle_state": "cooling",
+			"resurrection_priority": 4
+		}],
+		"active_state_ids": ["combo_family_private_archive_ritual", "artifact_continuity_burial"],
+		"lines": ["combo and artifact lifecycle pressure are both live"]
+	}
+	var run_record := {
+		"seed": 717171,
+		"expedition_constitution": {"lifecycle_registry": lifecycle_registry},
+		"expedition_constitution_summary": {
+			"lifecycle_state_ids": ["combo_family_private_archive_ritual", "artifact_continuity_burial"]
+		}
+	}
+	var updated_world_memory := WORLD_MEMORY_SERVICE_SCRIPT.apply_run({}, {"run_record": run_record})
+	var stored_registry: Dictionary = Dictionary(updated_world_memory.get("lifecycle_registry", {}))
+	var stored_combo: Dictionary = {}
+	var stored_continuity: Dictionary = {}
+	for family_raw in _dict_array_for_test(stored_registry.get("families", [])):
+		var family: Dictionary = Dictionary(family_raw)
+		if str(family.get("family_id", "")) == "combo_family_private_archive_ritual":
+			stored_combo = family
+		elif str(family.get("family_id", "")) == "artifact_continuity_burial":
+			stored_continuity = family
+	for family in [stored_combo, stored_continuity]:
+		if family.is_empty():
+			failures.append("M4 world memory should persist combo_family and artifact_continuity lifecycle entries")
+			continue
+		for field in ["source_id", "heat", "cooldown_band", "successor_hint", "routing_tags", "resurrection_priority"]:
+			if not family.has(field):
+				failures.append("M4 world memory lifecycle entries should keep %s" % field)
+				break
+	var civilization_state := CIVILIZATION_STATE_SERVICE_SCRIPT.apply_post_run_extensions(updated_world_memory, {"run_record": run_record})
+	var lifecycle_states := _dict_array_for_test(civilization_state.get("lifecycle_states", []))
+	var found_combo := false
+	var found_continuity := false
+	for state_raw in lifecycle_states:
+		var lifecycle_state: Dictionary = Dictionary(state_raw)
+		if str(lifecycle_state.get("state_id", "")) == "combo_family_private_archive_ritual":
+			found_combo = str(lifecycle_state.get("cooldown_band", "")) == "warming"
+		elif str(lifecycle_state.get("state_id", "")) == "artifact_continuity_burial":
+			found_continuity = str(lifecycle_state.get("cooldown_band", "")) == "cooling"
+	if not found_combo:
+		failures.append("M4 civilization state should keep combo_family lifecycle cooldown bands")
+	if not found_continuity:
+		failures.append("M4 civilization state should keep artifact_continuity lifecycle cooldown bands")
+	var governance_state := GOVERNANCE_SERVICE_SCRIPT.apply_post_run({}, run_record, {"consensus_risk": 0, "spectacle_pressure": 0}, {}, {"constitution_hash": "m4_hash"})
+	if _string_array_for_test(Array(Dictionary(governance_state.get("resurrection_priority", {})).get("candidate_ids", []))).find("artifact_continuity_burial") == -1:
+		failures.append("M4 governance should read artifact_continuity lifecycle cooling into resurrection_priority")
+
+func _execution_artifact_test_run_record(seed: int, outcome_summary: Dictionary) -> Dictionary:
+	return {
+		"seed": seed,
+		"end_reason": "extraction_objective",
+		"local_role": ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER,
+		"role_result_success": bool(outcome_summary.get("expedition_success", false)),
+		"outcome_summary": outcome_summary.duplicate(true),
+		"stats": {"notes_count": 1, "pinned_count": 0, "inspections_count": 1, "extraction_started": true, "extraction_completed": true},
+		"stats_lines": [],
+		"action_summary": ["The burden crossed the threshold under pressure."],
+		"key_clues": ["The return line stayed legible long enough to resolve the carry."],
+		"report_path": "user://reports/execution_artifact_%d.txt" % seed,
+		"item_defs": ["custody_seal", "timeline_bookmark"],
+		"room_families": ["evidence", "hazard"],
+		"artifact_states": [str(outcome_summary.get("artifact_result", "")).strip_edges(), str(outcome_summary.get("artifact_continuity_state", "")).strip_edges()],
+		"roles": [ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER],
+		"clue_families": ["artifact_picked", "artifact_dropped"],
+		"communication_summary": {"total": 2, "danger": 1, "regroup": 1, "artifact": 1},
+		"timeline_public_events": [
+			{"event_id": 1, "tick": 8, "room_slot": 4, "actor_peer_id": 2, "event_type": "artifact_picked", "visibility": "public", "meta": {"artifact_id": 12}},
+			{"event_id": 2, "tick": 15, "room_slot": 8, "actor_peer_id": 2, "event_type": "extraction_completed", "visibility": "public", "meta": {"artifact_id": 12}}
+		],
+		"gameplay_signal_snapshot": {
+			"player_count": 3,
+			"protocol_state": "Intimate Protocol",
+			"group_model": {
+				"group_signals": ["burden answer"],
+				"model_pressure": ["custody pressure"],
+				"feature_scores": {"burden_answer": 2}
+			}
+		},
+		"peer_identities": {"2": {"public_id": "delver_A", "display_name": "Aster"}},
+		"narrative_motion_facts": {},
+		"replay_identity": {"replay_id": "replay_%d" % seed},
+		"forensic_bundle": {"bundle_digest": "bundle_%d" % seed, "replay_id": "replay_%d" % seed},
+		"delve_directive_summary": {
+			"protocol_state": "Intimate Protocol",
+			"market_regime_id": str(outcome_summary.get("market_regime_id", "")).strip_edges(),
+			"market_carrier_risk_band": str(outcome_summary.get("market_carrier_risk_band", "")).strip_edges()
+		},
+		"expedition_constitution_summary": {
+			"protocol_state": "Intimate Protocol",
+			"market_regime_id": str(outcome_summary.get("market_regime_id", "")).strip_edges(),
+			"market_carrier_risk_band": str(outcome_summary.get("market_carrier_risk_band", "")).strip_edges(),
+			"archive_tone": "custody memory"
+		}
+	}
+
+func _execution_encounter_apex_test_run_record(
+	seed: int,
+	outcome_summary: Dictionary,
+	constitution_summary: Dictionary,
+	local_aftermath: Dictionary,
+	world_aftermath_refs: Array,
+	active_apex_state: Dictionary = {}
+) -> Dictionary:
+	var run_record := _execution_artifact_test_run_record(seed, outcome_summary)
+	var merged_world_tags := _string_array_for_test(Array(local_aftermath.get("world_aftermath_tags", [])))
+	var merged_consequence_refs := _string_array_for_test(Array(local_aftermath.get("aftermath_consequence_refs", [])))
+	for world_ref_raw in world_aftermath_refs:
+		var world_ref := Dictionary(world_ref_raw)
+		merged_world_tags = _string_array_for_test(merged_world_tags + _string_array_for_test(Array(world_ref.get("world_aftermath_tags", []))))
+		merged_consequence_refs = _string_array_for_test(merged_consequence_refs + _string_array_for_test(Array(world_ref.get("aftermath_consequence_refs", []))))
+	run_record["expedition_constitution_summary"] = constitution_summary.duplicate(true)
+	run_record["local_aftermath"] = local_aftermath.duplicate(true)
+	run_record["world_aftermath_refs"] = Array(world_aftermath_refs).duplicate(true)
+	run_record["active_apex_state"] = active_apex_state.duplicate(true)
+	run_record["encounter_apex_consequence_version"] = int(local_aftermath.get("encounter_apex_consequence_version", 0))
+	run_record["encounter_resolution_state"] = str(local_aftermath.get("encounter_resolution_state", "")).strip_edges()
+	run_record["apex_resolution_state"] = str(local_aftermath.get("apex_resolution_state", "")).strip_edges()
+	run_record["anchored_pressures"] = _string_array_for_test(Array(local_aftermath.get("anchored_pressures", [])))
+	run_record["consequence_classes"] = _string_array_for_test(Array(local_aftermath.get("consequence_classes", [])))
+	run_record["local_aftermath_tags"] = _string_array_for_test(Array(local_aftermath.get("local_aftermath_tags", [])))
+	run_record["world_aftermath_tags"] = merged_world_tags
+	run_record["aftermath_consequence_refs"] = merged_consequence_refs
+	return run_record
+
+func _execution_apply_social_consequence(
+	run_record: Dictionary,
+	gameplay_snapshot: Dictionary,
+	timeline_public_events: Array,
+	timeline_private_events: Array,
+	social_consequence: Dictionary
+) -> Dictionary:
+	var current := run_record.duplicate(true)
+	current["gameplay_signal_snapshot"] = gameplay_snapshot.duplicate(true)
+	current["timeline_public_events"] = Array(timeline_public_events).duplicate(true)
+	current["timeline_private_events"] = Array(timeline_private_events).duplicate(true)
+	current["social_consequence_version"] = int(social_consequence.get("social_consequence_version", 0))
+	current["public_evidence_tags"] = Array(social_consequence.get("public_evidence_tags", [])).duplicate(true)
+	current["private_evidence_tags"] = Array(social_consequence.get("private_evidence_tags", [])).duplicate(true)
+	current["witness_pressure"] = str(social_consequence.get("witness_pressure", "")).strip_edges()
+	current["counterfeit_pressure"] = str(social_consequence.get("counterfeit_pressure", "")).strip_edges()
+	current["relationship_pressure"] = str(social_consequence.get("relationship_pressure", "")).strip_edges()
+	current["blame_surface_tags"] = Array(social_consequence.get("blame_surface_tags", [])).duplicate(true)
+	current["consequence_read_refs"] = Array(social_consequence.get("consequence_read_refs", [])).duplicate(true)
+	return current
+
+func _test_execution_artifact_consequence_runtime_and_public_projection(failures: Array[String]) -> void:
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.current_expedition_constitution = {
+		"market_regime_state": {
+			"regime_id": "market_recovery_weave",
+			"carrier_risk_band": "volatile"
+		}
+	}
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	var runtime_outcome := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	for field in [
+		"artifact_consequence_version",
+		"authenticity_state",
+		"custody_chain_summary",
+		"burden_band",
+		"valuation_band",
+		"return_consequence_state",
+		"market_regime_id",
+		"market_carrier_risk_band",
+		"public_consequence_tags",
+		"consequence_event_family",
+		"encounter_hook_tags",
+		"social_hook_tags",
+		"return_pressure_tags"
+	]:
+		if not runtime_outcome.has(field):
+			failures.append("M5 runtime artifact consequence should emit %s" % field)
+	if int(runtime_outcome.get("artifact_consequence_version", 0)) != ARTIFACT_SERVICE_SCRIPT.ARTIFACT_CONSEQUENCE_VERSION:
+		failures.append("M5 runtime artifact consequence should use the artifact owner contract version")
+	if str(runtime_outcome.get("consequence_event_family", "")) != "artifact_counterfeit_resolution":
+		failures.append("M5 runtime artifact consequence should identify counterfeit extraction through consequence_event_family")
+	if str(runtime_outcome.get("market_regime_id", "")) != "market_recovery_weave" or str(runtime_outcome.get("market_carrier_risk_band", "")) != "volatile":
+		failures.append("M5 runtime artifact consequence should preserve market regime and carrier risk bands")
+	var evidence_service := EVIDENCE_SERVICE_SCRIPT.new()
+	var continuity_summary := {
+		"state": str(runtime_outcome.get("artifact_continuity_state", "")),
+		"text": str(runtime_outcome.get("artifact_continuity_text", "")),
+		"unresolved_counterfeit_count": int(runtime_outcome.get("artifact_unresolved_counterfeit_count", 0)),
+		"carried_unresolved_count": int(runtime_outcome.get("artifact_carried_unresolved_count", 0)),
+		"buried_unresolved_count": int(runtime_outcome.get("artifact_buried_unresolved_count", 0))
+	}
+	var delegated := evidence_service.build_consequence_contract(
+		"extraction_objective",
+		counterfeit_artifacts,
+		continuity_summary,
+		{"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7},
+		"market_recovery_weave",
+		"volatile"
+	)
+	if JSON.stringify(runtime_outcome.get("public_consequence_tags", [])) != JSON.stringify(delegated.get("public_consequence_tags", [])):
+		failures.append("M5 evidence compatibility should keep artifact consequence tags aligned with artifact_service")
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 9,
+		"event_id": 1,
+		"event_type": "extraction_completed",
+		"room_slot": 7,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	var fact_extensions := controller.build_public_fact_extensions_for_test(event_log, {}, {}, {}, -1, runtime_outcome)
+	if fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[CONSEQUENCE]")).is_empty():
+		failures.append("M5 public fact extensions should emit public-safe consequence lines")
+	var fact_text := JSON.stringify(fact_extensions)
+	for forbidden_fragment in ["social_hook_tags", "encounter_hook_tags", "artifact_unresolved_counterfeit_count", "counterfeit_pressure"]:
+		if fact_text.find(forbidden_fragment) != -1:
+			failures.append("M5 public fact extensions should not leak private/internal consequence fragment %s" % forbidden_fragment)
+	controller.free()
+	event_log.free()
+	manager.free()
+
+func _test_execution_artifact_consequence_persistence_and_ev5(failures: Array[String]) -> void:
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.current_expedition_constitution = {
+		"market_regime_state": {
+			"regime_id": "market_balanced_exchange",
+			"carrier_risk_band": "contested"
+		}
+	}
+	var authentic_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "A0012", "is_forged": false, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	var control_outcome := manager.build_outcome_summary_for_test("extraction_objective", authentic_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	var variant_outcome := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	if str(control_outcome.get("return_consequence_state", "")) == str(variant_outcome.get("return_consequence_state", "")):
+		failures.append("EV5 should change return_consequence_state when authenticity changes between authentic and counterfeit extraction")
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 12,
+		"event_id": 1,
+		"event_type": "extraction_completed",
+		"room_slot": 7,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	var control_fact_extensions := controller.build_public_fact_extensions_for_test(event_log, {}, {}, {}, -1, control_outcome)
+	var variant_fact_extensions := controller.build_public_fact_extensions_for_test(event_log, {}, {}, {}, -1, variant_outcome)
+	if JSON.stringify(control_fact_extensions) == JSON.stringify(variant_fact_extensions):
+		failures.append("EV5 should materially change public-safe consequence report lines when authenticity changes")
+	controller.free()
+	event_log.free()
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var result := PROFILE_SERVICE_SCRIPT.apply_run_record(profile, _execution_artifact_test_run_record(818181, variant_outcome), catalog)
+	var next_profile: Dictionary = Dictionary(result.get("profile", {}))
+	var last_run: Dictionary = Dictionary(next_profile.get("last_run", {}))
+	if str(last_run.get("return_consequence_state", "")) != str(variant_outcome.get("return_consequence_state", "")):
+		failures.append("M5 profile persistence should retain return_consequence_state on last_run")
+	if _string_array_for_test(Array(last_run.get("public_consequence_tags", []))).find("artifact_counterfeit_resolution") == -1:
+		failures.append("M5 profile persistence should retain public_consequence_tags on last_run")
+	var world_memory: Dictionary = Dictionary(next_profile.get("world_memory", {}))
+	if str(Dictionary(world_memory.get("artifact_consequence_state", {})).get("consequence_event_family", "")) != "artifact_counterfeit_resolution":
+		failures.append("M5 world memory should persist artifact consequence event family through the existing owner path")
+	var world_lines := "\n".join(WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(world_memory))
+	if world_lines.find("Artifact:") == -1:
+		failures.append("M5 world memory lines should surface the public-safe artifact consequence review")
+	var archive_entries := PROFILE_SERVICE_SCRIPT.build_codex_entries(next_profile, "archive_cases", catalog)
+	if archive_entries.is_empty():
+		failures.append("M5 archive outputs should still produce archive cases after artifact consequence carryover")
+	else:
+		var detail := str(Dictionary(archive_entries[0]).get("detail", ""))
+		if detail.find("counterfeit return") == -1 and detail.find("Counterfeit artifact extracted") == -1:
+			failures.append("M5 archive outputs should carry a public-safe artifact consequence reading")
+	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(world_memory)
+	if _string_array_for_test(Array(civilization_surface.get("artifact_consequence_tags", []))).find("artifact_counterfeit_resolution") == -1:
+		failures.append("M5 civilization outputs should carry public-safe artifact consequence tags")
+	var crawl_signature_source := Dictionary(next_profile.get("active_crawl", {}))
+	if crawl_signature_source.is_empty():
+		var crawl_history := _dict_array_for_test(next_profile.get("crawl_history", []))
+		if not crawl_history.is_empty():
+			crawl_signature_source = Dictionary(crawl_history[0])
+	if _string_array_for_test(Array(crawl_signature_source.get("signature_tags", []))).find("artifact_counterfeit_resolution") == -1:
+		failures.append("M5 crawl persistence should absorb public-safe artifact consequence tags without a second system")
+	manager.free()
+
+func _test_execution_encounter_apex_consequence_runtime_and_persistence(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var constitution := DELVE_KERNEL_SCRIPT.plan_constitution(profile, {
+		"player_count": 4,
+		"protocol_state": "Exposure Protocol",
+		"gameplay_snapshot": {
+			"resource_pressure": ["rope reserves"],
+			"inhabitant_pressure": ["predator rush", "ghost pressure"]
+		}
+	}, 626262, 10)
+	var constitution_summary: Dictionary = EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT.public_summary(constitution)
+	if int(constitution_summary.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 constitution summaries should expose encounter_apex_consequence_version")
+	var encounter_manifest := Dictionary(constitution.get("encounter_manifest", {}))
+	var apex_manifest := Dictionary(constitution.get("apex_manifest", {}))
+	if int(encounter_manifest.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 encounter_manifest should expose encounter_apex_consequence_version")
+	if int(apex_manifest.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 apex_manifest should expose encounter_apex_consequence_version")
+	var encounters := _dict_array_for_test(encounter_manifest.get("encounters", []))
+	var apexes := _dict_array_for_test(apex_manifest.get("apexes", []))
+	if encounters.is_empty():
+		failures.append("M6 encounter manifests should retain encounter entries")
+		return
+	if apexes.is_empty():
+		failures.append("M6 apex manifests should retain apex entries")
+		return
+	var encounter_entry: Dictionary = Dictionary(encounters[0])
+	var apex_entry: Dictionary = Dictionary(apexes[0])
+	if int(encounter_entry.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 encounter entries should retain encounter_apex_consequence_version")
+	if int(apex_entry.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 apex entries should retain encounter_apex_consequence_version")
+	if _string_array_for_test(Array(encounter_entry.get("local_aftermath_tags", []))).is_empty():
+		failures.append("M6 encounter entries should retain local_aftermath_tags")
+	if _string_array_for_test(Array(encounter_entry.get("world_aftermath_tags", []))).is_empty():
+		failures.append("M6 encounter entries should retain world_aftermath_tags")
+	if _string_array_for_test(Array(apex_entry.get("world_aftermath_tags", []))).is_empty():
+		failures.append("M6 apex entries should retain world_aftermath_tags")
+
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.current_expedition_constitution = constitution.duplicate(true)
+	manager.current_server_tick = 22
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	manager.artifacts_by_id = counterfeit_artifacts.duplicate(true)
+	manager.extraction_room_slot = 7
+	manager.player_room_by_peer = {2: 7}
+	var outcome_summary := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	var encounter_state := {
+		"encounter_id": str(encounter_entry.get("encounter_id", "encounter_test")).strip_edges(),
+		"room_slot": int(encounter_entry.get("room_slot", 6)),
+		"anchored_pressures": Array(encounter_entry.get("anchored_pressures", [])).duplicate(true),
+		"consequence_classes": Array(encounter_entry.get("consequence_classes", [])).duplicate(true),
+		"pathology_family_ids": Array(encounter_entry.get("pathology_family_ids", [])).duplicate(true),
+		"local_aftermath_tags": Array(encounter_entry.get("local_aftermath_tags", [])).duplicate(true),
+		"world_aftermath_tags": Array(encounter_entry.get("world_aftermath_tags", [])).duplicate(true)
+	}
+	var apex_state := {
+		"apex_id": str(apex_entry.get("apex_id", "apex_test")).strip_edges(),
+		"room_slot": int(apex_entry.get("room_slot", encounter_state.get("room_slot", 6))),
+		"anchored_pressures": Array(apex_entry.get("anchored_pressures", [])).duplicate(true),
+		"resolution_classes": Array(apex_entry.get("resolution_classes", [])).duplicate(true),
+		"telegraph_channels": Array(apex_entry.get("telegraph_channels", [])).duplicate(true),
+		"local_aftermath_tags": Array(apex_entry.get("local_aftermath_tags", [])).duplicate(true),
+		"world_aftermath_tags": Array(apex_entry.get("world_aftermath_tags", [])).duplicate(true)
+	}
+	var local_aftermath := manager._build_local_aftermath_record(encounter_state, apex_state, "extraction_objective")
+	for field in [
+		"encounter_apex_consequence_version",
+		"encounter_resolution_state",
+		"apex_resolution_state",
+		"anchored_pressures",
+		"consequence_classes",
+		"local_aftermath_tags",
+		"world_aftermath_tags",
+		"aftermath_consequence_refs"
+	]:
+		if not local_aftermath.has(field):
+			failures.append("M6 runtime aftermath records should expose %s" % field)
+	if int(local_aftermath.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 runtime aftermath records should expose encounter_apex_consequence_version")
+	var aftermath_consequence_refs := _string_array_for_test(Array(local_aftermath.get("aftermath_consequence_refs", [])))
+	var consequence_family := str(outcome_summary.get("consequence_event_family", "")).strip_edges()
+	if consequence_family.is_empty() or aftermath_consequence_refs.find(consequence_family) == -1:
+		failures.append("M6 runtime aftermath records should carry the consumed C4 consequence_event_family without renaming")
+	var encounter_hook_tags := _string_array_for_test(Array(outcome_summary.get("encounter_hook_tags", [])))
+	if not encounter_hook_tags.is_empty() and aftermath_consequence_refs.find(encounter_hook_tags[0]) == -1:
+		failures.append("M6 runtime aftermath records should carry consumed C4 encounter_hook_tags into aftermath_consequence_refs")
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var world_aftermath_refs := controller._build_world_aftermath_refs(local_aftermath, {"apex_id": str(apex_state.get("apex_id", ""))}, constitution_summary)
+	if world_aftermath_refs.is_empty():
+		failures.append("M6 runtime/report owners should derive world_aftermath_refs from LocalAftermath")
+		controller.free()
+		manager.free()
+		return
+	var world_aftermath_ref := Dictionary(world_aftermath_refs[0])
+	for field in [
+		"encounter_apex_consequence_version",
+		"encounter_resolution_state",
+		"apex_resolution_state",
+		"anchored_pressures",
+		"consequence_classes",
+		"local_aftermath_tags",
+		"world_aftermath_tags",
+		"aftermath_consequence_refs"
+	]:
+		if not world_aftermath_ref.has(field):
+			failures.append("M6 runtime world aftermath refs should expose %s" % field)
+	var run_record := _execution_encounter_apex_test_run_record(
+		626262,
+		outcome_summary,
+		constitution_summary,
+		local_aftermath,
+		world_aftermath_refs,
+		{"apex_id": str(apex_state.get("apex_id", ""))}
+	)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	if int(diagnostics.get("encounter_apex_consequence_version", 0)) != int(local_aftermath.get("encounter_apex_consequence_version", 0)):
+		failures.append("M6 diagnostics should preserve encounter_apex_consequence_version")
+	if str(diagnostics.get("encounter_resolution_state", "")).strip_edges() != str(local_aftermath.get("encounter_resolution_state", "")).strip_edges():
+		failures.append("M6 diagnostics should preserve encounter_resolution_state")
+	if str(diagnostics.get("apex_resolution_state", "")).strip_edges() != str(local_aftermath.get("apex_resolution_state", "")).strip_edges():
+		failures.append("M6 diagnostics should preserve apex_resolution_state")
+	if _string_array_for_test(Array(diagnostics.get("world_aftermath_tags", []))).is_empty():
+		failures.append("M6 diagnostics should preserve world_aftermath_tags")
+	if _string_array_for_test(Array(diagnostics.get("aftermath_consequence_refs", []))).find(consequence_family) == -1:
+		failures.append("M6 diagnostics should preserve aftermath_consequence_refs")
+	var updated_world_memory := WORLD_MEMORY_SERVICE_SCRIPT.apply_run(WORLD_MEMORY_SERVICE_SCRIPT.default_state(), {
+		"run_record": run_record,
+		"diagnostics": diagnostics,
+		"profile": profile
+	})
+	var persisted_consequence_state := Dictionary(updated_world_memory.get("encounter_apex_consequence_state", {}))
+	if int(persisted_consequence_state.get("encounter_apex_consequence_version", 0)) != 1:
+		failures.append("M6 world memory should persist encounter_apex_consequence_version")
+	if str(persisted_consequence_state.get("encounter_resolution_state", "")).strip_edges() != str(local_aftermath.get("encounter_resolution_state", "")).strip_edges():
+		failures.append("M6 world memory should persist encounter_resolution_state")
+	if _string_array_for_test(Array(persisted_consequence_state.get("world_aftermath_tags", []))).is_empty():
+		failures.append("M6 world memory should persist world_aftermath_tags")
+	var world_lines := "\n".join(WORLD_MEMORY_SERVICE_SCRIPT.build_world_lines(updated_world_memory))
+	if world_lines.find("Aftermath:") == -1:
+		failures.append("M6 world memory lines should expose a compact aftermath consequence line")
+	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(updated_world_memory)
+	if _string_array_for_test(Array(civilization_surface.get("encounter_apex_consequence_lines", []))).is_empty():
+		failures.append("M6 civilization outputs should expose encounter_apex_consequence_lines")
+	if _string_array_for_test(Array(civilization_surface.get("aftermath_consequence_refs", []))).find(consequence_family) == -1:
+		failures.append("M6 civilization outputs should preserve aftermath_consequence_refs")
+	controller.free()
+	manager.free()
+
+func _test_execution_encounter_apex_consequence_visibility_and_ev6(failures: Array[String]) -> void:
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.current_expedition_constitution = {
+		"market_regime_state": {
+			"regime_id": "market_recovery_weave",
+			"carrier_risk_band": "volatile"
+		}
+	}
+	manager.current_server_tick = 33
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	manager.artifacts_by_id = counterfeit_artifacts.duplicate(true)
+	manager.extraction_room_slot = 7
+	manager.player_room_by_peer = {2: 7}
+	var outcome_summary := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	var control_encounter_state := {
+		"encounter_id": "encounter_ev6_control",
+		"room_slot": 6,
+		"anchored_pressures": ["witness_pressure"],
+		"consequence_classes": ["escort_break"],
+		"pathology_family_ids": ["pathology_pressure"],
+		"local_aftermath_tags": ["escort_trace"],
+		"world_aftermath_tags": ["route_memory"]
+	}
+	var variant_encounter_state := control_encounter_state.duplicate(true)
+	var variant_pressures := _string_array_for_test(Array(variant_encounter_state.get("anchored_pressures", [])))
+	variant_pressures.append("route_pressure")
+	variant_encounter_state["anchored_pressures"] = variant_pressures
+	var apex_state := {
+		"apex_id": "apex_ev6_threshold",
+		"room_slot": 6,
+		"anchored_pressures": ["custody_pressure"],
+		"resolution_classes": ["resource_drain"],
+		"telegraph_channels": ["hazard_pulse"],
+		"local_aftermath_tags": ["threshold_scars"],
+		"world_aftermath_tags": ["institutional_echo"]
+	}
+	var control_local_aftermath := manager._build_local_aftermath_record(control_encounter_state, apex_state, "extraction_objective")
+	var variant_local_aftermath := manager._build_local_aftermath_record(variant_encounter_state, apex_state, "extraction_objective")
+	if str(control_local_aftermath.get("immediate_route_state", "")).strip_edges() == str(variant_local_aftermath.get("immediate_route_state", "")).strip_edges():
+		failures.append("EV6 should change immediate_route_state when route pressure is introduced into anchored_pressures")
+	var consequence_family := str(outcome_summary.get("consequence_event_family", "")).strip_edges()
+	var variant_refs := _string_array_for_test(Array(variant_local_aftermath.get("aftermath_consequence_refs", [])))
+	if consequence_family.is_empty() or variant_refs.find(consequence_family) == -1:
+		failures.append("M6 aftermath_consequence_refs should preserve the consumed C4 consequence_event_family")
+	var encounter_hook_tags := _string_array_for_test(Array(outcome_summary.get("encounter_hook_tags", [])))
+	if not encounter_hook_tags.is_empty() and variant_refs.find(encounter_hook_tags[0]) == -1:
+		failures.append("M6 aftermath_consequence_refs should preserve consumed C4 encounter_hook_tags")
+	if _string_array_for_test(Array(variant_local_aftermath.get("world_aftermath_tags", []))).find(str(outcome_summary.get("market_regime_id", ""))) == -1:
+		failures.append("M6 world_aftermath_tags should preserve the consumed C4 market_regime_id")
+	if _string_array_for_test(Array(variant_local_aftermath.get("world_aftermath_tags", []))).find("carrier_%s" % str(outcome_summary.get("market_carrier_risk_band", ""))) == -1:
+		failures.append("M6 world_aftermath_tags should preserve the consumed C4 market_carrier_risk_band")
+	var controller := GAME_CONTROLLER_SCRIPT.new()
+	var constitution_summary := {
+		"constitution_hash": "c5_exec_hash",
+		"public_trace_classes": ["artifact", "hazard"],
+		"public_surface_tags": ["movement", "burden"],
+		"apex_class_ids": ["threshold_trial_apex"]
+	}
+	var control_world_aftermath_refs := controller._build_world_aftermath_refs(control_local_aftermath, {"apex_id": "apex_ev6_threshold"}, constitution_summary)
+	var variant_world_aftermath_refs := controller._build_world_aftermath_refs(variant_local_aftermath, {"apex_id": "apex_ev6_threshold"}, constitution_summary)
+	if JSON.stringify(control_world_aftermath_refs) == JSON.stringify(variant_world_aftermath_refs):
+		failures.append("EV6 should change world_aftermath_refs when anchored encounter pressures change")
+	var event_log := EVENT_LOG_SCRIPT.new()
+	event_log.add_event({
+		"tick": 12,
+		"event_id": 1,
+		"event_type": "extraction_completed",
+		"room_slot": 6,
+		"actor_peer_id": 2,
+		"visibility": "public"
+	})
+	controller.end_payload = {
+		"outcome_summary": outcome_summary.duplicate(true),
+		"local_aftermath": control_local_aftermath.duplicate(true),
+		"world_aftermath_refs": Array(control_world_aftermath_refs).duplicate(true)
+	}
+	var control_fact_extensions := controller.build_public_fact_extensions_for_test(event_log, {}, constitution_summary, {}, -1, outcome_summary)
+	controller.end_payload = {
+		"outcome_summary": outcome_summary.duplicate(true),
+		"local_aftermath": variant_local_aftermath.duplicate(true),
+		"world_aftermath_refs": Array(variant_world_aftermath_refs).duplicate(true)
+	}
+	var variant_fact_extensions := controller.build_public_fact_extensions_for_test(event_log, {}, constitution_summary, {}, -1, outcome_summary)
+	if control_fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[AFTERMATH]")).is_empty():
+		failures.append("M6 public fact extensions should emit public-safe aftermath lines")
+	if JSON.stringify(control_fact_extensions) == JSON.stringify(variant_fact_extensions):
+		failures.append("EV6 should materially change public-safe aftermath report lines when route pressure changes")
+	var public_fact_text := JSON.stringify(variant_fact_extensions)
+	for forbidden_fragment in ["aftermath_consequence_refs", "phenomenon_manifest", "private_trace_classes", "provenance_source_refs"]:
+		if public_fact_text.find(forbidden_fragment) != -1:
+			failures.append("M6 public-safe aftermath lines should not leak %s" % forbidden_fragment)
+	var run_record := _execution_encounter_apex_test_run_record(
+		636363,
+		outcome_summary,
+		constitution_summary,
+		variant_local_aftermath,
+		variant_world_aftermath_refs,
+		{"apex_id": "apex_ev6_threshold"}
+	)
+	var diagnostics := RUN_STORY_DIAGNOSTICS_SCRIPT.analyze(run_record)
+	if JSON.stringify(diagnostics).find("phenomenon_manifest") != -1:
+		failures.append("M6 diagnostics should keep phenomenon_manifest bundle-only")
+	var world_memory := WORLD_MEMORY_SERVICE_SCRIPT.apply_run(WORLD_MEMORY_SERVICE_SCRIPT.default_state(), {
+		"run_record": run_record,
+		"diagnostics": diagnostics
+	})
+	if JSON.stringify(world_memory).find("phenomenon_manifest") != -1:
+		failures.append("M6 world memory should keep phenomenon_manifest bundle-only")
+	var civilization_surface := CIVILIZATION_STATE_SERVICE_SCRIPT.build_civilization_surface(world_memory)
+	if JSON.stringify(civilization_surface).find("phenomenon_manifest") != -1:
+		failures.append("M6 civilization outputs should keep phenomenon_manifest bundle-only")
+	controller.free()
+	event_log.free()
+	manager.free()
 
 func _test_lobby_shell_scene_contract(failures: Array[String]) -> void:
 	var file := FileAccess.open("res://scenes/Lobby.tscn", FileAccess.READ)

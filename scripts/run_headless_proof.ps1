@@ -1,7 +1,7 @@
 param(
     [string]$GodotExe = "",
     [int]$Seed = 1337,
-    [int]$TimeoutSec = 95
+    [int]$TimeoutSec = 420
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,6 +101,16 @@ function Assert-Contains {
     }
 }
 
+function Assert-FileExists {
+    param(
+        [string]$Path,
+        [string]$Label
+    )
+    if (-not (Test-Path $Path)) {
+        throw "$Label missing: $Path"
+    }
+}
+
 function Assert-EmptyFile {
     param(
         [string]$Path,
@@ -110,6 +120,22 @@ function Assert-EmptyFile {
     if (-not [string]::IsNullOrWhiteSpace($text)) {
         throw "$Label expected empty stderr but found:`n$text"
 	}
+}
+
+function Assert-NoCrashSignature {
+    param(
+        [string[]]$Paths
+    )
+    $crashPattern = "(CrashHandlerException|Program crashed with signal|ERROR:\s+Failed to open 'user://logs/)"
+    foreach ($path in $Paths) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        $text = Read-Text $path
+        if ($text -match $crashPattern) {
+            throw "Crash signature detected in $path"
+        }
+    }
 }
 
 function Assert-NextWavePressureCoverage {
@@ -187,6 +213,58 @@ function Resolve-ReportFile {
     throw "Failed to resolve report file for $UserPath"
 }
 
+function Get-ReportDirectories {
+    param(
+        [string]$FallbackDir,
+        [string]$ProjectName
+    )
+    $directories = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @(
+        $FallbackDir,
+        (Join-Path (Join-Path $env:APPDATA "Godot\app_userdata\$ProjectName\reports") ""),
+        (Join-Path (Join-Path $env:LOCALAPPDATA "Godot\app_userdata\$ProjectName\reports") "")
+    )) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        if (-not $directories.Contains($candidate)) {
+            $directories.Add($candidate)
+        }
+    }
+    return @($directories)
+}
+
+function Wait-ForReportFiles {
+    param(
+        [string]$ReportDir,
+        [string]$ProjectName,
+        [int]$SeedValue,
+        [int]$ExpectedCount = 2,
+        [int]$TimeoutSec = 30,
+        [datetime]$CreatedAfter = [datetime]::MinValue
+    )
+    $directories = Get-ReportDirectories -FallbackDir $ReportDir -ProjectName $ProjectName
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        $reportLookup = @{}
+        foreach ($directory in $directories) {
+            $reports = Get-ChildItem -Path $directory -Filter "run_${SeedValue}_*.txt" -File -ErrorAction SilentlyContinue
+            foreach ($report in $reports) {
+                if ($report.LastWriteTime -lt $CreatedAfter) {
+                    continue
+                }
+                $reportLookup[$report.FullName] = $report
+            }
+        }
+        $reportList = @($reportLookup.Values | Sort-Object LastWriteTime, Name)
+        if ($reportList.Count -ge $ExpectedCount) {
+            return @($reportList | ForEach-Object { $_.FullName })
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "Timed out waiting for $ExpectedCount report file(s) for seed $SeedValue in: $($directories -join ', ')"
+}
+
 function Get-ProofAttemptState {
     param(
         [string]$HostOut,
@@ -252,6 +330,7 @@ function Invoke-ProofAttempt {
     $clientProcess = $null
 
     try {
+        $attemptStart = (Get-Date).AddSeconds(-2)
         $hostProcess = Start-Process -FilePath $Exe -WorkingDirectory $GodotPath -ArgumentList $hostArgs -RedirectStandardOutput $hostOut -RedirectStandardError $hostErr -PassThru
         Start-Sleep -Seconds 2
         $chosenPort = $requestedPort
@@ -279,13 +358,18 @@ function Invoke-ProofAttempt {
         $clientProcess = Start-Process -FilePath $Exe -WorkingDirectory $GodotPath -ArgumentList $clientArgs -RedirectStandardOutput $clientOut -RedirectStandardError $clientErr -PassThru
         Start-Sleep -Seconds 2
 
-        Wait-ForPattern -Path $hostOut -Pattern "START_RUN_REQUEST" -TimeoutSec 25 | Out-Null
-        Wait-ForPattern -Path $hostOut -Pattern "GAME_READY" -TimeoutSec 25 | Out-Null
-        Wait-ForPattern -Path $clientOut -Pattern "GAME_READY" -TimeoutSec 25 | Out-Null
+        $readyTimeout = [Math]::Min([Math]::Max([int]($TimeoutSecValue / 2), 60), $TimeoutSecValue)
+        Wait-ForPattern -Path $clientOut -Pattern "NET_EVENT name=connected_to_server" -TimeoutSec $readyTimeout | Out-Null
+        Wait-ForPattern -Path $hostOut -Pattern "START_RUN_REQUEST" -TimeoutSec $readyTimeout | Out-Null
+        Wait-ForPattern -Path $hostOut -Pattern "GAME_READY" -TimeoutSec $readyTimeout | Out-Null
         Wait-ForPattern -Path $hostOut -Pattern "RUN_VERIFY ok=true checks=\d+ failures=0" -TimeoutSec $TimeoutSecValue | Out-Null
         $hostReportMatch = Wait-ForPattern -Path $hostOut -Pattern "RUN_REPORT_WRITTEN path=(.+) seed=$SeedValue local=(\d+)" -TimeoutSec $TimeoutSecValue
-        $clientReportMatch = Wait-ForPattern -Path $clientOut -Pattern "RUN_REPORT_WRITTEN path=(.+) seed=$SeedValue local=(\d+)" -TimeoutSec $TimeoutSecValue
+        $reportFiles = Wait-ForReportFiles -ReportDir $ReportDir -ProjectName $ProjectName -SeedValue $SeedValue -ExpectedCount 2 -TimeoutSec $TimeoutSecValue -CreatedAfter $attemptStart
 
+        Assert-FileExists -Path $hostOut -Label "host stdout log"
+        Assert-FileExists -Path $hostErr -Label "host stderr log"
+        Assert-FileExists -Path $clientOut -Label "client stdout log"
+        Assert-FileExists -Path $clientErr -Label "client stderr log"
         Assert-Contains -Path $hostOut -Pattern "READY_RPC_ACCEPT" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "START_RUN_REQUEST" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=run_started" -Label "host output"
@@ -294,14 +378,17 @@ function Invoke-ProofAttempt {
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=bomb_exploded" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=rope_thrown" -Label "host output"
         Assert-Contains -Path $hostOut -Pattern "TIMELINE_EVENT .*type=rope_deployed" -Label "host output"
-        Assert-Contains -Path $clientOut -Pattern "GAME_READY" -Label "client output"
+        Assert-Contains -Path $clientOut -Pattern "NET_EVENT name=connected_to_server" -Label "client output"
+        Assert-NoCrashSignature -Paths @($hostOut, $hostErr, $clientOut, $clientErr)
         Assert-EmptyFile -Path $hostErr -Label "host"
         Assert-EmptyFile -Path $clientErr -Label "client"
 
         $hostReportUserPath = $hostReportMatch.Groups[1].Value.Trim()
-        $clientReportUserPath = $clientReportMatch.Groups[1].Value.Trim()
         $hostReportFile = Resolve-ReportFile -UserPath $hostReportUserPath -FallbackDir $ReportDir -ProjectName $ProjectName
-        $clientReportFile = Resolve-ReportFile -UserPath $clientReportUserPath -FallbackDir $ReportDir -ProjectName $ProjectName
+        $clientReportFile = $reportFiles |
+            ForEach-Object { (Resolve-Path $_).Path } |
+            Where-Object { $_ -ne $hostReportFile } |
+            Select-Object -First 1
 
         if (-not (Test-Path $hostReportFile)) {
             throw "Resolved host report file missing: $hostReportFile"

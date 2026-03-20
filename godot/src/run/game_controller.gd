@@ -17,13 +17,39 @@ const NOTEBOOK_FILTER_EVIDENCE := "EVIDENCE"
 const NOTEBOOK_FILTER_SUSPECT := "SUSPECT"
 const NOTEBOOK_FILTER_ALIBI := "ALIBI"
 const NOTEBOOK_FILTER_OTHER := "OTHER"
+const RUN_GUIDANCE_REFRESH_TICKS := 15
 const CURATED_PHENOMENON_FAMILY_IDS := ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]
+const SOCIAL_CONSEQUENCE_VERSION := 1
+const C7_FIRST_RUN_SURFACE_RULES := [
+	"authentic_extraction",
+	"role_asymmetry",
+	"artifact_tool_relic_categories",
+	"danger_pressure",
+	"notebook_hint_usage",
+	"extraction_hold_behavior",
+	"continuity_weight"
+]
+const C7_RETURNING_RUN_SURFACE_RULES := [
+	"live_constitution",
+	"route_pressure",
+	"public_safe_consequence_compression"
+]
+const C7_HIDDEN_SURFACE_RULES := [
+	"combo_entries",
+	"combo_family_ids",
+	"lifecycle_math",
+	"private_trace_classes",
+	"unrevealed_counterfeit_truth",
+	"deeper_social_auto_solve",
+	"phenomenon_manifest"
+]
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
 const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
 const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
 const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
+const FRAMING_SERVICE_SCRIPT = preload("res://src/product/framing_service.gd")
 const VISUAL_GOVERNANCE_SCRIPT = preload("res://src/visual/visual_governance.gd")
 const ITEM_PICKUP_SCENE = preload("res://scenes/Item.tscn")
 
@@ -114,6 +140,8 @@ var cli_auto_rope: bool = false
 var cli_auto_rope_done: bool = false
 var last_report_user_path: String = ""
 var last_verify_status: String = ""
+var cached_run_guidance_packet: Dictionary = {}
+var cached_run_guidance_signature: String = ""
 var product_run_recorded: bool = false
 var last_known_local_peer_id: int = -1
 var narrative_samples: Array[Dictionary] = []
@@ -126,9 +154,12 @@ var equipped_title_id: String = ""
 var profile_normalization_mode: String = "default"
 var equipped_modulation_loadout: Array[Dictionary] = []
 var profile_governance_state: Dictionary = {}
+var profile_first_run_pending: bool = true
 var visual_governance: RefCounted = VISUAL_GOVERNANCE_SCRIPT.new()
 
 func _ready() -> void:
+	if NetworkManager != null and NetworkManager.has_method("refresh_active_peer_bindings"):
+		NetworkManager.refresh_active_peer_bindings()
 	if NetworkManager.has_signal("state_snapshot"):
 		NetworkManager.state_snapshot.connect(_on_state_snapshot)
 	if NetworkManager.has_signal("artifact_state_changed"):
@@ -180,7 +211,13 @@ func _ready() -> void:
 	if help_panel:
 		help_panel.visible = false
 	if help_label:
-		help_label.text = _build_help_overlay_text()
+		var initial_help_packet := {
+			"continuity_line": "",
+			"danger_line": "",
+			"notebook_line": "",
+			"hold_line": ""
+		}
+		help_label.text = build_help_overlay_text_for_test(initial_help_packet, profile_first_run_pending, bool(profile_settings.get("controller_glyphs", false)))
 	trace_root = Node2D.new()
 	trace_root.name = "TraceRoot"
 	add_child(trace_root)
@@ -226,6 +263,7 @@ func _load_profile_preferences() -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
 	var profile := PROFILE_SERVICE_SCRIPT.load_profile(PROFILE_SERVICE_SCRIPT.SAVE_PATH, catalog)
 	profile_settings = Dictionary(profile.get("settings", {})).duplicate(true)
+	profile_first_run_pending = bool(profile.get("first_run_pending", true))
 	var equipped: Dictionary = Dictionary(Dictionary(profile.get("cosmetics", {})).get("equipped", {}))
 	equipped_notebook_theme_id = str(equipped.get("notebook_theme", ""))
 	equipped_banner_id = str(equipped.get("banner", ""))
@@ -451,7 +489,7 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 				NetworkManager.track_noise_trace(peer_id, room_slot, actor.is_carrying_artifact())
 			_sync_tool_counts_to_actor(peer_id, actor)
 			_sync_item_affordances_to_actor(peer_id, actor)
-		if snapshot_timer >= SNAPSHOT_INTERVAL:
+		if snapshot_timer >= SNAPSHOT_INTERVAL and tick_counter >= 30:
 			snapshot_timer = 0.0
 			var snapshot := {}
 			for peer_id in players.keys():
@@ -470,7 +508,8 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 	elif not NetworkManager.is_host and not run_ended:
 		var send_pos : Vector2 = players[local_id].global_position if players.has(local_id) else Vector2.ZERO
 		var floor_flags : int = 1 if (players.has(local_id) and players[local_id].is_on_floor()) else 0
-		NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos, floor_flags)
+		if tick_counter >= 30:
+			NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos, floor_flags)
 		if players.has(local_id):
 			players[local_id].simulate_step(move_axis, jump_pressed, delta)
 
@@ -523,7 +562,7 @@ func _run_cli_automation(target_id: int) -> void:
 	# We use a dictionary to track multiple players if we are the host
 	var is_ported: bool = players[target_id].get_meta("cli_auto_ported", false)
 
-	if cli_auto_pickup and not is_ported and NetworkManager.is_run_active():
+	if cli_auto_pickup and not is_ported and NetworkManager.is_run_active() and tick_counter >= 30:
 		var artifact_id := _find_nearest_carried_artifact_id_for(target_id)
 		if artifact_id > 0:
 			var extraction_slot := _extraction_room_slot()
@@ -612,6 +651,8 @@ func _run_cli_role_action(target_id: int) -> void:
 				role_name
 			])
 			cli_auto_role_action_logged_skip = true
+		cli_auto_role_action_done = true
+		cli_auto_role_action_requested = false
 		return
 	if _cli_has_private_event(target_id, "sabotage_private_confirm"):
 		cli_auto_role_action_done = true
@@ -878,6 +919,19 @@ func build_run_guidance_packet_for_test(public_summary: Dictionary, branch_conte
 	var modulation_state := _apply_phase2_guidance_modulation(signal_focus_lines, runtime_state)
 	if not str(modulation_state.get("focus_line", "")).strip_edges().is_empty():
 		focus_lines.insert(0, "Signal focus: %s" % str(modulation_state.get("focus_line", "")))
+	var first_run_pending := bool(runtime_state.get("first_run_pending", false))
+	var public_signal_line := FRAMING_SERVICE_SCRIPT.build_onboarding_public_signal_line({
+		"public_consequence_tags": Array(runtime_state.get("public_consequence_tags", [])).duplicate(true),
+		"world_aftermath_tags": Array(runtime_state.get("world_aftermath_tags", [])).duplicate(true),
+		"public_evidence_tags": Array(runtime_state.get("public_evidence_tags", [])).duplicate(true)
+	})
+	if first_run_pending:
+		focus_lines.insert(0, "Primer: authentic extraction wins; counterfeit clues should be checked before you commit.")
+		focus_lines.append("Primer: roles stay asymmetric; Warden inspects, Veil misleads, Scavenger keeps the route moving.")
+		focus_lines.append("Primer: Artifacts win runs. Tools spend charges. Relics stay passive.")
+		focus_lines.append("Primer: notebook notes and hints keep the public line readable under pressure.")
+	elif not public_signal_line.is_empty():
+		focus_lines.append("Continuity: %s" % public_signal_line)
 	var carrying_artifact := bool(runtime_state.get("carrying_artifact", false))
 	var extraction_active := bool(runtime_state.get("extraction_active", false))
 	var ghost_target_local := bool(runtime_state.get("ghost_target_local", false))
@@ -915,8 +969,51 @@ func build_run_guidance_packet_for_test(public_summary: Dictionary, branch_conte
 		"action_tip": action_tip,
 		"signal_focus_lane": str(modulation_state.get("selected_lane", "")),
 		"normalization_mode": str(runtime_state.get("normalization_mode", "default")),
-		"suppressed_modulation_count": int(runtime_state.get("suppressed_modulation_count", 0))
+		"suppressed_modulation_count": int(runtime_state.get("suppressed_modulation_count", 0)),
+		"first_run_pending": first_run_pending,
+		"public_signal_line": public_signal_line,
+		"first_run_surface_rules": C7_FIRST_RUN_SURFACE_RULES.duplicate(),
+		"returning_run_surface_rules": C7_RETURNING_RUN_SURFACE_RULES.duplicate(),
+		"hidden_surface_rules": C7_HIDDEN_SURFACE_RULES.duplicate()
 	}
+
+func _build_run_guidance_signature(local_id: int = -1) -> String:
+	var resolved_local_id: int = local_id if local_id > 0 else _local_peer_id()
+	var event_count: int = EventLog.events.size() if EventLog != null else 0
+	var local_role: String = str(RunState.local_role).strip_edges() if RunState != null else ""
+	var constitution_hash: String = str(RunState.constitution_hash).strip_edges() if RunState != null else ""
+	var carried_id: int = int(NetworkManager.get_local_carried_artifact_id()) if NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") else 0
+	var extraction_active: bool = bool(NetworkManager.is_local_extraction_window_active()) if NetworkManager != null and NetworkManager.has_method("is_local_extraction_window_active") else false
+	var ghost_snapshot: Dictionary = NetworkManager.get_ghost_state() if NetworkManager != null and NetworkManager.has_method("get_ghost_state") else {}
+	var predator_snapshot: Dictionary = NetworkManager.get_predator_state() if NetworkManager != null and NetworkManager.has_method("get_predator_state") else {}
+	var protocol_watch_snapshot: Dictionary = NetworkManager.get_protocol_watch_state() if NetworkManager != null and NetworkManager.has_method("get_protocol_watch_state") else {}
+	var role_payload: Dictionary = _local_role_payload()
+	var refresh_bucket: int = int(tick_counter / RUN_GUIDANCE_REFRESH_TICKS)
+	return "|".join([
+		str(refresh_bucket),
+		str(event_count),
+		str(resolved_local_id),
+		local_role,
+		constitution_hash,
+		str(profile_first_run_pending),
+		str(carried_id),
+		str(extraction_active),
+		str(bool(ghost_snapshot.get("active", false))),
+		str(int(ghost_snapshot.get("target_peer_id", -1))),
+		str(bool(predator_snapshot.get("active", false))),
+		str(int(predator_snapshot.get("target_peer_id", -1))),
+		str(bool(protocol_watch_snapshot.get("active", false))),
+		str(int(protocol_watch_snapshot.get("target_peer_id", -1))),
+		str(role_payload.hash())
+	])
+
+func _current_run_guidance_packet(local_id: int = -1) -> Dictionary:
+	var signature := _build_run_guidance_signature(local_id)
+	if signature == cached_run_guidance_signature and not cached_run_guidance_packet.is_empty():
+		return cached_run_guidance_packet
+	cached_run_guidance_packet = _build_run_guidance_packet()
+	cached_run_guidance_signature = signature
+	return cached_run_guidance_packet
 
 func _build_run_guidance_packet() -> Dictionary:
 	var public_summary: Dictionary = {}
@@ -939,6 +1036,10 @@ func _build_run_guidance_packet() -> Dictionary:
 	var ghost_snapshot: Dictionary = NetworkManager.get_ghost_state() if NetworkManager != null and NetworkManager.has_method("get_ghost_state") else {}
 	var predator_snapshot: Dictionary = NetworkManager.get_predator_state() if NetworkManager != null and NetworkManager.has_method("get_predator_state") else {}
 	var protocol_watch_snapshot: Dictionary = NetworkManager.get_protocol_watch_state() if NetworkManager != null and NetworkManager.has_method("get_protocol_watch_state") else {}
+	var gameplay_snapshot: Dictionary = NetworkManager.build_gameplay_signal_snapshot() if NetworkManager != null and NetworkManager.has_method("build_gameplay_signal_snapshot") else {}
+	var group_model := Dictionary(gameplay_snapshot.get("group_model", {}))
+	var local_aftermath: Dictionary = NetworkManager.get_local_aftermath() if NetworkManager != null and NetworkManager.has_method("get_local_aftermath") else RunState.local_aftermath if RunState != null else {}
+	var aftermath_summary := _build_encounter_apex_consequence_summary(Dictionary(local_aftermath), [])
 	var runtime_state: Dictionary = {
 		"carrying_artifact": NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") and int(NetworkManager.get_local_carried_artifact_id()) > 0,
 		"extraction_active": bool(NetworkManager.is_local_extraction_window_active()) if NetworkManager != null and NetworkManager.has_method("is_local_extraction_window_active") else false,
@@ -950,7 +1051,10 @@ func _build_run_guidance_packet() -> Dictionary:
 		"protocol_watch_target_local": int(protocol_watch_snapshot.get("target_peer_id", -1)) == _local_peer_id(),
 		"normalization_mode": profile_normalization_mode,
 		"equipped_modulation_loadout": equipped_modulation_loadout.duplicate(true),
-		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(equipped_modulation_loadout)
+		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(equipped_modulation_loadout),
+		"first_run_pending": profile_first_run_pending,
+		"public_evidence_tags": Array(group_model.get("public_evidence_tags", [])).duplicate(true),
+		"world_aftermath_tags": Array(aftermath_summary.get("world_aftermath_tags", [])).duplicate(true)
 	}
 	return build_run_guidance_packet_for_test(public_summary, branch_context, _local_role_payload(), runtime_state)
 
@@ -1941,6 +2045,7 @@ func _refresh_end_timeline() -> void:
 		return
 	var local_id := _local_peer_id()
 	var fact_lines := _format_timeline_grouped(EventLog.get_recent_public(end_timeline_limit))
+	fact_lines.append_array(_build_public_fact_extensions(EventLog))
 	var note_lines := _build_private_notes_feed_lines(EventLog, local_id, end_timeline_limit)
 	end_timeline_label.text = "FACTS\n%s\n\nYOUR NOTES (private)\n%s" % [
 		_join_or_placeholder(fact_lines, "No facts recorded"),
@@ -1954,6 +2059,157 @@ func _refresh_end_timeline() -> void:
 			extra.append("Report: written to %s" % last_report_user_path)
 			# REPORT_DIFF is handled by scripts/diff_run_reports.ps1 against the FACTS block.
 		end_more_label.text = "\n\n".join(extra)
+
+func build_public_fact_extensions_for_test(
+	event_log: Node,
+	gameplay_snapshot: Dictionary = {},
+	constitution_summary: Dictionary = {},
+	peer_cards: Dictionary = {},
+	local_peer_id_override: int = -1,
+	outcome_summary: Dictionary = {}
+) -> Array[String]:
+	return _build_public_fact_extensions(event_log, gameplay_snapshot, constitution_summary, peer_cards, local_peer_id_override, outcome_summary)
+
+func _build_public_fact_extensions(
+	event_log: Node = null,
+	gameplay_snapshot: Dictionary = {},
+	constitution_summary: Dictionary = {},
+	peer_cards: Dictionary = {},
+	local_peer_id_override: int = -1,
+	outcome_summary: Dictionary = {}
+) -> Array[String]:
+	var lines: Array[String] = []
+	var current_summary: Dictionary = constitution_summary.duplicate(true)
+	if current_summary.is_empty() and RunState != null:
+		current_summary = Dictionary(RunState.constitution_summary).duplicate(true)
+	var current_outcome_summary: Dictionary = outcome_summary.duplicate(true)
+	if current_outcome_summary.is_empty():
+		current_outcome_summary = Dictionary(end_payload.get("outcome_summary", {})).duplicate(true)
+	var current_local_aftermath: Dictionary = Dictionary(end_payload.get("local_aftermath", RunState.local_aftermath if RunState != null else {})).duplicate(true)
+	var current_world_aftermath_refs := Array(end_payload.get("world_aftermath_refs", []))
+	if current_world_aftermath_refs.is_empty() and not current_local_aftermath.is_empty():
+		current_world_aftermath_refs = _build_world_aftermath_refs(current_local_aftermath, {}, current_summary)
+	var current_aftermath_summary := _build_encounter_apex_consequence_summary(current_local_aftermath, current_world_aftermath_refs)
+	var constitution_hash := str(current_summary.get("constitution_hash", RunState.constitution_hash if RunState != null else "")).strip_edges()
+	var explanation_packet_digest := str(current_summary.get("explanation_packet_digest", RunState.provenance_state.get("explanation_packet_digest", "") if RunState != null else "")).strip_edges()
+	var timeline_digest := ""
+	if event_log != null and event_log.has_method("timeline_digest"):
+		timeline_digest = str(event_log.timeline_digest("public")).strip_edges()
+	var public_trace_classes := _string_array(current_summary.get("public_trace_classes", RunState.truth_state.get("public_trace_classes", []) if RunState != null else []))
+	var public_surface_tags := _string_array(current_summary.get("public_surface_tags", RunState.provenance_state.get("public_surface_tags", []) if RunState != null else []))
+	if not constitution_hash.is_empty() or not explanation_packet_digest.is_empty() or not timeline_digest.is_empty():
+		lines.append("[PROVENANCE] constitution=%s explanation=%s timeline=%s" % [constitution_hash, explanation_packet_digest, timeline_digest])
+	if not public_trace_classes.is_empty():
+		lines.append("[PROVENANCE] traces=%s" % ",".join(public_trace_classes.slice(0, 4)))
+	if not public_surface_tags.is_empty():
+		lines.append("[PROVENANCE] surfaces=%s" % ",".join(public_surface_tags.slice(0, 4)))
+	var snapshot: Dictionary = gameplay_snapshot.duplicate(true)
+	if snapshot.is_empty() and NetworkManager != null and NetworkManager.has_method("build_gameplay_signal_snapshot"):
+		var cards: Dictionary = peer_cards.duplicate(true) if not peer_cards.is_empty() else NetworkManager.get_public_player_cards()
+		snapshot = NetworkManager.build_gameplay_signal_snapshot(cards)
+	var current_public_events: Array = event_log.get_recent_public(9999) if event_log != null and event_log.has_method("get_recent_public") else []
+	var current_social_summary := _build_social_consequence_summary(
+		{},
+		current_public_events,
+		[],
+		current_outcome_summary,
+		current_local_aftermath,
+		current_world_aftermath_refs
+	)
+	var local_combo: Dictionary = _local_public_combo_projection_from_snapshot(snapshot, peer_cards, local_peer_id_override)
+	var combo_digest := str(local_combo.get("combo_contract_digest", "")).strip_edges()
+	if not combo_digest.is_empty():
+		lines.append("[COMBO] digest=%s" % combo_digest.substr(0, mini(combo_digest.length(), 12)))
+	var combo_family_ids := _string_array(local_combo.get("combo_family_ids", []))
+	if not combo_family_ids.is_empty():
+		lines.append("[COMBO] families=%s" % ",".join(combo_family_ids.slice(0, 4)))
+	var combo_pressure_tags := _string_array(local_combo.get("combo_pressure_tags", []))
+	if not combo_pressure_tags.is_empty():
+		lines.append("[COMBO] pressure=%s" % ",".join(combo_pressure_tags.slice(0, 4)))
+	var consequence_family := str(current_outcome_summary.get("consequence_event_family", "")).strip_edges()
+	var burden_band := str(current_outcome_summary.get("burden_band", "")).strip_edges()
+	var valuation_band := str(current_outcome_summary.get("valuation_band", "")).strip_edges()
+	var return_state := str(current_outcome_summary.get("return_consequence_state", "")).strip_edges()
+	var custody_summary := str(current_outcome_summary.get("custody_chain_summary", "")).strip_edges()
+	var market_regime_id := str(current_outcome_summary.get("market_regime_id", "")).strip_edges()
+	var market_carrier_risk_band := str(current_outcome_summary.get("market_carrier_risk_band", "")).strip_edges()
+	var public_consequence_tags := _string_array(current_outcome_summary.get("public_consequence_tags", []))
+	if not consequence_family.is_empty():
+		lines.append("[CONSEQUENCE] family=%s" % consequence_family)
+	if not burden_band.is_empty() or not valuation_band.is_empty() or not return_state.is_empty():
+		lines.append("[CONSEQUENCE] burden=%s valuation=%s return=%s" % [burden_band, valuation_band, return_state])
+	if not custody_summary.is_empty():
+		lines.append("[CONSEQUENCE] custody=%s" % custody_summary)
+	if not market_regime_id.is_empty() or not market_carrier_risk_band.is_empty():
+		lines.append("[CONSEQUENCE] market=%s risk=%s" % [market_regime_id, market_carrier_risk_band])
+	if not public_consequence_tags.is_empty():
+		lines.append("[CONSEQUENCE] tags=%s" % ",".join(public_consequence_tags.slice(0, 4)))
+	var encounter_resolution_state := str(current_aftermath_summary.get("encounter_resolution_state", "")).strip_edges()
+	var apex_resolution_state := str(current_aftermath_summary.get("apex_resolution_state", "")).strip_edges()
+	var aftermath_pressures := _string_array(current_aftermath_summary.get("anchored_pressures", []))
+	var aftermath_classes := _string_array(current_aftermath_summary.get("consequence_classes", []))
+	var local_aftermath_tags := _string_array(current_aftermath_summary.get("local_aftermath_tags", []))
+	var world_aftermath_tags := _string_array(current_aftermath_summary.get("world_aftermath_tags", []))
+	if not encounter_resolution_state.is_empty() or not apex_resolution_state.is_empty():
+		lines.append("[AFTERMATH] encounter=%s apex=%s" % [encounter_resolution_state, apex_resolution_state])
+	if not aftermath_pressures.is_empty():
+		lines.append("[AFTERMATH] pressures=%s" % ",".join(aftermath_pressures.slice(0, 4)))
+	if not aftermath_classes.is_empty():
+		lines.append("[AFTERMATH] classes=%s" % ",".join(aftermath_classes.slice(0, 4)))
+	if not local_aftermath_tags.is_empty() or not world_aftermath_tags.is_empty():
+		lines.append("[AFTERMATH] local=%s world=%s" % [
+			",".join(local_aftermath_tags.slice(0, 3)),
+			",".join(world_aftermath_tags.slice(0, 3))
+		])
+	var public_evidence_tags := _string_array(current_social_summary.get("public_evidence_tags", []))
+	var witness_pressure := str(current_social_summary.get("witness_pressure", "")).strip_edges()
+	var relationship_pressure := str(current_social_summary.get("relationship_pressure", "")).strip_edges()
+	var blame_surface_tags := _string_array(current_social_summary.get("blame_surface_tags", []))
+	if not public_evidence_tags.is_empty():
+		lines.append("[SOCIAL] evidence=%s" % ",".join(public_evidence_tags.slice(0, 4)))
+	if not witness_pressure.is_empty() or not relationship_pressure.is_empty():
+		lines.append("[SOCIAL] witness=%s relationship=%s" % [witness_pressure, relationship_pressure])
+	if not blame_surface_tags.is_empty():
+		lines.append("[SOCIAL] blame=%s" % ",".join(blame_surface_tags.slice(0, 4)))
+	return lines
+
+func _local_public_combo_projection_from_snapshot(gameplay_snapshot: Dictionary, peer_cards: Dictionary = {}, local_peer_id_override: int = -1) -> Dictionary:
+	if gameplay_snapshot.is_empty():
+		return {}
+	var peer_models: Dictionary = Dictionary(gameplay_snapshot.get("peer_models", {}))
+	if peer_models.is_empty():
+		return {}
+	var model_keys: Array[String] = []
+	for model_key_raw in peer_models.keys():
+		model_keys.append(str(model_key_raw))
+	model_keys.sort()
+	var digest_source: Array = []
+	var combo_family_ids: Array[String] = []
+	var combo_pressure_tags: Array[String] = []
+	var public_surface_tags: Array[String] = []
+	for model_key in model_keys:
+		var model: Dictionary = Dictionary(peer_models.get(model_key, {}))
+		var combo_digest := str(model.get("combo_contract_digest", "")).strip_edges()
+		var family_ids := _string_array(model.get("combo_family_ids", []))
+		family_ids.sort()
+		var pressure_tags := _string_array(model.get("combo_pressure_tags", []))
+		pressure_tags.sort()
+		var surface_tags := _string_array(model.get("public_surface_tags", []))
+		surface_tags.sort()
+		if combo_digest.is_empty() and family_ids.is_empty() and pressure_tags.is_empty() and surface_tags.is_empty():
+			continue
+		digest_source.append([model_key, combo_digest, family_ids, pressure_tags, surface_tags])
+		combo_family_ids = _merge_unique_string_arrays(combo_family_ids, family_ids)
+		combo_pressure_tags = _merge_unique_string_arrays(combo_pressure_tags, pressure_tags)
+		public_surface_tags = _merge_unique_string_arrays(public_surface_tags, surface_tags)
+	if digest_source.is_empty():
+		return {}
+	return {
+		"combo_contract_digest": JSON.stringify(digest_source).md5_text(),
+		"combo_family_ids": combo_family_ids,
+		"combo_pressure_tags": combo_pressure_tags,
+		"public_surface_tags": public_surface_tags
+	}
 
 func _build_run_report_lines(seed_value: int, end_reason: String, local_peer_id: int, run_counter: int, fact_lines: Array[String], note_lines: Array[String]) -> Array[String]:
 	var lines: Array[String] = []
@@ -2027,6 +2283,7 @@ func _write_run_report() -> String:
 	var end_reason := str(end_payload.get("reason", "unknown"))
 	var run_counter := int(RunState.run_counter)
 	var fact_lines := _format_timeline_grouped(EventLog.get_recent_public(9999))
+	fact_lines.append_array(_build_public_fact_extensions(EventLog))
 	var note_lines := _build_private_notes_feed_lines(EventLog, local_id, 9999)
 	var lines := _build_run_report_lines(seed_value, end_reason, local_id, run_counter, fact_lines, note_lines)
 	DirAccess.make_dir_recursive_absolute("user://reports")
@@ -2190,8 +2447,17 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 	var peak_structure_profile: Dictionary = Dictionary(expedition_constitution.get("peak_structure_profile", {})).duplicate(true)
 	var active_apex_state: Dictionary = Dictionary(RunState.active_apex_state if RunState != null else {}).duplicate(true)
 	var apex_history: Array = Array(RunState.apex_history if RunState != null else []).duplicate(true)
-	var local_aftermath: Dictionary = Dictionary(RunState.local_aftermath if RunState != null else {}).duplicate(true)
+	var local_aftermath: Dictionary = Dictionary(end_payload.get("local_aftermath", RunState.local_aftermath if RunState != null else {})).duplicate(true)
 	var world_aftermath_refs := _build_world_aftermath_refs(local_aftermath, active_apex_state, expedition_constitution_summary)
+	var encounter_apex_consequence := _build_encounter_apex_consequence_summary(local_aftermath, world_aftermath_refs)
+	var social_consequence := _build_social_consequence_summary(
+		gameplay_signal_snapshot,
+		timeline_public_events,
+		timeline_private_events,
+		outcome_summary,
+		local_aftermath,
+		world_aftermath_refs
+	)
 	if explanation_packet.is_empty():
 		explanation_packet = GOVERNANCE_SERVICE_SCRIPT.build_explanation_packet(
 			{
@@ -2223,10 +2489,31 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 	var phase9_extensions := {
 		"active_regime_ids": _string_array(expedition_constitution_summary.get("active_regime_ids", [])),
 		"active_lifecycle_state_ids": _string_array(expedition_constitution_summary.get("lifecycle_state_ids", [])),
+		"provenance_contract_version": int(expedition_constitution_summary.get("provenance_contract_version", RunState.provenance_state.get("provenance_contract_version", 0) if RunState != null else 0)),
+		"public_trace_classes": Array(RunState.truth_state.get("public_trace_classes", []) if RunState != null else []).duplicate(true),
+		"private_trace_classes": Array(RunState.truth_state.get("private_trace_classes", []) if RunState != null else []).duplicate(true),
+		"public_surface_tags": Array(expedition_constitution_summary.get("public_surface_tags", RunState.provenance_state.get("public_surface_tags", []) if RunState != null else [])).duplicate(true),
+		"provenance_source_refs": Array(RunState.provenance_state.get("provenance_source_refs", expedition_constitution_summary.get("provenance_source_refs", [])) if RunState != null else expedition_constitution_summary.get("provenance_source_refs", [])).duplicate(true),
 		"encounter_manifest": encounter_manifest.duplicate(true),
 		"apex_manifest": apex_manifest.duplicate(true),
 		"local_aftermath": local_aftermath.duplicate(true),
 		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"encounter_apex_consequence_version": int(encounter_apex_consequence.get("encounter_apex_consequence_version", 0)),
+		"encounter_resolution_state": str(encounter_apex_consequence.get("encounter_resolution_state", "")).strip_edges(),
+		"apex_resolution_state": str(encounter_apex_consequence.get("apex_resolution_state", "")).strip_edges(),
+		"anchored_pressures": Array(encounter_apex_consequence.get("anchored_pressures", [])).duplicate(true),
+		"consequence_classes": Array(encounter_apex_consequence.get("consequence_classes", [])).duplicate(true),
+		"local_aftermath_tags": Array(encounter_apex_consequence.get("local_aftermath_tags", [])).duplicate(true),
+		"world_aftermath_tags": Array(encounter_apex_consequence.get("world_aftermath_tags", [])).duplicate(true),
+		"aftermath_consequence_refs": Array(encounter_apex_consequence.get("aftermath_consequence_refs", [])).duplicate(true),
+		"social_consequence_version": int(social_consequence.get("social_consequence_version", 0)),
+		"public_evidence_tags": Array(social_consequence.get("public_evidence_tags", [])).duplicate(true),
+		"private_evidence_tags": Array(social_consequence.get("private_evidence_tags", [])).duplicate(true),
+		"witness_pressure": str(social_consequence.get("witness_pressure", "")).strip_edges(),
+		"counterfeit_pressure": str(social_consequence.get("counterfeit_pressure", "")).strip_edges(),
+		"relationship_pressure": str(social_consequence.get("relationship_pressure", "")).strip_edges(),
+		"blame_surface_tags": Array(social_consequence.get("blame_surface_tags", [])).duplicate(true),
+		"consequence_read_refs": Array(social_consequence.get("consequence_read_refs", [])).duplicate(true),
 		"governance_action_snapshot": governance_action_snapshot.duplicate(true),
 		"experiment_outcomes": experiment_outcomes.duplicate(true)
 	}
@@ -2234,6 +2521,7 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 	var replay_identity := _build_replay_identity(run_seed, constitution_hash, mutation_replay_signature)
 	var normalization_mode := profile_normalization_mode
 	var modulation_loadout: Array = equipped_modulation_loadout.duplicate(true)
+	var local_runtime_affordances: Dictionary = NetworkManager.get_local_loadout_runtime_affordances() if NetworkManager != null and NetworkManager.has_method("get_local_loadout_runtime_affordances") else {}
 	var telemetry_summary := _build_telemetry_summary(
 		timeline_public_events,
 		timeline_private_events,
@@ -2314,6 +2602,17 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"narrative_motion_facts": motion_facts,
 		"gameplay_signal_snapshot": gameplay_signal_snapshot,
 		"constitution_hash": constitution_hash,
+		"provenance_contract_version": int(expedition_constitution_summary.get("provenance_contract_version", RunState.provenance_state.get("provenance_contract_version", 0) if RunState != null else 0)),
+		"public_trace_classes": Array(RunState.truth_state.get("public_trace_classes", []) if RunState != null else []).duplicate(true),
+		"private_trace_classes": Array(RunState.truth_state.get("private_trace_classes", []) if RunState != null else []).duplicate(true),
+		"public_surface_tags": Array(expedition_constitution_summary.get("public_surface_tags", RunState.provenance_state.get("public_surface_tags", []) if RunState != null else [])).duplicate(true),
+		"provenance_source_refs": Array(RunState.provenance_state.get("provenance_source_refs", expedition_constitution_summary.get("provenance_source_refs", [])) if RunState != null else expedition_constitution_summary.get("provenance_source_refs", [])).duplicate(true),
+		"combo_contract_version": int(local_runtime_affordances.get("combo_contract_version", 0)),
+		"combo_contract_digest": str(local_runtime_affordances.get("combo_contract_digest", "")).strip_edges(),
+		"combo_family_ids": Array(local_runtime_affordances.get("combo_family_ids", [])).duplicate(true),
+		"combo_entries": Array(local_runtime_affordances.get("combo_entries", [])).duplicate(true),
+		"combo_pressure_tags": Array(local_runtime_affordances.get("combo_pressure_tags", [])).duplicate(true),
+		"combo_public_surface_tags": Array(local_runtime_affordances.get("public_surface_tags", [])).duplicate(true),
 		"normalization_mode": normalization_mode,
 		"equipped_modulation_loadout": modulation_loadout.duplicate(true),
 		"replay_identity": replay_identity.duplicate(true),
@@ -2331,6 +2630,22 @@ func _build_product_run_record(interrupted: bool = false, interruption_reason: S
 		"apex_history": apex_history.duplicate(true),
 		"local_aftermath": local_aftermath.duplicate(true),
 		"world_aftermath_refs": world_aftermath_refs.duplicate(true),
+		"encounter_apex_consequence_version": int(encounter_apex_consequence.get("encounter_apex_consequence_version", 0)),
+		"encounter_resolution_state": str(encounter_apex_consequence.get("encounter_resolution_state", "")).strip_edges(),
+		"apex_resolution_state": str(encounter_apex_consequence.get("apex_resolution_state", "")).strip_edges(),
+		"anchored_pressures": Array(encounter_apex_consequence.get("anchored_pressures", [])).duplicate(true),
+		"consequence_classes": Array(encounter_apex_consequence.get("consequence_classes", [])).duplicate(true),
+		"local_aftermath_tags": Array(encounter_apex_consequence.get("local_aftermath_tags", [])).duplicate(true),
+		"world_aftermath_tags": Array(encounter_apex_consequence.get("world_aftermath_tags", [])).duplicate(true),
+		"aftermath_consequence_refs": Array(encounter_apex_consequence.get("aftermath_consequence_refs", [])).duplicate(true),
+		"social_consequence_version": int(social_consequence.get("social_consequence_version", 0)),
+		"public_evidence_tags": Array(social_consequence.get("public_evidence_tags", [])).duplicate(true),
+		"private_evidence_tags": Array(social_consequence.get("private_evidence_tags", [])).duplicate(true),
+		"witness_pressure": str(social_consequence.get("witness_pressure", "")).strip_edges(),
+		"counterfeit_pressure": str(social_consequence.get("counterfeit_pressure", "")).strip_edges(),
+		"relationship_pressure": str(social_consequence.get("relationship_pressure", "")).strip_edges(),
+		"blame_surface_tags": Array(social_consequence.get("blame_surface_tags", [])).duplicate(true),
+		"consequence_read_refs": Array(social_consequence.get("consequence_read_refs", [])).duplicate(true),
 		"governance_action_snapshot": governance_action_snapshot.duplicate(true),
 		"experiment_outcomes": experiment_outcomes.duplicate(true),
 		"manifested_experiment_ids": live_experiment_ids.duplicate(),
@@ -2511,9 +2826,14 @@ func _build_forensic_bundle(
 		"event_id_range": event_id_range,
 		"timeline_digest": str(replay_identity.get("timeline_digest", "")).strip_edges(),
 		"mutation_replay_signature": mutation_replay_signature,
+		"provenance_contract_version": int(phase_extensions.get("provenance_contract_version", constitution_summary.get("provenance_contract_version", 0))),
+		"public_trace_classes": _string_array(phase_extensions.get("public_trace_classes", constitution_summary.get("public_trace_classes", []))),
+		"private_trace_classes": _string_array(phase_extensions.get("private_trace_classes", constitution_summary.get("private_trace_classes", []))),
 		"normalization_mode": normalization_mode,
 		"governance_hook_set": governance_hook_set.duplicate(true),
 		"explanation_packet_digest": str(explanation_packet.get("packet_digest", "")).strip_edges(),
+		"public_surface_tags": _string_array(phase_extensions.get("public_surface_tags", constitution_summary.get("public_surface_tags", explanation_packet.get("public_surface_tags", [])))),
+		"provenance_source_refs": _string_array(phase_extensions.get("provenance_source_refs", constitution_summary.get("provenance_source_refs", explanation_packet.get("provenance_source_refs", [])))),
 		"active_regime_ids": _string_array(phase_extensions.get("active_regime_ids", constitution_summary.get("active_regime_ids", []))),
 		"active_lifecycle_state_ids": _string_array(phase_extensions.get("active_lifecycle_state_ids", constitution_summary.get("lifecycle_state_ids", []))),
 		"equipped_modulation_loadout": normalized_modulation_loadout.duplicate(true),
@@ -2756,27 +3076,177 @@ func _build_world_aftermath_refs(local_aftermath: Dictionary, active_apex_state:
 	if local_aftermath.is_empty():
 		return []
 	var source_id := str(local_aftermath.get("source_id", "")).strip_edges()
-	var apex_id := str(active_apex_state.get("apex_id", source_id)).strip_edges()
 	var source_kind := str(local_aftermath.get("source_kind", "encounter")).strip_edges()
+	var apex_id := str(active_apex_state.get("apex_id", source_id if source_kind == "apex" else "")).strip_edges()
 	var tags := _string_array(local_aftermath.get("narrative_residue_tags", []))
 	var return_pressure_tags := _string_array(local_aftermath.get("residual_telegraph_tags", []))
 	var route_state := str(local_aftermath.get("immediate_route_state", "")).strip_edges()
+	var local_aftermath_tags := _string_array(local_aftermath.get("local_aftermath_tags", []))
+	var world_aftermath_tags := _string_array(local_aftermath.get("world_aftermath_tags", []))
+	var consequence_refs := _string_array(local_aftermath.get("aftermath_consequence_refs", []))
 	var successor_hint_ids := _string_array(constitution_summary.get("apex_class_ids", []))
 	return [
 		{
 			"schema_name": "WorldAftermathRef",
 			"schema_version": 1,
+			"encounter_apex_consequence_version": int(local_aftermath.get("encounter_apex_consequence_version", 0)),
 			"aftermath_id": "world_aftermath_%s" % source_id,
 			"source_id": source_id,
 			"source_kind": source_kind,
 			"apex_id": apex_id,
+			"encounter_resolution_state": str(local_aftermath.get("encounter_resolution_state", "")).strip_edges(),
+			"apex_resolution_state": str(local_aftermath.get("apex_resolution_state", "")).strip_edges(),
+			"anchored_pressures": _string_array(local_aftermath.get("anchored_pressures", [])),
+			"consequence_classes": _string_array(local_aftermath.get("consequence_classes", [])),
 			"local_aftermath_id": str(local_aftermath.get("aftermath_id", "")).strip_edges(),
 			"continuity_seed_tags": tags.slice(0, 3),
 			"return_pressure_tags": return_pressure_tags.slice(0, 4),
 			"route_state_hint": route_state,
-			"successor_hint_ids": successor_hint_ids.slice(0, 4)
+			"successor_hint_ids": successor_hint_ids.slice(0, 4),
+			"local_aftermath_tags": local_aftermath_tags.slice(0, 4),
+			"world_aftermath_tags": world_aftermath_tags.slice(0, 4),
+			"aftermath_consequence_refs": consequence_refs.slice(0, 8)
 		}
 	]
+
+func _build_encounter_apex_consequence_summary(local_aftermath: Dictionary, world_aftermath_refs: Array) -> Dictionary:
+	if local_aftermath.is_empty() and world_aftermath_refs.is_empty():
+		return {}
+	var summary := {
+		"encounter_apex_consequence_version": int(local_aftermath.get("encounter_apex_consequence_version", 0)),
+		"encounter_resolution_state": str(local_aftermath.get("encounter_resolution_state", "")).strip_edges(),
+		"apex_resolution_state": str(local_aftermath.get("apex_resolution_state", "")).strip_edges(),
+		"anchored_pressures": _string_array(local_aftermath.get("anchored_pressures", [])),
+		"consequence_classes": _string_array(local_aftermath.get("consequence_classes", [])),
+		"local_aftermath_tags": _string_array(local_aftermath.get("local_aftermath_tags", [])),
+		"world_aftermath_tags": _string_array(local_aftermath.get("world_aftermath_tags", [])),
+		"aftermath_consequence_refs": _string_array(local_aftermath.get("aftermath_consequence_refs", [])),
+		"world_aftermath_refs": Array(world_aftermath_refs).duplicate(true)
+	}
+	for aftermath_ref_raw in world_aftermath_refs:
+		var aftermath_ref := Dictionary(aftermath_ref_raw)
+		summary["world_aftermath_tags"] = _merge_unique_string_arrays(
+			Array(summary.get("world_aftermath_tags", [])),
+			Array(aftermath_ref.get("world_aftermath_tags", []))
+		)
+		summary["aftermath_consequence_refs"] = _merge_unique_string_arrays(
+			Array(summary.get("aftermath_consequence_refs", [])),
+			Array(aftermath_ref.get("aftermath_consequence_refs", []))
+		)
+	return summary
+
+func _build_social_consequence_summary(
+	gameplay_snapshot: Dictionary,
+	timeline_public_events: Array,
+	timeline_private_events: Array,
+	outcome_summary: Dictionary,
+	local_aftermath: Dictionary,
+	world_aftermath_refs: Array
+) -> Dictionary:
+	var group_model := Dictionary(gameplay_snapshot.get("group_model", {}))
+	var public_callouts := 0
+	var public_artifact_events := 0
+	for event_raw in timeline_public_events:
+		var event := Dictionary(event_raw)
+		var event_type := str(event.get("event_type", "")).strip_edges()
+		if event_type == "room_callout":
+			public_callouts += 1
+		elif event_type in ["artifact_picked", "artifact_dropped", "artifact_stolen", "extraction_completed"]:
+			public_artifact_events += 1
+	var private_trace_count := 0
+	var private_sabotage_traces := 0
+	for event_raw in timeline_private_events:
+		var event := Dictionary(event_raw)
+		private_trace_count += 1
+		var event_type := str(event.get("event_type", "")).strip_edges()
+		if event_type.find("sabotage") != -1 or event_type.find("inspection") != -1:
+			private_sabotage_traces += 1
+	var witness_pressure := str(group_model.get("witness_pressure", "")).strip_edges()
+	var event_witness_pressure := ""
+	if public_callouts >= 2:
+		event_witness_pressure = "focused"
+	elif public_callouts >= 1 or public_artifact_events >= 2:
+		event_witness_pressure = "public"
+	if witness_pressure.is_empty():
+		witness_pressure = "contained"
+	if event_witness_pressure == "focused":
+		witness_pressure = "focused"
+	elif event_witness_pressure == "public" and witness_pressure == "contained":
+		witness_pressure = "public"
+	var counterfeit_pressure := str(group_model.get("counterfeit_pressure", "")).strip_edges()
+	if counterfeit_pressure.is_empty():
+		var unresolved_counterfeit := int(outcome_summary.get("artifact_unresolved_counterfeit_count", 0))
+		var consequence_family := str(outcome_summary.get("consequence_event_family", "")).strip_edges()
+		if unresolved_counterfeit > 0 or consequence_family.find("counterfeit") != -1 or private_sabotage_traces > 0:
+			counterfeit_pressure = "active"
+		else:
+			counterfeit_pressure = "contained"
+	var relationship_pressure := str(group_model.get("relationship_pressure", "")).strip_edges()
+	if relationship_pressure.is_empty():
+		var trust_fragility := int(group_model.get("trust_fragility", 0))
+		var obligation_heat := int(group_model.get("obligation_heat", 0))
+		var alliance_stability := int(group_model.get("alliance_stability", 0))
+		if trust_fragility >= 2:
+			relationship_pressure = "strained"
+		elif obligation_heat >= 3 or alliance_stability >= 3:
+			relationship_pressure = "binding"
+		else:
+			relationship_pressure = "steady"
+	var public_evidence_tags := _string_array(group_model.get("public_evidence_tags", []))
+	if public_callouts > 0:
+		public_evidence_tags = _merge_unique_string_arrays(public_evidence_tags, ["callout_visible"])
+	if public_artifact_events > 0:
+		public_evidence_tags = _merge_unique_string_arrays(public_evidence_tags, ["custody_visible"])
+	if not _string_array(outcome_summary.get("public_consequence_tags", [])).is_empty():
+		public_evidence_tags = _merge_unique_string_arrays(
+			public_evidence_tags,
+			_string_array(outcome_summary.get("public_consequence_tags", [])).slice(0, 2)
+		)
+	var private_evidence_tags: Array[String] = []
+	if private_trace_count > 0:
+		private_evidence_tags = _merge_unique_string_arrays(private_evidence_tags, ["private_trace_visible"])
+	if private_sabotage_traces > 0:
+		private_evidence_tags = _merge_unique_string_arrays(private_evidence_tags, ["private_sabotage_trace"])
+	if not _string_array(outcome_summary.get("social_hook_tags", [])).is_empty():
+		private_evidence_tags = _merge_unique_string_arrays(private_evidence_tags, _string_array(outcome_summary.get("social_hook_tags", [])).slice(0, 2))
+	var blame_surface_tags := _string_array(group_model.get("blame_surface_tags", []))
+	if witness_pressure != "contained":
+		blame_surface_tags = _merge_unique_string_arrays(blame_surface_tags, ["witness_surface"])
+	if relationship_pressure == "strained":
+		blame_surface_tags = _merge_unique_string_arrays(blame_surface_tags, ["relationship_surface"])
+	var public_consequence_tags := _string_array(outcome_summary.get("public_consequence_tags", []))
+	if public_consequence_tags.has("artifact_counterfeit_resolution"):
+		blame_surface_tags = _merge_unique_string_arrays(blame_surface_tags, ["counterfeit_surface"])
+	var anchored_pressures := _string_array(local_aftermath.get("anchored_pressures", []))
+	if anchored_pressures.has("custody_pressure") or anchored_pressures.has("evidence_pressure"):
+		blame_surface_tags = _merge_unique_string_arrays(blame_surface_tags, ["custody_surface"])
+	var consequence_read_refs: Array[String] = []
+	if public_callouts > 0:
+		consequence_read_refs = _merge_unique_string_arrays(["timeline_public"], [])
+	if private_trace_count > 0:
+		consequence_read_refs = _merge_unique_string_arrays(consequence_read_refs, ["timeline_private"])
+	consequence_read_refs = _merge_unique_string_arrays(consequence_read_refs, _string_array(group_model.get("consequence_read_refs", [])))
+	consequence_read_refs = _merge_unique_string_arrays(
+		consequence_read_refs,
+		_string_array(outcome_summary.get("social_hook_tags", []))
+	)
+	consequence_read_refs = _merge_unique_string_arrays(
+		consequence_read_refs,
+		_string_array(local_aftermath.get("aftermath_consequence_refs", []))
+	)
+	for world_ref_raw in world_aftermath_refs:
+		var world_ref := Dictionary(world_ref_raw)
+		consequence_read_refs = _merge_unique_string_arrays(consequence_read_refs, _string_array(world_ref.get("aftermath_consequence_refs", [])))
+	return {
+		"social_consequence_version": SOCIAL_CONSEQUENCE_VERSION,
+		"public_evidence_tags": public_evidence_tags.slice(0, 8),
+		"private_evidence_tags": private_evidence_tags.slice(0, 8),
+		"witness_pressure": witness_pressure,
+		"counterfeit_pressure": counterfeit_pressure,
+		"relationship_pressure": relationship_pressure,
+		"blame_surface_tags": blame_surface_tags.slice(0, 8),
+		"consequence_read_refs": consequence_read_refs.slice(0, 8)
+	}
 
 func _record_narrative_sample() -> void:
 	if tick_counter % NARRATIVE_SAMPLE_INTERVAL_TICKS != 0:
@@ -3264,6 +3734,13 @@ func compute_next_step_hint_for_test_with_state(event_log: Node, local_peer_id: 
 func compute_next_step_hint_for_test_with_full_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int, role_name: String, ghost_active: bool, ghost_target_local: bool, extraction_active: bool) -> String:
 	return _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot, role_name, ghost_active, ghost_target_local, extraction_active)
 
+func compute_next_step_hint_for_test_with_first_run_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int, first_run_pending: bool) -> String:
+	var previous := profile_first_run_pending
+	profile_first_run_pending = first_run_pending
+	var hint := _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot)
+	profile_first_run_pending = previous
+	return hint
+
 func apply_quick_tag_shortcuts_for_test(current_text: String, shortcut: String) -> String:
 	return _apply_quick_tag_shortcuts(current_text, shortcut)
 
@@ -3318,13 +3795,16 @@ func _toggle_help_overlay(force_open: Variant = null) -> void:
 		_toggle_notebook(false)
 
 func _build_help_overlay_text() -> String:
-	var controller_mode := bool(profile_settings.get("controller_glyphs", false))
+	var packet := _current_run_guidance_packet()
+	return build_help_overlay_text_for_test(packet, bool(packet.get("first_run_pending", profile_first_run_pending)), bool(profile_settings.get("controller_glyphs", false)))
+
+func build_help_overlay_text_for_test(packet: Dictionary = {}, first_run_pending: bool = true, controller_mode: bool = false) -> String:
 	var notebook_line := "View: notebook  A: save note" if controller_mode else "N: notebook, Enter: save note"
 	var quick_tag_line := "Hold modifiers on keyboard for quick tags" if controller_mode else "Shift+Enter: SUSPECT  Ctrl+Enter: ALIBI  Alt+Enter: EVIDENCE"
 	var lines: Array[String] = []
-	var packet := _build_run_guidance_packet()
+	var current_packet := packet if not packet.is_empty() else _build_run_guidance_packet()
 	var focus_lines: Array[String] = []
-	for line_value in Array(packet.get("focus_lines", [])):
+	for line_value in Array(current_packet.get("focus_lines", [])):
 		var text := str(line_value).strip_edges()
 		if not text.is_empty():
 			focus_lines.append(text)
@@ -3332,6 +3812,17 @@ func _build_help_overlay_text() -> String:
 		lines.append("Run Brief")
 		lines.append_array(focus_lines.slice(0, 6))
 		lines.append("")
+	if first_run_pending:
+		lines.append("First-run primer")
+		lines.append("Authentic extraction wins. Hold still in Extraction when the stabilizing window opens.")
+		lines.append("Roles are asymmetric. Notebook notes and hints keep the public line readable.")
+		lines.append("Continuity: what returns from this run can shape later reads.")
+		lines.append("")
+	else:
+		var public_signal_line := str(current_packet.get("public_signal_line", "")).strip_edges()
+		if not public_signal_line.is_empty():
+			lines.append("Live continuity: %s" % public_signal_line)
+			lines.append("")
 	lines.append_array([
 		"Goal: recover an authentic Artifact and hold it in Extraction.",
 		"Counterfeit extraction helps sabotage. Read clues before you commit.",
@@ -3366,7 +3857,7 @@ func _update_goal_label(local_id: int) -> void:
 		return
 	var phase := _compute_run_phase(EventLog, local_id)
 	var line := _compute_objective_line(local_id)
-	var packet := _build_run_guidance_packet()
+	var packet := _current_run_guidance_packet(local_id)
 	var run_kind_line := str(packet.get("run_kind_line", "")).strip_edges()
 	goal_label.text = "Phase: %s | %s" % [phase, line]
 	if not run_kind_line.is_empty():
@@ -3575,6 +4066,13 @@ func _string_array(values: Variant) -> Array[String]:
 				result.append(text)
 	return result
 
+func _merge_unique_string_arrays(base: Array, extra: Array) -> Array[String]:
+	var result: Array[String] = _string_array(base)
+	for text in _string_array(extra):
+		if not result.has(text):
+			result.append(text)
+	return result
+
 func _first_string(values: Variant, fallback: String = "") -> String:
 	var strings := _string_array(values)
 	if not strings.is_empty():
@@ -3632,7 +4130,7 @@ func _compute_next_step_hint(event_log: Node, local_peer_id: int) -> String:
 	var ghost_active := bool(ghost_state.get("active", false))
 	var ghost_target_local := int(ghost_state.get("target_peer_id", -1)) == local_peer_id
 	var base_hint := _compute_next_step_hint_with_state(event_log, local_peer_id, carrying, _extraction_room_slot(), str(RunState.local_role), ghost_active, ghost_target_local, bool(NetworkManager.is_local_extraction_window_active()))
-	var packet := _build_run_guidance_packet()
+	var packet := _current_run_guidance_packet(local_peer_id)
 	var action_tip := str(packet.get("action_tip", "")).strip_edges()
 	if action_tip.is_empty():
 		return base_hint
@@ -3663,6 +4161,8 @@ func _compute_next_step_hint_with_state(event_log: Node, local_peer_id: int, has
 	if hint_mode != "full":
 		return ""
 	if notes_count == 0:
+		if profile_first_run_pending:
+			return "Tip: First run -> N notebook. Write SUSPECT:/ALIBI: notes before you commit."
 		return "Tip: N -> notebook. Write SUSPECT:/ALIBI: notes."
 	if role_name == ROLE_SERVICE_SCRIPT.ROLE_WARDEN and inspections_count == 0:
 		return "Tip: Hold T near an artifact to inspect."

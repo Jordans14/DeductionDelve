@@ -415,6 +415,14 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"session_reconnect_ready": bool(run_record.get("session_reconnect_ready", false)),
 		"summary_text": str(outcome_summary.get("summary_text", "Run complete")),
 		"artifact_result_text": str(outcome_summary.get("artifact_result_text", "-")),
+		"artifact_consequence_version": int(outcome_summary.get("artifact_consequence_version", 0)),
+		"consequence_event_family": str(outcome_summary.get("consequence_event_family", "")).strip_edges(),
+		"public_consequence_tags": _to_string_array(outcome_summary.get("public_consequence_tags", [])),
+		"burden_band": str(outcome_summary.get("burden_band", "")).strip_edges(),
+		"valuation_band": str(outcome_summary.get("valuation_band", "")).strip_edges(),
+		"return_consequence_state": str(outcome_summary.get("return_consequence_state", "")).strip_edges(),
+		"market_regime_id": str(outcome_summary.get("market_regime_id", "")).strip_edges(),
+		"market_carrier_risk_band": str(outcome_summary.get("market_carrier_risk_band", "")).strip_edges(),
 		"report_path": str(run_record.get("report_path", "")),
 		"xp_gain": int(rewards.get("account_xp", 0)),
 		"mastery_gain": int(rewards.get("mastery_xp", 0)),
@@ -467,6 +475,14 @@ static func apply_run_record(profile: Dictionary, run_record: Dictionary, catalo
 		"seed": int(run_record.get("seed", 0)),
 		"summary_text": str(outcome_summary.get("summary_text", "Run complete")),
 		"artifact_result_text": str(outcome_summary.get("artifact_result_text", "-")),
+		"artifact_consequence_version": int(outcome_summary.get("artifact_consequence_version", 0)),
+		"consequence_event_family": str(outcome_summary.get("consequence_event_family", "")).strip_edges(),
+		"public_consequence_tags": _to_string_array(outcome_summary.get("public_consequence_tags", [])),
+		"burden_band": str(outcome_summary.get("burden_band", "")).strip_edges(),
+		"valuation_band": str(outcome_summary.get("valuation_band", "")).strip_edges(),
+		"return_consequence_state": str(outcome_summary.get("return_consequence_state", "")).strip_edges(),
+		"market_regime_id": str(outcome_summary.get("market_regime_id", "")).strip_edges(),
+		"market_carrier_risk_band": str(outcome_summary.get("market_carrier_risk_band", "")).strip_edges(),
 		"local_role": local_role,
 		"role_result_success": role_result_success,
 		"story_tone": str(diagnostics.get("story_tone", "Quiet")),
@@ -1227,8 +1243,8 @@ static func build_continue_guidance_lines(profile: Dictionary, session_overview:
 	if bool(current.get("first_run_pending", true)):
 		return [
 			"Next: host a room or join a session.",
-			"Why: your first expedition will start building history, mastery, and discoveries.",
-			"Also: use the Home quick-start summary if you need a refresher."
+			"Why: authentic extraction, role asymmetry, notebook use, and extraction hold behavior all matter immediately on your first expedition.",
+			"Also: use the Home quick-start summary if you need the primer before you queue."
 		]
 	return [
 		"Next: host a lobby or join a session.",
