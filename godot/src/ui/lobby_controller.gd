@@ -580,20 +580,8 @@ func _focus_home_primary_control() -> void:
 		host_button.grab_focus()
 
 func _build_home_quick_start_text() -> String:
-	var lines: Array[String] = []
 	var session: Dictionary = NetworkManager.get_session_overview() if NetworkManager.has_method("get_session_overview") else {}
-	var live_brief := PROFILE_SERVICE_SCRIPT._session_delve_brief_line(session)
-	if bool(profile_state.get("first_run_pending", true)):
-		lines.append("First run: recover an authentic Artifact and hold it in Extraction.")
-		lines.append("Warden reads clues. Veil hides sabotage. Scavenger keeps the route alive.")
-	else:
-		lines.append("Host a room, ready up, and commit to a route when the Ghost starts forcing choices.")
-	if not live_brief.is_empty():
-		lines.append("Current read: %s" % live_brief)
-	lines.append("Artifacts are the objective. Tools are active. Relics are passive.")
-	lines.append("Some runs surface charms, bursts, vows, burdens, and visible threshold shifts.")
-	lines.append("Progression unlocks identity only: titles, banners, notebook themes, and future cosmetics.")
-	return "\n".join(lines)
+	return "\n".join(PROFILE_SERVICE_SCRIPT.build_home_quick_start_lines(profile_state, session))
 
 func _build_session_summary_lines() -> Array[String]:
 	var session: Dictionary = NetworkManager.get_session_overview() if NetworkManager.has_method("get_session_overview") else {}

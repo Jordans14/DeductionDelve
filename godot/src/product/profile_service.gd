@@ -1187,6 +1187,71 @@ static func build_last_run_diagnostic_lines(profile: Dictionary) -> Array[String
 		lines.append("Heat: %s" % FRAMING_SERVICE_SCRIPT.build_home_heat_line(frame))
 	return lines.slice(0, 5)
 
+static func build_home_quick_start_lines(profile: Dictionary, session_overview: Dictionary = {}) -> Array[String]:
+	var current := normalize_profile(profile)
+	var lines: Array[String] = []
+	var live_brief := _session_delve_brief_line(session_overview)
+	if bool(current.get("first_run_pending", true)):
+		lines.append("First run: recover an authentic Artifact and hold it in Extraction.")
+		lines.append("Warden reads clues. Veil hides sabotage. Scavenger keeps the route alive.")
+	else:
+		var last_run: Dictionary = Dictionary(current.get("last_run", {}))
+		var returning_result := _build_returning_run_onboarding_result_line(last_run)
+		if returning_result.is_empty():
+			lines.append("Returning run: host a room, ready up, and commit when the route starts forcing choices.")
+		else:
+			lines.append("Returning run: %s" % returning_result)
+		var continuity_line := _build_returning_run_onboarding_continuity_line(last_run)
+		if not continuity_line.is_empty():
+			lines.append("Continuity: %s" % continuity_line)
+		var reentry_hook: Dictionary = Dictionary(last_run.get("reentry_hook", {}))
+		var reentry_line := str(reentry_hook.get("prompt_line", "")).strip_edges()
+		if reentry_line.is_empty():
+			reentry_line = str(_latest_reentry_hook(current).get("prompt_line", "")).strip_edges()
+		if not reentry_line.is_empty():
+			lines.append("Reentry cue: %s" % reentry_line)
+	if not live_brief.is_empty():
+		lines.append("Current read: %s" % live_brief)
+	lines.append("Artifacts are the objective. Tools are active. Relics are passive.")
+	lines.append("Progression unlocks identity only: titles, banners, notebook themes, and future cosmetics.")
+	return FRAMING_SERVICE_SCRIPT.guard_lines(lines)
+
+static func _build_returning_run_onboarding_result_line(last_run: Dictionary) -> String:
+	var artifact_result_text := str(last_run.get("artifact_result_text", "")).strip_edges()
+	if artifact_result_text == "-":
+		artifact_result_text = ""
+	if not artifact_result_text.is_empty():
+		return artifact_result_text
+	return str(last_run.get("summary_text", "")).strip_edges()
+
+static func _build_returning_run_onboarding_continuity_line(last_run: Dictionary) -> String:
+	var parts: Array[String] = []
+	var return_state := str(last_run.get("return_consequence_state", "")).strip_edges()
+	if not return_state.is_empty():
+		parts.append("Return: %s" % _humanize_onboarding_public_token(return_state))
+	var burden_band := str(last_run.get("burden_band", "")).strip_edges()
+	if not burden_band.is_empty():
+		parts.append("Burden: %s" % _humanize_onboarding_public_token(burden_band))
+	var valuation_band := str(last_run.get("valuation_band", "")).strip_edges()
+	if not valuation_band.is_empty():
+		parts.append("Value: %s" % _humanize_onboarding_public_token(valuation_band))
+	var market_regime_id := str(last_run.get("market_regime_id", "")).strip_edges()
+	if not market_regime_id.is_empty():
+		parts.append("Market: %s" % _humanize_onboarding_public_sentence_token(market_regime_id.trim_prefix("market_")))
+	var risk_band := str(last_run.get("market_carrier_risk_band", "")).strip_edges()
+	if not risk_band.is_empty():
+		parts.append("Risk: %s" % _humanize_onboarding_public_token(risk_band))
+	return " | ".join(parts)
+
+static func _humanize_onboarding_public_token(value: String) -> String:
+	return _title_case(value.strip_edges().replace("_", " "))
+
+static func _humanize_onboarding_public_sentence_token(value: String) -> String:
+	var normalized := value.strip_edges().replace("_", " ").to_lower()
+	if normalized.is_empty():
+		return ""
+	return normalized.substr(0, 1).to_upper() + normalized.substr(1)
+
 static func build_continue_guidance_lines(profile: Dictionary, session_overview: Dictionary = {}) -> Array[String]:
 	var current := normalize_profile(profile)
 	var last_run: Dictionary = Dictionary(current.get("last_run", {}))

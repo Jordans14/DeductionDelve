@@ -197,6 +197,7 @@ func _init() -> void:
 	_test_phase8_quiet_play_diagnostics_and_safety(failures)
 	_test_phase8_scale_budget_and_stewardship_audit_projection(failures)
 	_test_phase8_legacy_reentry_continuity_surfaces(failures)
+	_test_phase8_returning_run_onboarding_public_safe_compression(failures)
 	_test_phase9_forensic_bundle_hardening_contract(failures)
 	_test_phase9_forensic_bundle_extension_consistency(failures)
 	_test_phase9_curated_phenomenon_manifest_builder_contract(failures)
@@ -10040,6 +10041,75 @@ func _test_phase8_legacy_reentry_continuity_surfaces(failures: Array[String]) ->
 		var detail := str(Dictionary(archive_entries[0]).get("detail", ""))
 		if detail.find("Quiet play: ") == -1 and detail.find("Return pull: ") == -1:
 			failures.append("Phase 8 archive case detail should surface quiet-play or return-pull continuity without widening ownership")
+
+func _test_phase8_returning_run_onboarding_public_safe_compression(failures: Array[String]) -> void:
+	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
+	var session_context := {
+		"delve_protocol": {
+			"protocol_state": "Intimate Protocol",
+			"doctrine_label": "Custody Ritual",
+			"pressure_line": "Carry the answer through ritual custody."
+		}
+	}
+	var first_run_profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
+	var first_run_text := "\n".join(PROFILE_SERVICE_SCRIPT.build_home_quick_start_lines(first_run_profile, session_context))
+	if first_run_text.find("First run: recover an authentic Artifact and hold it in Extraction.") == -1:
+		failures.append("Phase 8 onboarding should keep the explicit first-run objective briefing")
+	if first_run_text.find("Returning run:") != -1 or first_run_text.find("Continuity:") != -1 or first_run_text.find("Reentry cue:") != -1:
+		failures.append("Phase 8 onboarding should keep first-run quick-start copy distinct from returning-run continuity copy")
+
+	var manager := NETWORK_MANAGER_SCRIPT.new()
+	manager.current_expedition_constitution = {
+		"market_regime_state": {
+			"regime_id": "market_recovery_weave",
+			"carrier_risk_band": "volatile"
+		}
+	}
+	var counterfeit_artifacts := {
+		12: {"artifact_id": 12, "room_slot": 7, "spawn_index": 0, "signature": "F0012", "is_forged": true, "owner_peer_id": 2, "world_pos": Vector2.ZERO}
+	}
+	var outcome_summary := manager.build_outcome_summary_for_test("extraction_objective", counterfeit_artifacts, {"artifact_id": 12, "owner_peer_id": 2, "room_slot": 7})
+	manager.free()
+
+	var result := PROFILE_SERVICE_SCRIPT.apply_run_record(
+		first_run_profile,
+		_phase8_run_record(838383, {
+			"local_role": ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER,
+			"outcome_summary": outcome_summary.duplicate(true)
+		}),
+		catalog
+	)
+	var returning_profile: Dictionary = Dictionary(result.get("profile", {}))
+	var poisoned_last_run := Dictionary(returning_profile.get("last_run", {})).duplicate(true)
+	poisoned_last_run["experiment_learning_operator_lines"] = ["operator_only_manifest"]
+	poisoned_last_run["forensic_bundle_header"] = {"phenomenon_manifest": {"leak": true}}
+	poisoned_last_run["private_trace_classes"] = ["inspection"]
+	poisoned_last_run["hidden_curriculum"] = ["operator_only_signal"]
+	returning_profile["last_run"] = poisoned_last_run
+
+	var returning_text := "\n".join(PROFILE_SERVICE_SCRIPT.build_home_quick_start_lines(returning_profile, session_context))
+	if returning_text.find("Returning run: Counterfeit artifact extracted") == -1:
+		failures.append("Phase 8 onboarding should reuse the returning run's public-safe artifact result as the lead line")
+	if returning_text.find("Continuity: Return:") == -1 or returning_text.find("Burden:") == -1 or returning_text.find("Value:") == -1:
+		failures.append("Phase 8 onboarding should compress public-safe return consequence fields into one continuity line")
+	if returning_text.find("Market: Recovery weave") == -1 or returning_text.find("Risk: Volatile") == -1:
+		failures.append("Phase 8 onboarding should keep market regime and carrier risk readable on returning-run quick-start copy")
+	if returning_text.find("Reentry cue:") == -1:
+		failures.append("Phase 8 onboarding should preserve the canonical reentry hook on returning-run quick-start copy")
+	if returning_text.find("First run:") != -1:
+		failures.append("Phase 8 onboarding should not collapse returning-run copy back into the first-run briefing")
+	for forbidden_fragment in [
+		"phenomenon_manifest",
+		"forensic_bundle_header",
+		"private_trace_classes",
+		"hidden_curriculum",
+		"experiment_learning_operator_lines",
+		"operator_only_manifest",
+		"market_recovery_weave",
+		"artifact_counterfeit_resolution"
+	]:
+		if returning_text.find(forbidden_fragment) != -1:
+			failures.append("Phase 8 onboarding should keep hidden/internal residue out of quick-start copy (%s)" % forbidden_fragment)
 
 func _test_phase9_forensic_bundle_hardening_contract(failures: Array[String]) -> void:
 	var event_log := EVENT_LOG_SCRIPT.new()
