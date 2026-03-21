@@ -3229,17 +3229,31 @@ func host_detonate_bomb(node_name: String, pos: Vector2) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func host_spawn_rope(pos: Vector2, node_name: String) -> void:
-	var game_node = get_tree().root.get_node_or_null("Game")
-	var parent = game_node if game_node else self
+	if not _spawn_rope_on_game_parent(pos, node_name):
+		call_deferred("_deferred_host_spawn_rope", pos, node_name, 0)
 
-	if parent.has_node(node_name):
-		var old = parent.get_node(node_name)
+func _deferred_host_spawn_rope(pos: Vector2, node_name: String, attempt: int) -> void:
+	if _spawn_rope_on_game_parent(pos, node_name):
+		return
+	if attempt >= 8:
+		return
+	call_deferred("_deferred_host_spawn_rope", pos, node_name, attempt + 1)
+
+func _spawn_rope_on_game_parent(pos: Vector2, node_name: String) -> bool:
+	var tree = get_tree() if is_inside_tree() else null
+	if tree == null or tree.root == null:
+		return false
+	var game_node = tree.root.get_node_or_null("Game")
+	if game_node == null:
+		return false
+	if game_node.has_node(node_name):
+		var old = game_node.get_node(node_name)
 		old.queue_free()
-
 	var r = _get_rope_script().new()
 	r.name = node_name
 	r.global_position = pos
-	parent.add_child(r)
+	game_node.add_child(r)
+	return true
 
 @rpc("authority", "call_local", "reliable")
 func host_spawn_zipline(start_pos: Vector2, end_pos: Vector2, node_name: String) -> void:
@@ -5134,7 +5148,7 @@ func choose_mp_kind_for_test(node_has_peer: bool, tree_has_peer: bool) -> String
 	if tree_has_peer and not node_has_peer:
 		return "tree"
 	if node_has_peer and tree_has_peer:
-		return "node"
+		return "tree"
 	return "none"
 
 func _log_connection_event(event_name: String, detail: String) -> void:
@@ -5320,10 +5334,10 @@ func _tree_mp_candidate() -> MultiplayerAPI:
 	return tree.get_multiplayer()
 
 func _mp_for_signal_wiring() -> MultiplayerAPI:
-	var node_mp := _node_mp_candidate()
-	if node_mp != null:
-		return node_mp
-	return _tree_mp_candidate()
+	var tree_mp := _tree_mp_candidate()
+	if tree_mp != null:
+		return tree_mp
+	return _node_mp_candidate()
 
 func _ensure_signals_wired_to_active_mp() -> void:
 	if not signals_wired:
