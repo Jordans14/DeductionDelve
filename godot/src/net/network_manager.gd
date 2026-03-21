@@ -87,8 +87,6 @@ var artifact_service = ARTIFACT_SERVICE_SCRIPT.new()
 var item_service: RefCounted = ITEM_SERVICE_SCRIPT.new()
 var forge_counter_by_room: Dictionary = {}
 var next_event_id: int = 1
-var startup_mutation_broadcast_ready: bool = false
-var pending_startup_mutation_events: Array[Dictionary] = []
 var check_counter_by_peer: Dictionary = {}
 var role_pressure_by_peer: Dictionary = {}
 var custody_debt_by_peer: Dictionary = {}
@@ -151,8 +149,6 @@ var echo_lure_state := {
 var signals_wired: bool = false
 var peer_reconcile_accum: float = 0.0
 const PEER_RECONCILE_INTERVAL_SEC := 0.25
-const LOCAL_HOST_START_DELAY_SEC := 0.12
-const POST_START_SYNC_DELAY_SEC := 0.35
 var enet_peer: ENetMultiplayerPeer = null
 var enet_peer_mode: String = ""
 var _active_mp: MultiplayerAPI = null
@@ -164,7 +160,6 @@ var _captured_public_events_for_test: Array = []
 var _captured_private_events_for_test: Array = []
 var _run_state_override_for_test: Node = null
 var _event_log_override_for_test: Node = null
-var _pending_local_run_start_payload: Dictionary = {}
 var reconnect_offer: Dictionary = {}
 var last_connection_status: String = "Not connected"
 
@@ -317,13 +312,6 @@ func build_session_policy_lines(overview: Dictionary = {}) -> Array[String]:
 	var reason := str(current.get("reconnect_reason", ""))
 	if not reason.is_empty():
 		lines.append("Reason: %s" % reason)
-	var live_brief := PROFILE_SERVICE_SCRIPT._session_delve_brief_line(current)
-	if bool(current.get("first_run_pending", false)):
-		lines.append("Guide: Primer on authentic extraction, asymmetric roles, notebook clues, and extraction hold.")
-	elif not live_brief.is_empty():
-		lines.append("Guide: %s" % live_brief)
-	else:
-		lines.append("Guide: Live brief on route pressure, continuity, and public reads.")
 	return lines
 
 func build_session_policy_lines_for_test(overview: Dictionary = {}) -> Array[String]:
@@ -612,10 +600,9 @@ func start_host(port: int = -1, preferred_join_address: String = "", bind_overri
 	enet_peer_mode = "server"
 	var node_mp := _node_mp_candidate()
 	var tree_mp := _tree_mp_candidate()
-	if node_mp != null:
-		node_mp.multiplayer_peer = enet_peer
-	if tree_mp != null and tree_mp != node_mp:
-		tree_mp.multiplayer_peer = enet_peer
+	var assign_mp := node_mp if node_mp != null else tree_mp
+	if assign_mp != null:
+		assign_mp.multiplayer_peer = enet_peer
 	_select_active_mp("after_assign_peer")
 	_ensure_signals_wired_to_active_mp()
 	_warn_if_double_peer_assignment("start_host_after_assign")
@@ -664,10 +651,9 @@ func join_host(address: String, port: int = -1) -> bool:
 	enet_peer_mode = "client"
 	var node_mp := _node_mp_candidate()
 	var tree_mp := _tree_mp_candidate()
-	if node_mp != null:
-		node_mp.multiplayer_peer = enet_peer
-	if tree_mp != null and tree_mp != node_mp:
-		tree_mp.multiplayer_peer = enet_peer
+	var assign_mp := node_mp if node_mp != null else tree_mp
+	if assign_mp != null:
+		assign_mp.multiplayer_peer = enet_peer
 	_select_active_mp("after_assign_peer")
 	_ensure_signals_wired_to_active_mp()
 	_warn_if_double_peer_assignment("join_host_after_assign")
@@ -710,8 +696,6 @@ func disconnect_peer(reason: String = "manual") -> void:
 	current_server_tick = 0
 	next_artifact_id = 1
 	next_event_id = 1
-	startup_mutation_broadcast_ready = false
-	pending_startup_mutation_events.clear()
 	local_sabotage_cooldown_until_tick = 0
 	run_active = false
 	current_expedition_constitution.clear()
@@ -849,8 +833,6 @@ func start_run(seed_override: int = 0, room_count: int = 0) -> void:
 	_clear_role_custody_state()
 	reset_tool_inventory_for_test(connected_peers)
 	next_event_id = 1
-	startup_mutation_broadcast_ready = false
-	pending_startup_mutation_events.clear()
 	local_sabotage_cooldown_until_tick = 0
 	run_active = true
 	extraction_room_slot = maxi(chain.size() - 1, 0)
@@ -872,13 +854,12 @@ func start_run(seed_override: int = 0, room_count: int = 0) -> void:
 		current_constitution_hash,
 		get_current_expedition_constitution_summary()
 	)
-	var host_local_id := _safe_mp_unique_id(_mp())
-	for peer_id_value in connected_peers:
-		var peer_id := int(peer_id_value)
-		if peer_id == host_local_id:
-			continue
-		host_start_run.rpc_id(peer_id, payload["seed"], payload["room_chain"], payload["peer_ids"], payload["directive_summary"], payload["constitution_hash"], payload["constitution_summary"])
-	_schedule_local_host_start_run(payload)
+	host_start_run.rpc(payload["seed"], payload["room_chain"], payload["peer_ids"], payload["directive_summary"], payload["constitution_hash"], payload["constitution_summary"])
+	_reveal_roles_to_clients()
+	_broadcast_artifact_state()
+	_broadcast_item_state()
+	_broadcast_ghost_state()
+	record_public_event("run_started", -1, -1, {"seed": run_seed})
 
 func send_client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO, pack_flags: int = 0) -> void:
 	var mp := _mp()
@@ -899,8 +880,6 @@ func broadcast_state(snapshot: Dictionary, tick: int) -> void:
 		return
 	current_server_tick = tick
 	_advance_runtime_ecology()
-	if tick <= 10:
-		_nm_log("HOST_PUSH_STATE_SEND tick=%d peers=%d entries=%d" % [tick, _remote_peers_from_mp(_mp()).size(), snapshot.size()])
 	host_push_state.rpc(snapshot, tick)
 	if run_active:
 		var reason := compute_end_reason_for_tick(current_server_tick)
@@ -1075,12 +1054,6 @@ func host_start_run(
 	constitution_hash: String = "",
 	constitution_summary: Dictionary = {}
 ) -> void:
-	_nm_log("HOST_START_RUN_APPLY local=%d is_host=%s seed=%d chain_size=%d" % [
-		_safe_mp_unique_id(_mp()),
-		str(is_host),
-		seed_value,
-		room_chain.size()
-	])
 	var local_players: Array[int] = []
 	for peer_id in peer_ids:
 		local_players.append(int(peer_id))
@@ -1136,7 +1109,6 @@ func host_start_run(
 	_clear_predator_state()
 	_clear_protocol_watch_state()
 	_clear_echo_lure_state()
-	_nm_log("HOST_START_RUN_EMIT_SIGNAL local=%d is_host=%s" % [_safe_mp_unique_id(_mp()), str(is_host)])
 	emit_signal("run_started", seed_value, room_chain)
 
 @rpc("authority", "call_local", "reliable")
@@ -1145,7 +1117,7 @@ func host_join_denied(reason: String) -> void:
 	disconnect_peer("join_denied")
 	_set_connection_status(reason)
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "unreliable_ordered")
 func client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 = Vector2.ZERO, pack_flags: int = 0) -> void:
 	if not is_host:
 		return
@@ -1156,12 +1128,10 @@ func client_input(move_axis: float, jump_pressed: bool, seq: int, pos: Vector2 =
 	input_by_peer[sender] = {"move": move_axis, "jump": jump_pressed, "seq": seq, "pos": pos, "flags": pack_flags}
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "unreliable_ordered")
 func host_push_state(snapshot: Dictionary, tick: int) -> void:
 	latest_snapshot = snapshot
 	latest_tick = tick
-	if not is_host and tick <= 10:
-		_nm_log("HOST_PUSH_STATE_RECV tick=%d entries=%d" % [tick, snapshot.size()])
 	emit_signal("state_snapshot", snapshot, tick)
 
 func update_authoritative_player_state(peer_id: int, world_pos: Vector2, room_slot: int) -> void:
@@ -2618,23 +2588,12 @@ func _broadcast_mutation_event(event: Dictionary) -> void:
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
 		return
-	if not startup_mutation_broadcast_ready:
-		pending_startup_mutation_events.append(event.duplicate(true))
-		return
-	_dispatch_mutation_event(event, mp)
-
-func _dispatch_mutation_event(event: Dictionary, mp: MultiplayerAPI = null) -> void:
-	var active_mp := mp
-	if active_mp == null:
-		active_mp = _mp()
-	if not _has_live_network_peer(active_mp):
-		return
 	var visibility := str(event.get("visibility", "private"))
 	if visibility == "public":
 		host_push_mutation_event.rpc(event)
 		return
 	var target_peer_id := int(event.get("actor_peer_id", -1))
-	var local_id := active_mp.get_unique_id()
+	var local_id := mp.get_unique_id()
 	if target_peer_id > 0 and target_peer_id != local_id:
 		host_push_mutation_event.rpc_id(target_peer_id, event)
 
@@ -2721,14 +2680,12 @@ func host_reveal_role(payload: Dictionary) -> void:
 	var run_state := _run_state()
 	if run_state == null:
 		return
-	_nm_log("HOST_REVEAL_ROLE_RECV role=%s" % str(payload.get("role", "Unknown")))
 	run_state.local_role = str(payload.get("role", "Unknown"))
 	run_state.local_role_payload = payload.duplicate(true)
 	emit_signal("role_revealed", str(run_state.local_role))
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_artifact_state(payload: Array) -> void:
-	_nm_log("HOST_SYNC_ARTIFACT_STATE_RECV count=%d" % payload.size())
 	var next_artifacts: Dictionary = {}
 	for artifact_raw in payload:
 		var artifact: Dictionary = artifact_raw
@@ -2754,7 +2711,6 @@ func host_sync_artifact_state(payload: Array) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_item_state(payload: Array) -> void:
-	_nm_log("HOST_SYNC_ITEM_STATE_RECV count=%d" % payload.size())
 	items_by_id.clear()
 	var run_state := _run_state()
 	if run_state != null:
@@ -2769,7 +2725,6 @@ func host_sync_item_state(payload: Array) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func host_sync_ghost_state(state: Dictionary) -> void:
-	_nm_log("HOST_SYNC_GHOST_STATE_RECV active=%s" % str(bool(state.get("active", false))))
 	ghost_state = state.duplicate(true)
 	emit_signal("ghost_state_changed", ghost_state.duplicate(true))
 
@@ -2832,7 +2787,6 @@ func reset_to_lobby(_reason: String = "manual") -> void:
 		next_artifact_id = 1
 		next_event_id = 1
 		local_sabotage_cooldown_until_tick = 0
-		_pending_local_run_start_payload.clear()
 		run_active = false
 		extraction_room_slot = -1
 		host_port = -1
@@ -3436,62 +3390,6 @@ func _find_carried_artifact_by_peer(peer_id: int) -> int:
 			return int(artifact_id)
 	return 0
 
-func _apply_local_host_start_run(payload: Dictionary) -> void:
-	host_start_run(
-		int(payload.get("seed", 0)),
-		Array(payload.get("room_chain", [])).duplicate(true),
-		Array(payload.get("peer_ids", [])).duplicate(true),
-		Dictionary(payload.get("directive_summary", {})).duplicate(true),
-		str(payload.get("constitution_hash", "")).strip_edges(),
-		Dictionary(payload.get("constitution_summary", {})).duplicate(true)
-	)
-
-func _schedule_local_host_start_run(payload: Dictionary) -> void:
-	_pending_local_run_start_payload = payload.duplicate(true)
-	var tree := get_tree()
-	if tree == null:
-		_finalize_local_host_start_run()
-		return
-	var timer := tree.create_timer(LOCAL_HOST_START_DELAY_SEC)
-	timer.timeout.connect(Callable(self, "_finalize_local_host_start_run"), CONNECT_ONE_SHOT)
-
-func _finalize_local_host_start_run() -> void:
-	if _pending_local_run_start_payload.is_empty():
-		return
-	var payload := _pending_local_run_start_payload.duplicate(true)
-	_pending_local_run_start_payload.clear()
-	_apply_local_host_start_run(payload)
-	record_public_event("run_started", -1, -1, {"seed": int(payload.get("seed", 0))})
-	_schedule_post_start_state_broadcast()
-
-func _schedule_post_start_state_broadcast() -> void:
-	var tree := get_tree()
-	if tree == null:
-		_broadcast_post_start_state()
-		return
-	var timer := tree.create_timer(POST_START_SYNC_DELAY_SEC)
-	timer.timeout.connect(Callable(self, "_broadcast_post_start_state"), CONNECT_ONE_SHOT)
-
-func _broadcast_post_start_state() -> void:
-	if not is_host or not run_active:
-		return
-	startup_mutation_broadcast_ready = true
-	_nm_log("POST_START_BROADCAST role_peers=%d artifact_count=%d item_count=%d ghost_active=%s" % [
-		players.size(),
-		artifacts_by_id.size(),
-		items_by_id.size(),
-		str(bool(ghost_state.get("active", false)))
-	])
-	_reveal_roles_to_clients()
-	_broadcast_artifact_state()
-	_broadcast_item_state()
-	_broadcast_ghost_state()
-	if not pending_startup_mutation_events.is_empty():
-		var pending_events := pending_startup_mutation_events.duplicate(true)
-		pending_startup_mutation_events.clear()
-		for event in pending_events:
-			_dispatch_mutation_event(Dictionary(event).duplicate(true))
-
 func _reveal_roles_to_clients() -> void:
 	var role_service := ROLE_SERVICE_SCRIPT.new()
 	var mp := _mp()
@@ -3513,29 +3411,24 @@ func _reveal_roles_to_clients() -> void:
 func _broadcast_artifact_state() -> void:
 	if not is_host:
 		return
-	var payload := _serialize_artifacts()
-	_nm_log("HOST_SYNC_ARTIFACT_STATE_SEND count=%d" % payload.size())
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
-		host_sync_artifact_state(payload)
+		host_sync_artifact_state(_serialize_artifacts())
 		return
-	host_sync_artifact_state.rpc(payload)
+	host_sync_artifact_state.rpc(_serialize_artifacts())
 
 func _broadcast_item_state() -> void:
 	if not is_host:
 		return
-	var payload := _serialize_items()
-	_nm_log("HOST_SYNC_ITEM_STATE_SEND count=%d" % payload.size())
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
-		host_sync_item_state(payload)
+		host_sync_item_state(_serialize_items())
 		return
-	host_sync_item_state.rpc(payload)
+	host_sync_item_state.rpc(_serialize_items())
 
 func _broadcast_ghost_state() -> void:
 	if not is_host:
 		return
-	_nm_log("HOST_SYNC_GHOST_STATE_SEND active=%s" % str(bool(ghost_state.get("active", false))))
 	var mp := _mp()
 	if not _has_live_network_peer(mp):
 		host_sync_ghost_state(ghost_state.duplicate(true))
@@ -3547,7 +3440,7 @@ func _serialize_artifacts() -> Array:
 	ids.sort()
 	var data: Array = []
 	for artifact_id in ids:
-		data.append(_network_safe_artifact_state(Dictionary(artifacts_by_id[artifact_id])))
+		data.append(artifacts_by_id[artifact_id])
 	return data
 
 func _serialize_items() -> Array:
@@ -3555,28 +3448,8 @@ func _serialize_items() -> Array:
 	ids.sort()
 	var data: Array = []
 	for item_id in ids:
-		data.append(_network_safe_item_state(Dictionary(items_by_id[item_id])))
+		data.append(Dictionary(items_by_id[item_id]).duplicate(true))
 	return data
-
-func _network_safe_artifact_state(artifact: Dictionary) -> Dictionary:
-	return {
-		"artifact_id": int(artifact.get("artifact_id", 0)),
-		"room_slot": int(artifact.get("room_slot", -1)),
-		"signature": str(artifact.get("signature", "")),
-		"is_forged": bool(artifact.get("is_forged", false)),
-		"owner_peer_id": int(artifact.get("owner_peer_id", 0)),
-		"world_pos": artifact.get("world_pos", Vector2.ZERO)
-	}
-
-func _network_safe_item_state(item: Dictionary) -> Dictionary:
-	return {
-		"item_id": int(item.get("item_id", 0)),
-		"item_def_id": str(item.get("item_def_id", "")),
-		"display_name": str(item.get("display_name", item.get("item_def_id", ""))),
-		"owner_peer_id": int(item.get("owner_peer_id", 0)),
-		"consumed": bool(item.get("consumed", false)),
-		"world_pos": item.get("world_pos", Vector2.ZERO)
-	}
 
 func _build_event(visibility: String, event_type: String, room_slot: int, actor_peer_id: int, meta: Dictionary, target_peer_id: int = -1) -> Dictionary:
 	var event := {
@@ -5225,21 +5098,6 @@ func _log_mp_state(tag: String) -> void:
 	])
 
 func _nm_log(message: String) -> void:
-	var allowed_prefixes := [
-		"HOST_ONLINE",
-		"START_RUN_REQUEST",
-		"READY_RPC",
-		"READY_RPC_ACCEPT",
-		"READY_RPC_REJECT",
-		"NET_EVENT"
-	]
-	var should_print := false
-	for prefix in allowed_prefixes:
-		if message.begins_with(prefix):
-			should_print = true
-			break
-	if not should_print:
-		return
 	var path_text := "<detached>"
 	if is_inside_tree():
 		path_text = str(get_path())
@@ -5286,22 +5144,7 @@ func _select_active_mp(tag: String) -> void:
 	var tree_mp := _tree_mp_candidate()
 	var node_has_peer := node_mp != null and node_mp.multiplayer_peer != null
 	var tree_has_peer := tree_mp != null and tree_mp.multiplayer_peer != null
-	var node_remote_count := -1
-	var tree_remote_count := -1
-	if _has_live_network_peer(node_mp):
-		node_remote_count = _remote_peers_from_mp(node_mp).size()
-	if _has_live_network_peer(tree_mp):
-		tree_remote_count = _remote_peers_from_mp(tree_mp).size()
 	var chosen_kind := choose_mp_kind_for_test(node_has_peer, tree_has_peer)
-	if node_has_peer and tree_has_peer and node_mp != tree_mp:
-		if tree_remote_count > node_remote_count:
-			chosen_kind = "tree"
-		elif node_remote_count > tree_remote_count:
-			chosen_kind = "node"
-		elif _active_mp == tree_mp:
-			chosen_kind = "tree"
-		else:
-			chosen_kind = "tree"
 	if chosen_kind == "node":
 		_active_mp = node_mp
 	elif chosen_kind == "tree":

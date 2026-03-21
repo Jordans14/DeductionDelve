@@ -1243,8 +1243,8 @@ static func build_continue_guidance_lines(profile: Dictionary, session_overview:
 	if bool(current.get("first_run_pending", true)):
 		return [
 			"Next: host a room or join a session.",
-			"Why: authentic extraction, role asymmetry, notebook use, and extraction hold behavior all matter immediately on your first expedition.",
-			"Also: use the Home quick-start summary if you need the primer before you queue."
+			"Why: your first expedition will start building history, mastery, and discoveries.",
+			"Also: use the Home quick-start summary if you need a refresher."
 		]
 	return [
 		"Next: host a lobby or join a session.",

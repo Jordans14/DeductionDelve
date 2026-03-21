@@ -188,19 +188,6 @@ static func build_archive_preview_lines(frame: Dictionary) -> Array[String]:
 		lines.append("Presence: %s" % inhabitant_line)
 	return guard_lines(lines)
 
-static func build_onboarding_public_signal_line(surface: Dictionary) -> String:
-	var parts: Array[String] = []
-	var public_consequence_tags := _string_array(surface.get("public_consequence_tags", []))
-	var world_aftermath_tags := _string_array(surface.get("world_aftermath_tags", []))
-	var public_evidence_tags := _string_array(surface.get("public_evidence_tags", []))
-	if not public_consequence_tags.is_empty():
-		parts.append("consequence %s" % _onboarding_surface_phrase(public_consequence_tags.slice(0, 2)))
-	if not world_aftermath_tags.is_empty():
-		parts.append("aftermath %s" % _onboarding_surface_phrase(world_aftermath_tags.slice(0, 2)))
-	if not public_evidence_tags.is_empty():
-		parts.append("public reads %s" % _onboarding_surface_phrase(public_evidence_tags.slice(0, 2)))
-	return guard_text(" | ".join(parts))
-
 static func build_home_heat_line(frame: Dictionary) -> String:
 	var heat := int(frame.get("public_heat", 0))
 	if heat >= 8:
@@ -1329,44 +1316,6 @@ static func _string_array(values: Variant) -> Array[String]:
 			if not text.is_empty():
 				result.append(text)
 	return result
-
-static func _onboarding_surface_phrase(tags: Array[String]) -> String:
-	var phrases: Array[String] = []
-	for tag in tags:
-		var text := str(tag).strip_edges()
-		if text.is_empty():
-			continue
-		var phrase := text.replace("_", " ")
-		match text:
-			"artifact_return_visible":
-				phrase = "return pressure is readable"
-			"artifact_counterfeit_resolution":
-				phrase = "artifact disputes are readable"
-			"artifact_custody_visible":
-				phrase = "custody is readable"
-			"witness_visible":
-				phrase = "witness pressure is public"
-			"custody_visible":
-				phrase = "custody is public"
-			"relationship_visible":
-				phrase = "relationship pressure is public"
-			"witness_surface":
-				phrase = "witness pressure is surfacing"
-			"custody_surface":
-				phrase = "custody pressure is surfacing"
-			"relationship_surface":
-				phrase = "relationship pressure is surfacing"
-			"counterfeit_surface":
-				phrase = "artifact doubt is surfacing"
-			"rerouted":
-				phrase = "the route is rerouted"
-			"stabilized":
-				phrase = "the route is stabilized"
-			"contested":
-				phrase = "the route is contested"
-		if not phrase.is_empty() and not phrases.has(phrase):
-			phrases.append(phrase)
-	return ", ".join(phrases)
 
 static func _take_unique(values: Array, limit: int) -> Array[String]:
 	var result: Array[String] = []

@@ -17,39 +17,14 @@ const NOTEBOOK_FILTER_EVIDENCE := "EVIDENCE"
 const NOTEBOOK_FILTER_SUSPECT := "SUSPECT"
 const NOTEBOOK_FILTER_ALIBI := "ALIBI"
 const NOTEBOOK_FILTER_OTHER := "OTHER"
-const RUN_GUIDANCE_REFRESH_TICKS := 15
 const CURATED_PHENOMENON_FAMILY_IDS := ["palimpsest", "negative_space", "echo_literacy", "contraband_lite"]
 const SOCIAL_CONSEQUENCE_VERSION := 1
-const C7_FIRST_RUN_SURFACE_RULES := [
-	"authentic_extraction",
-	"role_asymmetry",
-	"artifact_tool_relic_categories",
-	"danger_pressure",
-	"notebook_hint_usage",
-	"extraction_hold_behavior",
-	"continuity_weight"
-]
-const C7_RETURNING_RUN_SURFACE_RULES := [
-	"live_constitution",
-	"route_pressure",
-	"public_safe_consequence_compression"
-]
-const C7_HIDDEN_SURFACE_RULES := [
-	"combo_entries",
-	"combo_family_ids",
-	"lifecycle_math",
-	"private_trace_classes",
-	"unrevealed_counterfeit_truth",
-	"deeper_social_auto_solve",
-	"phenomenon_manifest"
-]
 const ROLE_SERVICE_SCRIPT = preload("res://src/roles/role_service.gd")
 const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const ITEM_SERVICE_SCRIPT = preload("res://src/items/item_service.gd")
 const PRODUCT_CATALOG_SCRIPT = preload("res://src/product/product_catalog.gd")
 const PROFILE_SERVICE_SCRIPT = preload("res://src/product/profile_service.gd")
 const GOVERNANCE_SERVICE_SCRIPT = preload("res://src/product/governance_service.gd")
-const FRAMING_SERVICE_SCRIPT = preload("res://src/product/framing_service.gd")
 const VISUAL_GOVERNANCE_SCRIPT = preload("res://src/visual/visual_governance.gd")
 const ITEM_PICKUP_SCENE = preload("res://scenes/Item.tscn")
 
@@ -140,8 +115,6 @@ var cli_auto_rope: bool = false
 var cli_auto_rope_done: bool = false
 var last_report_user_path: String = ""
 var last_verify_status: String = ""
-var cached_run_guidance_packet: Dictionary = {}
-var cached_run_guidance_signature: String = ""
 var product_run_recorded: bool = false
 var last_known_local_peer_id: int = -1
 var narrative_samples: Array[Dictionary] = []
@@ -154,7 +127,6 @@ var equipped_title_id: String = ""
 var profile_normalization_mode: String = "default"
 var equipped_modulation_loadout: Array[Dictionary] = []
 var profile_governance_state: Dictionary = {}
-var profile_first_run_pending: bool = true
 var visual_governance: RefCounted = VISUAL_GOVERNANCE_SCRIPT.new()
 
 func _ready() -> void:
@@ -211,13 +183,7 @@ func _ready() -> void:
 	if help_panel:
 		help_panel.visible = false
 	if help_label:
-		var initial_help_packet := {
-			"continuity_line": "",
-			"danger_line": "",
-			"notebook_line": "",
-			"hold_line": ""
-		}
-		help_label.text = build_help_overlay_text_for_test(initial_help_packet, profile_first_run_pending, bool(profile_settings.get("controller_glyphs", false)))
+		help_label.text = _build_help_overlay_text()
 	trace_root = Node2D.new()
 	trace_root.name = "TraceRoot"
 	add_child(trace_root)
@@ -263,7 +229,6 @@ func _load_profile_preferences() -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
 	var profile := PROFILE_SERVICE_SCRIPT.load_profile(PROFILE_SERVICE_SCRIPT.SAVE_PATH, catalog)
 	profile_settings = Dictionary(profile.get("settings", {})).duplicate(true)
-	profile_first_run_pending = bool(profile.get("first_run_pending", true))
 	var equipped: Dictionary = Dictionary(Dictionary(profile.get("cosmetics", {})).get("equipped", {}))
 	equipped_notebook_theme_id = str(equipped.get("notebook_theme", ""))
 	equipped_banner_id = str(equipped.get("banner", ""))
@@ -489,7 +454,7 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 				NetworkManager.track_noise_trace(peer_id, room_slot, actor.is_carrying_artifact())
 			_sync_tool_counts_to_actor(peer_id, actor)
 			_sync_item_affordances_to_actor(peer_id, actor)
-		if snapshot_timer >= SNAPSHOT_INTERVAL and tick_counter >= 30:
+		if snapshot_timer >= SNAPSHOT_INTERVAL:
 			snapshot_timer = 0.0
 			var snapshot := {}
 			for peer_id in players.keys():
@@ -508,8 +473,7 @@ func _update_authoritative_sim(delta: float, local_id: int) -> void:
 	elif not NetworkManager.is_host and not run_ended:
 		var send_pos : Vector2 = players[local_id].global_position if players.has(local_id) else Vector2.ZERO
 		var floor_flags : int = 1 if (players.has(local_id) and players[local_id].is_on_floor()) else 0
-		if tick_counter >= 30:
-			NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos, floor_flags)
+		NetworkManager.send_client_input(move_axis, jump_pressed, tick_counter, send_pos, floor_flags)
 		if players.has(local_id):
 			players[local_id].simulate_step(move_axis, jump_pressed, delta)
 
@@ -562,7 +526,7 @@ func _run_cli_automation(target_id: int) -> void:
 	# We use a dictionary to track multiple players if we are the host
 	var is_ported: bool = players[target_id].get_meta("cli_auto_ported", false)
 
-	if cli_auto_pickup and not is_ported and NetworkManager.is_run_active() and tick_counter >= 30:
+	if cli_auto_pickup and not is_ported and NetworkManager.is_run_active():
 		var artifact_id := _find_nearest_carried_artifact_id_for(target_id)
 		if artifact_id > 0:
 			var extraction_slot := _extraction_room_slot()
@@ -651,8 +615,6 @@ func _run_cli_role_action(target_id: int) -> void:
 				role_name
 			])
 			cli_auto_role_action_logged_skip = true
-		cli_auto_role_action_done = true
-		cli_auto_role_action_requested = false
 		return
 	if _cli_has_private_event(target_id, "sabotage_private_confirm"):
 		cli_auto_role_action_done = true
@@ -919,19 +881,6 @@ func build_run_guidance_packet_for_test(public_summary: Dictionary, branch_conte
 	var modulation_state := _apply_phase2_guidance_modulation(signal_focus_lines, runtime_state)
 	if not str(modulation_state.get("focus_line", "")).strip_edges().is_empty():
 		focus_lines.insert(0, "Signal focus: %s" % str(modulation_state.get("focus_line", "")))
-	var first_run_pending := bool(runtime_state.get("first_run_pending", false))
-	var public_signal_line := FRAMING_SERVICE_SCRIPT.build_onboarding_public_signal_line({
-		"public_consequence_tags": Array(runtime_state.get("public_consequence_tags", [])).duplicate(true),
-		"world_aftermath_tags": Array(runtime_state.get("world_aftermath_tags", [])).duplicate(true),
-		"public_evidence_tags": Array(runtime_state.get("public_evidence_tags", [])).duplicate(true)
-	})
-	if first_run_pending:
-		focus_lines.insert(0, "Primer: authentic extraction wins; counterfeit clues should be checked before you commit.")
-		focus_lines.append("Primer: roles stay asymmetric; Warden inspects, Veil misleads, Scavenger keeps the route moving.")
-		focus_lines.append("Primer: Artifacts win runs. Tools spend charges. Relics stay passive.")
-		focus_lines.append("Primer: notebook notes and hints keep the public line readable under pressure.")
-	elif not public_signal_line.is_empty():
-		focus_lines.append("Continuity: %s" % public_signal_line)
 	var carrying_artifact := bool(runtime_state.get("carrying_artifact", false))
 	var extraction_active := bool(runtime_state.get("extraction_active", false))
 	var ghost_target_local := bool(runtime_state.get("ghost_target_local", false))
@@ -969,51 +918,8 @@ func build_run_guidance_packet_for_test(public_summary: Dictionary, branch_conte
 		"action_tip": action_tip,
 		"signal_focus_lane": str(modulation_state.get("selected_lane", "")),
 		"normalization_mode": str(runtime_state.get("normalization_mode", "default")),
-		"suppressed_modulation_count": int(runtime_state.get("suppressed_modulation_count", 0)),
-		"first_run_pending": first_run_pending,
-		"public_signal_line": public_signal_line,
-		"first_run_surface_rules": C7_FIRST_RUN_SURFACE_RULES.duplicate(),
-		"returning_run_surface_rules": C7_RETURNING_RUN_SURFACE_RULES.duplicate(),
-		"hidden_surface_rules": C7_HIDDEN_SURFACE_RULES.duplicate()
+		"suppressed_modulation_count": int(runtime_state.get("suppressed_modulation_count", 0))
 	}
-
-func _build_run_guidance_signature(local_id: int = -1) -> String:
-	var resolved_local_id: int = local_id if local_id > 0 else _local_peer_id()
-	var event_count: int = EventLog.events.size() if EventLog != null else 0
-	var local_role: String = str(RunState.local_role).strip_edges() if RunState != null else ""
-	var constitution_hash: String = str(RunState.constitution_hash).strip_edges() if RunState != null else ""
-	var carried_id: int = int(NetworkManager.get_local_carried_artifact_id()) if NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") else 0
-	var extraction_active: bool = bool(NetworkManager.is_local_extraction_window_active()) if NetworkManager != null and NetworkManager.has_method("is_local_extraction_window_active") else false
-	var ghost_snapshot: Dictionary = NetworkManager.get_ghost_state() if NetworkManager != null and NetworkManager.has_method("get_ghost_state") else {}
-	var predator_snapshot: Dictionary = NetworkManager.get_predator_state() if NetworkManager != null and NetworkManager.has_method("get_predator_state") else {}
-	var protocol_watch_snapshot: Dictionary = NetworkManager.get_protocol_watch_state() if NetworkManager != null and NetworkManager.has_method("get_protocol_watch_state") else {}
-	var role_payload: Dictionary = _local_role_payload()
-	var refresh_bucket: int = int(tick_counter / RUN_GUIDANCE_REFRESH_TICKS)
-	return "|".join([
-		str(refresh_bucket),
-		str(event_count),
-		str(resolved_local_id),
-		local_role,
-		constitution_hash,
-		str(profile_first_run_pending),
-		str(carried_id),
-		str(extraction_active),
-		str(bool(ghost_snapshot.get("active", false))),
-		str(int(ghost_snapshot.get("target_peer_id", -1))),
-		str(bool(predator_snapshot.get("active", false))),
-		str(int(predator_snapshot.get("target_peer_id", -1))),
-		str(bool(protocol_watch_snapshot.get("active", false))),
-		str(int(protocol_watch_snapshot.get("target_peer_id", -1))),
-		str(role_payload.hash())
-	])
-
-func _current_run_guidance_packet(local_id: int = -1) -> Dictionary:
-	var signature := _build_run_guidance_signature(local_id)
-	if signature == cached_run_guidance_signature and not cached_run_guidance_packet.is_empty():
-		return cached_run_guidance_packet
-	cached_run_guidance_packet = _build_run_guidance_packet()
-	cached_run_guidance_signature = signature
-	return cached_run_guidance_packet
 
 func _build_run_guidance_packet() -> Dictionary:
 	var public_summary: Dictionary = {}
@@ -1036,10 +942,6 @@ func _build_run_guidance_packet() -> Dictionary:
 	var ghost_snapshot: Dictionary = NetworkManager.get_ghost_state() if NetworkManager != null and NetworkManager.has_method("get_ghost_state") else {}
 	var predator_snapshot: Dictionary = NetworkManager.get_predator_state() if NetworkManager != null and NetworkManager.has_method("get_predator_state") else {}
 	var protocol_watch_snapshot: Dictionary = NetworkManager.get_protocol_watch_state() if NetworkManager != null and NetworkManager.has_method("get_protocol_watch_state") else {}
-	var gameplay_snapshot: Dictionary = NetworkManager.build_gameplay_signal_snapshot() if NetworkManager != null and NetworkManager.has_method("build_gameplay_signal_snapshot") else {}
-	var group_model := Dictionary(gameplay_snapshot.get("group_model", {}))
-	var local_aftermath: Dictionary = NetworkManager.get_local_aftermath() if NetworkManager != null and NetworkManager.has_method("get_local_aftermath") else RunState.local_aftermath if RunState != null else {}
-	var aftermath_summary := _build_encounter_apex_consequence_summary(Dictionary(local_aftermath), [])
 	var runtime_state: Dictionary = {
 		"carrying_artifact": NetworkManager != null and NetworkManager.has_method("get_local_carried_artifact_id") and int(NetworkManager.get_local_carried_artifact_id()) > 0,
 		"extraction_active": bool(NetworkManager.is_local_extraction_window_active()) if NetworkManager != null and NetworkManager.has_method("is_local_extraction_window_active") else false,
@@ -1051,10 +953,7 @@ func _build_run_guidance_packet() -> Dictionary:
 		"protocol_watch_target_local": int(protocol_watch_snapshot.get("target_peer_id", -1)) == _local_peer_id(),
 		"normalization_mode": profile_normalization_mode,
 		"equipped_modulation_loadout": equipped_modulation_loadout.duplicate(true),
-		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(equipped_modulation_loadout),
-		"first_run_pending": profile_first_run_pending,
-		"public_evidence_tags": Array(group_model.get("public_evidence_tags", [])).duplicate(true),
-		"world_aftermath_tags": Array(aftermath_summary.get("world_aftermath_tags", [])).duplicate(true)
+		"suppressed_modulation_count": PRODUCT_CATALOG_SCRIPT.suppressed_delta_count(equipped_modulation_loadout)
 	}
 	return build_run_guidance_packet_for_test(public_summary, branch_context, _local_role_payload(), runtime_state)
 
@@ -2176,40 +2075,31 @@ func _build_public_fact_extensions(
 func _local_public_combo_projection_from_snapshot(gameplay_snapshot: Dictionary, peer_cards: Dictionary = {}, local_peer_id_override: int = -1) -> Dictionary:
 	if gameplay_snapshot.is_empty():
 		return {}
+	var local_peer_id: int = local_peer_id_override if local_peer_id_override > 0 else _local_peer_id()
+	var cards: Dictionary = peer_cards.duplicate(true)
+	if cards.is_empty() and NetworkManager != null and NetworkManager.has_method("get_public_player_cards"):
+		cards = NetworkManager.get_public_player_cards()
+	var local_card: Dictionary = Dictionary(cards.get(str(local_peer_id), cards.get(local_peer_id, {})))
 	var peer_models: Dictionary = Dictionary(gameplay_snapshot.get("peer_models", {}))
-	if peer_models.is_empty():
-		return {}
-	var model_keys: Array[String] = []
-	for model_key_raw in peer_models.keys():
-		model_keys.append(str(model_key_raw))
-	model_keys.sort()
-	var digest_source: Array = []
-	var combo_family_ids: Array[String] = []
-	var combo_pressure_tags: Array[String] = []
-	var public_surface_tags: Array[String] = []
-	for model_key in model_keys:
-		var model: Dictionary = Dictionary(peer_models.get(model_key, {}))
-		var combo_digest := str(model.get("combo_contract_digest", "")).strip_edges()
-		var family_ids := _string_array(model.get("combo_family_ids", []))
-		family_ids.sort()
-		var pressure_tags := _string_array(model.get("combo_pressure_tags", []))
-		pressure_tags.sort()
-		var surface_tags := _string_array(model.get("public_surface_tags", []))
-		surface_tags.sort()
-		if combo_digest.is_empty() and family_ids.is_empty() and pressure_tags.is_empty() and surface_tags.is_empty():
-			continue
-		digest_source.append([model_key, combo_digest, family_ids, pressure_tags, surface_tags])
-		combo_family_ids = _merge_unique_string_arrays(combo_family_ids, family_ids)
-		combo_pressure_tags = _merge_unique_string_arrays(combo_pressure_tags, pressure_tags)
-		public_surface_tags = _merge_unique_string_arrays(public_surface_tags, surface_tags)
-	if digest_source.is_empty():
-		return {}
-	return {
-		"combo_contract_digest": JSON.stringify(digest_source).md5_text(),
-		"combo_family_ids": combo_family_ids,
-		"combo_pressure_tags": combo_pressure_tags,
-		"public_surface_tags": public_surface_tags
-	}
+	var public_id := str(local_card.get("public_id", "")).strip_edges()
+	if not public_id.is_empty() and peer_models.has(public_id):
+		var public_model := Dictionary(peer_models.get(public_id, {}))
+		return {
+			"combo_contract_digest": str(public_model.get("combo_contract_digest", "")).strip_edges(),
+			"combo_family_ids": Array(public_model.get("combo_family_ids", [])).duplicate(true),
+			"combo_pressure_tags": Array(public_model.get("combo_pressure_tags", [])).duplicate(true),
+			"public_surface_tags": Array(public_model.get("public_surface_tags", [])).duplicate(true)
+		}
+	for model_raw in peer_models.values():
+		var model: Dictionary = Dictionary(model_raw)
+		if int(model.get("peer_id", -1)) == local_peer_id:
+			return {
+				"combo_contract_digest": str(model.get("combo_contract_digest", "")).strip_edges(),
+				"combo_family_ids": Array(model.get("combo_family_ids", [])).duplicate(true),
+				"combo_pressure_tags": Array(model.get("combo_pressure_tags", [])).duplicate(true),
+				"public_surface_tags": Array(model.get("public_surface_tags", [])).duplicate(true)
+			}
+	return {}
 
 func _build_run_report_lines(seed_value: int, end_reason: String, local_peer_id: int, run_counter: int, fact_lines: Array[String], note_lines: Array[String]) -> Array[String]:
 	var lines: Array[String] = []
@@ -3734,13 +3624,6 @@ func compute_next_step_hint_for_test_with_state(event_log: Node, local_peer_id: 
 func compute_next_step_hint_for_test_with_full_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int, role_name: String, ghost_active: bool, ghost_target_local: bool, extraction_active: bool) -> String:
 	return _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot, role_name, ghost_active, ghost_target_local, extraction_active)
 
-func compute_next_step_hint_for_test_with_first_run_state(event_log: Node, local_peer_id: int, has_carrying: bool, extraction_slot: int, first_run_pending: bool) -> String:
-	var previous := profile_first_run_pending
-	profile_first_run_pending = first_run_pending
-	var hint := _compute_next_step_hint_with_state(event_log, local_peer_id, has_carrying, extraction_slot)
-	profile_first_run_pending = previous
-	return hint
-
 func apply_quick_tag_shortcuts_for_test(current_text: String, shortcut: String) -> String:
 	return _apply_quick_tag_shortcuts(current_text, shortcut)
 
@@ -3795,16 +3678,13 @@ func _toggle_help_overlay(force_open: Variant = null) -> void:
 		_toggle_notebook(false)
 
 func _build_help_overlay_text() -> String:
-	var packet := _current_run_guidance_packet()
-	return build_help_overlay_text_for_test(packet, bool(packet.get("first_run_pending", profile_first_run_pending)), bool(profile_settings.get("controller_glyphs", false)))
-
-func build_help_overlay_text_for_test(packet: Dictionary = {}, first_run_pending: bool = true, controller_mode: bool = false) -> String:
+	var controller_mode := bool(profile_settings.get("controller_glyphs", false))
 	var notebook_line := "View: notebook  A: save note" if controller_mode else "N: notebook, Enter: save note"
 	var quick_tag_line := "Hold modifiers on keyboard for quick tags" if controller_mode else "Shift+Enter: SUSPECT  Ctrl+Enter: ALIBI  Alt+Enter: EVIDENCE"
 	var lines: Array[String] = []
-	var current_packet := packet if not packet.is_empty() else _build_run_guidance_packet()
+	var packet := _build_run_guidance_packet()
 	var focus_lines: Array[String] = []
-	for line_value in Array(current_packet.get("focus_lines", [])):
+	for line_value in Array(packet.get("focus_lines", [])):
 		var text := str(line_value).strip_edges()
 		if not text.is_empty():
 			focus_lines.append(text)
@@ -3812,17 +3692,6 @@ func build_help_overlay_text_for_test(packet: Dictionary = {}, first_run_pending
 		lines.append("Run Brief")
 		lines.append_array(focus_lines.slice(0, 6))
 		lines.append("")
-	if first_run_pending:
-		lines.append("First-run primer")
-		lines.append("Authentic extraction wins. Hold still in Extraction when the stabilizing window opens.")
-		lines.append("Roles are asymmetric. Notebook notes and hints keep the public line readable.")
-		lines.append("Continuity: what returns from this run can shape later reads.")
-		lines.append("")
-	else:
-		var public_signal_line := str(current_packet.get("public_signal_line", "")).strip_edges()
-		if not public_signal_line.is_empty():
-			lines.append("Live continuity: %s" % public_signal_line)
-			lines.append("")
 	lines.append_array([
 		"Goal: recover an authentic Artifact and hold it in Extraction.",
 		"Counterfeit extraction helps sabotage. Read clues before you commit.",
@@ -3857,7 +3726,7 @@ func _update_goal_label(local_id: int) -> void:
 		return
 	var phase := _compute_run_phase(EventLog, local_id)
 	var line := _compute_objective_line(local_id)
-	var packet := _current_run_guidance_packet(local_id)
+	var packet := _build_run_guidance_packet()
 	var run_kind_line := str(packet.get("run_kind_line", "")).strip_edges()
 	goal_label.text = "Phase: %s | %s" % [phase, line]
 	if not run_kind_line.is_empty():
@@ -4130,7 +3999,7 @@ func _compute_next_step_hint(event_log: Node, local_peer_id: int) -> String:
 	var ghost_active := bool(ghost_state.get("active", false))
 	var ghost_target_local := int(ghost_state.get("target_peer_id", -1)) == local_peer_id
 	var base_hint := _compute_next_step_hint_with_state(event_log, local_peer_id, carrying, _extraction_room_slot(), str(RunState.local_role), ghost_active, ghost_target_local, bool(NetworkManager.is_local_extraction_window_active()))
-	var packet := _current_run_guidance_packet(local_peer_id)
+	var packet := _build_run_guidance_packet()
 	var action_tip := str(packet.get("action_tip", "")).strip_edges()
 	if action_tip.is_empty():
 		return base_hint
@@ -4161,8 +4030,6 @@ func _compute_next_step_hint_with_state(event_log: Node, local_peer_id: int, has
 	if hint_mode != "full":
 		return ""
 	if notes_count == 0:
-		if profile_first_run_pending:
-			return "Tip: First run -> N notebook. Write SUSPECT:/ALIBI: notes before you commit."
 		return "Tip: N -> notebook. Write SUSPECT:/ALIBI: notes."
 	if role_name == ROLE_SERVICE_SCRIPT.ROLE_WARDEN and inspections_count == 0:
 		return "Tip: Hold T near an artifact to inspect."

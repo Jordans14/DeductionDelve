@@ -41,7 +41,6 @@ const EXPEDITION_CONSTITUTION_SCHEMA_SCRIPT = preload("res://src/delve/constitut
 const EXPEDITION_MUTATION_ENGINE_SCRIPT = preload("res://src/run/expedition_mutation_engine.gd")
 const MULTIMODAL_CONTRACT_SERVICE_SCRIPT = preload("res://src/product/multimodal_contract_service.gd")
 const DELVEMIND_EXPERIMENT_ENGINE_SCRIPT = preload("res://src/product/delvemind_experiment_engine.gd")
-const LOBBY_CONTROLLER_SCRIPT = preload("res://src/ui/lobby_controller.gd")
 
 class DummyDamageTarget:
 	var health: int = 3
@@ -229,8 +228,6 @@ func _init() -> void:
 	_test_execution_public_fact_extensions_and_diagnostics_contract(failures)
 	_test_execution_social_consequence_runtime_and_public_projection(failures)
 	_test_execution_social_consequence_persistence_and_ev7(failures)
-	_test_execution_onboarding_first_run_and_returning_run_surfaces(failures)
-	_test_execution_onboarding_hidden_set_and_c7_contract(failures)
 	_test_lobby_shell_scene_contract(failures)
 
 	_pending_failures = failures.duplicate()
@@ -12024,13 +12021,6 @@ func _test_execution_public_fact_extensions_and_diagnostics_contract(failures: A
 				"combo_family_ids": ["combo_family_private_archive_ritual"],
 				"combo_pressure_tags": ["pressure_route_control_answer", "combo_private_archive_ritual"],
 				"public_surface_tags": ["combo_private_archive_ritual", "route_memory"]
-			},
-			"delver_B": {
-				"peer_id": 3,
-				"combo_contract_digest": "combo_digest_beta",
-				"combo_family_ids": ["combo_family_threshold_echo"],
-				"combo_pressure_tags": ["pressure_threshold_echo", "combo_threshold_echo"],
-				"public_surface_tags": ["combo_threshold_echo", "threshold_memory"]
 			}
 		}
 	}
@@ -12041,20 +12031,14 @@ func _test_execution_public_fact_extensions_and_diagnostics_contract(failures: A
 		"public_trace_classes": ["artifact", "hazard"],
 		"public_surface_tags": ["movement", "burden"]
 	}
-	var peer_cards := {
-		"2": {"public_id": "delver_A", "display_name": "Aster"},
-		"3": {"public_id": "delver_B", "display_name": "Bram"}
-	}
+	var peer_cards := {"2": {"public_id": "delver_A", "display_name": "Aster"}}
 	var fact_extensions := controller.build_public_fact_extensions_for_test(event_log, gameplay_snapshot, constitution_summary, peer_cards, 2)
-	var mirrored_fact_extensions := controller.build_public_fact_extensions_for_test(event_log, gameplay_snapshot, constitution_summary, peer_cards, 3)
 	if fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[PROVENANCE]")).is_empty():
 		failures.append("execution fact extensions should emit public provenance lines")
 	if fact_extensions.filter(func(line: String) -> bool: return line.begins_with("[COMBO]")).is_empty():
 		failures.append("execution fact extensions should emit public combo lines")
 	if JSON.stringify(fact_extensions).find("combo_entries") != -1:
 		failures.append("execution fact extensions should never leak raw combo_entries")
-	if JSON.stringify(fact_extensions) != JSON.stringify(mirrored_fact_extensions):
-		failures.append("execution fact extensions should keep shared combo lines identical across local peer viewpoints")
 
 	var run_record := {
 		"seed": 20260319,
@@ -12390,212 +12374,6 @@ func _test_execution_social_consequence_persistence_and_ev7(failures: Array[Stri
 	control_event_log.free()
 	variant_event_log.free()
 	manager.free()
-
-func _test_execution_onboarding_first_run_and_returning_run_surfaces(failures: Array[String]) -> void:
-	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
-	var first_run_profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
-	var returning_profile := first_run_profile.duplicate(true)
-	returning_profile["first_run_pending"] = false
-	var first_quick_start := LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(first_run_profile, {})
-	for required_fragment in [
-		"First run: recover an authentic Artifact and hold it in Extraction.",
-		"Roles stay asymmetric:",
-		"Artifacts are the objective. Tools are active. Relics are passive.",
-		"Use notebook notes and hints early;",
-		"Continuity matters:"
-	]:
-		if first_quick_start.find(required_fragment) == -1:
-			failures.append("M8 first-run home quick-start should surface %s" % required_fragment)
-	var returning_quick_start := LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(returning_profile, {
-		"delve_protocol": {
-			"protocol_state": "Exposure Protocol",
-			"doctrine_label": "Return Pressure",
-			"pressure_line": "Public reads are hardening on the route."
-		}
-	})
-	if returning_quick_start.find("Live brief:") == -1 or returning_quick_start.find("Current read: Exposure Protocol | Return Pressure | Public reads are hardening on the route.") == -1:
-		failures.append("M8 returning-run home quick-start should shift from primer text to the live brief")
-	if returning_quick_start.find("First run:") != -1:
-		failures.append("M8 returning-run home quick-start should not reuse first-run primer wording")
-
-	var first_continue := "\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(first_run_profile, {}))
-	if first_continue.find("authentic extraction") == -1 or first_continue.find("Home quick-start summary") == -1:
-		failures.append("M8 first-run continue guidance should explain authentic extraction and direct players back to the primer")
-	var connected_continue := "\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(returning_profile, {
-		"connected": true,
-		"delve_protocol": {
-			"protocol_state": "Fracture Protocol",
-			"doctrine_label": "Burden Chain",
-			"pressure_line": "Split accountability is loading the route."
-		}
-	}))
-	if connected_continue.find("ready up and start another run") == -1 or connected_continue.find("Fracture Protocol") == -1:
-		failures.append("M8 returning-run continue guidance should stay live-context driven while connected")
-
-	var manager := NETWORK_MANAGER_SCRIPT.new()
-	var first_policy := "\n".join(manager.build_session_policy_lines_for_test({
-		"mode": "host",
-		"host_bind": "0.0.0.0",
-		"host_port": 2456,
-		"first_run_pending": true
-	}))
-	if first_policy.find("Guide: Primer on authentic extraction, asymmetric roles, notebook clues, and extraction hold.") == -1:
-		failures.append("M8 first-run session policy lines should expose the bounded primer")
-	var returning_policy := "\n".join(manager.build_session_policy_lines_for_test({
-		"mode": "client",
-		"join_address": "127.0.0.1",
-		"join_port": 2456,
-		"first_run_pending": false,
-		"delve_protocol": {
-			"protocol_state": "Exposure Protocol",
-			"doctrine_label": "Return Pressure",
-			"pressure_line": "Public reads are hardening on the route."
-		}
-	}))
-	if returning_policy.find("Guide: Exposure Protocol | Return Pressure | Public reads are hardening on the route.") == -1:
-		failures.append("M8 returning-run session policy lines should use the live brief instead of the primer")
-	if returning_policy.find("Guide: Primer") != -1:
-		failures.append("M8 returning-run session policy lines should not reuse the primer text")
-	manager.free()
-
-	var controller := GAME_CONTROLLER_SCRIPT.new()
-	var role_payload := ROLE_SERVICE_SCRIPT.new().build_private_role_payload(ROLE_SERVICE_SCRIPT.ROLE_WARDEN)
-	var public_summary := {
-		"protocol_state": "Exposure Protocol",
-		"doctrine_label": "Return Pressure",
-		"pressure_line": "Public reads are hardening on the route.",
-		"world_goal": "Return with a readable custody line.",
-		"group_tension_bias": "trust-fragile but obligation-heavy",
-		"item_ecology_bias": "custody burden",
-		"convergence_axis": "artifact custody"
-	}
-	var branch_context := {
-		"branch_family_name": "Relay Hollows",
-		"challenge_texture": "route_revision",
-		"rescue_climate": "covering_retreat",
-		"witness_pressure": "public",
-		"route_commitment": "staged_commitment"
-	}
-	var first_packet := controller.build_run_guidance_packet_for_test(public_summary, branch_context, role_payload, {
-		"first_run_pending": true
-	})
-	var first_focus := "\n".join(Array(first_packet.get("focus_lines", [])))
-	if first_focus.find("Primer: authentic extraction wins;") == -1 or first_focus.find("Primer: roles stay asymmetric;") == -1:
-		failures.append("M8 first-run run-guidance packets should prepend the primer through the existing HUD owner")
-	var first_help := controller.build_help_overlay_text_for_test(first_packet, true, false)
-	if first_help.find("First-run primer") == -1 or first_help.find("Continuity: what returns from this run can shape later reads.") == -1:
-		failures.append("M8 first-run help overlay should explain primer rules and continuity weight")
-	var empty_log := EVENT_LOG_SCRIPT.new()
-	var first_hint := controller.compute_next_step_hint_for_test_with_first_run_state(empty_log, 2, false, 7, true)
-	if first_hint.find("First run -> N notebook") == -1:
-		failures.append("M8 first-run next-step hints should keep notebook use explicit")
-	empty_log.free()
-
-	var returning_packet := controller.build_run_guidance_packet_for_test(public_summary, branch_context, role_payload, {
-		"first_run_pending": false,
-		"public_consequence_tags": ["artifact_return_visible"],
-		"world_aftermath_tags": ["rerouted"],
-		"public_evidence_tags": ["witness_visible", "custody_visible"]
-	})
-	var returning_focus := "\n".join(Array(returning_packet.get("focus_lines", [])))
-	if returning_focus.find("Continuity:") == -1 or returning_focus.find("return pressure is readable") == -1:
-		failures.append("M8 returning-run guidance should compress public-safe C4/C5/C6 meaning into a live continuity line")
-	if returning_focus.find("Primer:") != -1:
-		failures.append("M8 returning-run guidance should not reuse first-run primer lines")
-	var returning_help := controller.build_help_overlay_text_for_test(returning_packet, false, false)
-	if returning_help.find("Live continuity:") == -1 or returning_help.find("First-run primer") != -1:
-		failures.append("M8 returning-run help overlay should switch to live continuity instead of primer text")
-	controller.free()
-
-func _test_execution_onboarding_hidden_set_and_c7_contract(failures: Array[String]) -> void:
-	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
-	var first_run_profile := PROFILE_SERVICE_SCRIPT.create_default_profile(catalog)
-	var returning_profile := first_run_profile.duplicate(true)
-	returning_profile["first_run_pending"] = false
-	var controller := GAME_CONTROLLER_SCRIPT.new()
-	var role_payload := ROLE_SERVICE_SCRIPT.new().build_private_role_payload(ROLE_SERVICE_SCRIPT.ROLE_SCAVENGER)
-	var packet := controller.build_run_guidance_packet_for_test({
-		"protocol_state": "Exposure Protocol",
-		"doctrine_label": "Return Pressure",
-		"pressure_line": "Public reads are hardening on the route.",
-		"world_goal": "Return with a readable custody line."
-	}, {
-		"branch_family_name": "Relay Hollows",
-		"route_commitment": "staged_commitment"
-	}, role_payload, {
-		"first_run_pending": false,
-		"public_consequence_tags": ["artifact_return_visible"],
-		"world_aftermath_tags": ["rerouted"],
-		"public_evidence_tags": ["witness_visible"]
-	})
-	for rule in [
-		"authentic_extraction",
-		"role_asymmetry",
-		"artifact_tool_relic_categories",
-		"danger_pressure",
-		"notebook_hint_usage",
-		"extraction_hold_behavior",
-		"continuity_weight"
-	]:
-		if not _string_array_for_test(Array(packet.get("first_run_surface_rules", []))).has(rule):
-			failures.append("M8 C7 packets should preserve first_run_surface_rules entry %s" % rule)
-	for rule in [
-		"combo_entries",
-		"combo_family_ids",
-		"lifecycle_math",
-		"private_trace_classes",
-		"unrevealed_counterfeit_truth",
-		"deeper_social_auto_solve",
-		"phenomenon_manifest"
-	]:
-		if not _string_array_for_test(Array(packet.get("hidden_surface_rules", []))).has(rule):
-			failures.append("M8 C7 packets should preserve hidden_surface_rules entry %s" % rule)
-	var manager := NETWORK_MANAGER_SCRIPT.new()
-	var surface_blob := "\n".join([
-		LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(first_run_profile, {}),
-		LOBBY_CONTROLLER_SCRIPT.build_home_quick_start_text_for_test(returning_profile, {
-			"delve_protocol": {
-				"protocol_state": "Exposure Protocol",
-				"doctrine_label": "Return Pressure",
-				"pressure_line": "Public reads are hardening on the route."
-			}
-		}),
-		"\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(first_run_profile, {})),
-		"\n".join(PROFILE_SERVICE_SCRIPT.build_continue_guidance_lines(returning_profile, {
-			"connected": true,
-			"delve_protocol": {
-				"protocol_state": "Exposure Protocol",
-				"doctrine_label": "Return Pressure",
-				"pressure_line": "Public reads are hardening on the route."
-			}
-		})),
-		"\n".join(manager.build_session_policy_lines_for_test({
-			"mode": "host",
-			"host_bind": "0.0.0.0",
-			"host_port": 2456,
-			"first_run_pending": true
-		})),
-		"\n".join(Array(packet.get("focus_lines", []))),
-		controller.build_help_overlay_text_for_test(packet, false, false),
-		str(packet.get("action_tip", "")),
-		str(packet.get("public_signal_line", ""))
-	])
-	manager.free()
-	for banned_fragment in [
-		"combo_entries",
-		"combo_family_ids",
-		"private_trace_classes",
-		"phenomenon_manifest",
-		"lifecycle_math",
-		"artifact_return_visible",
-		"witness_visible",
-		"counterfeit_pressure",
-		"private_evidence_tags",
-		"aftermath_consequence_refs"
-	]:
-		if surface_blob.find(banned_fragment) != -1:
-			failures.append("M8 onboarding surfaces should not leak hidden/internal fragment %s" % banned_fragment)
-	controller.free()
 
 func _test_execution_lifecycle_registry_combo_and_artifact_adoption(failures: Array[String]) -> void:
 	var catalog := PRODUCT_CATALOG_SCRIPT.load_catalog()
