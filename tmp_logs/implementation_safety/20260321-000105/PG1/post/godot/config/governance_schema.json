@@ -1,0 +1,171 @@
+{
+  "schema_name": "GovernanceState",
+  "schema_version": 1,
+  "activation_state_required_fields": [
+    "epoch",
+    "active_channels",
+    "dormant_channels",
+    "safe_mode_active",
+    "quarantine_ids"
+  ],
+  "safe_mode_required_fields": [
+    "enabled",
+    "reason",
+    "fallback_constitution_id",
+    "cooling_tags"
+  ],
+  "explanation_packet_required_fields": [
+    "packet_id",
+    "artifact_type",
+    "packet_schema_version",
+    "packet_digest",
+    "summary_lines",
+    "operator_lines",
+    "play_routing_tags",
+    "play_routing_contract",
+    "compression_profile",
+    "priority_channels",
+    "fairness_flags",
+    "immediate",
+    "run",
+    "meta"
+  ],
+  "semantic_lock_registry_required_fields": [
+    "schema_name",
+    "schema_version",
+    "registry_id",
+    "constitution_hash",
+    "constitution_id",
+    "tuple_records"
+  ],
+  "semantic_lock_tuple_required_fields": [
+    "tuple_id",
+    "subject_class",
+    "owner_lane",
+    "canonical_source_owner",
+    "canonical_source_fields",
+    "digest_fields",
+    "public_projection_fields",
+    "private_projection_fields",
+    "bundle_only_fields",
+    "alias_read_map",
+    "allowed_consumers",
+    "visibility_class",
+    "derivation_policy",
+    "additive_only",
+    "recompute_forbidden",
+    "value_domain_map",
+    "failure_codes"
+  ],
+  "governance_hook_required_fields": [
+    "schema_name",
+    "schema_version",
+    "activation_epoch",
+    "active_channels",
+    "dormant_channels",
+    "safe_mode_active",
+    "quarantine_ids",
+    "available_actions",
+    "trigger_slots"
+  ],
+  "forensic_bundle_required_fields": [
+    "schema_name",
+    "bundle_schema_version",
+    "replay_id",
+    "run_seed",
+    "constitution_hash",
+    "constitution_version_hash",
+    "packet_schema_version",
+    "product_catalog_version",
+    "event_id_range",
+    "timeline_digest",
+    "mutation_replay_signature",
+    "normalization_mode",
+    "governance_hook_set",
+    "bundle_extensions"
+  ],
+  "signal_compression_required_fields": [
+    "schema_name",
+    "schema_version",
+    "max_visible_channels",
+    "max_lines_per_layer",
+    "max_total_lines",
+    "drop_policy",
+    "residue_budget",
+    "telegraph_priority",
+    "drop_counts"
+  ],
+  "stability_report_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "anti_bottleneck_report_required_fields": [
+    "report_id",
+    "bottleneck_flags",
+    "summary_lines"
+  ],
+  "play_routing_report_required_fields": [
+    "report_id",
+    "baseline_routes",
+    "status",
+    "summary_lines"
+  ],
+  "court_decision_required_fields": [
+    "decision_id",
+    "status",
+    "summary_lines"
+  ],
+  "meta_reflection_required_fields": [
+    "reflection_id",
+    "status",
+    "summary_lines"
+  ],
+  "saturation_report_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "dominance_strain_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "throttle_record_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "veto_registry_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "rollback_registry_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "exploit_absorption_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "meta_collapse_required_fields": [
+    "report_id",
+    "status",
+    "summary_lines"
+  ],
+  "resurrection_priority_required_fields": [
+    "schema_name",
+    "schema_version",
+    "candidate_ids",
+    "summary_lines"
+  ],
+  "allowed_report_statuses": [
+    "stable",
+    "cooling",
+    "warning",
+    "quarantined"
+  ]
+}

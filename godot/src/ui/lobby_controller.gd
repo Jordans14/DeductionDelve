@@ -253,6 +253,11 @@ func _deferred_change_to_game_scene() -> void:
 	if tree == null:
 		return
 	tree.change_scene_to_file("res://scenes/Game.tscn")
+	call_deferred("_refresh_network_bindings_after_game_scene_change")
+
+func _refresh_network_bindings_after_game_scene_change() -> void:
+	if NetworkManager != null and NetworkManager.has_method("refresh_active_peer_bindings"):
+		NetworkManager.refresh_active_peer_bindings()
 
 func _refresh_buttons() -> void:
 	var mp := _multiplayer_api()

@@ -1,0 +1,55 @@
+{
+  "schema_name": "CivilizationState",
+  "schema_version": 1,
+  "faction_required_fields": [
+    "faction_id",
+    "label",
+    "actor_type",
+    "legibility",
+    "play_routing_tags"
+  ],
+  "regime_required_fields": [
+    "regime_id",
+    "label",
+    "mode",
+    "faction_ids"
+  ],
+  "region_required_fields": [
+    "region_id",
+    "label",
+    "pressure_profile",
+    "play_routing_tags"
+  ],
+  "world_mutation_required_fields": [
+    "mutation_id",
+    "label",
+    "status",
+    "reversal_mode",
+    "play_routing_tags"
+  ],
+  "residue_required_fields": [
+    "residue_id",
+    "label",
+    "source_kind",
+    "play_routing_tags"
+  ],
+  "literacy_track_required_fields": [
+    "track_id",
+    "label",
+    "tier",
+    "activation_tags"
+  ],
+  "strategy_cluster_required_fields": [
+    "cluster_id",
+    "label",
+    "pressure_tags",
+    "play_routing_tags"
+  ],
+  "allowed_mutation_statuses": [
+    "dormant",
+    "proposed",
+    "approved",
+    "quarantined",
+    "reversed"
+  ]
+}

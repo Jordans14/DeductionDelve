@@ -1,0 +1,6 @@
+G6 Final Consistency Gate: GREEN
+run_tests.ps1: PASS
+run_headless_proof.ps1: PASS
+host_report=C:\Users\jorda\AppData\Roaming\Godot\app_userdata\DeductionDelve\reports\run_1337_cli_done_1_1.txt
+client_report=C:\Users\jorda\AppData\Roaming\Godot\app_userdata\DeductionDelve\reports\run_1337_cli_done_960433925_1.txt
+diff_summary=REPORT_DIFF ok=true mismatches=0 | REPORT_BOUNDARY ok=true fragments_checked=8

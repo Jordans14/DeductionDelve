@@ -1,0 +1,2 @@
+PG2 pre snapshot reconstructed from PG1 post for overlapping PG1-owned files and campaign_start preimage for PG2-only files.
+This captures the exact intended pre-PG2 rollback boundary after G1 and before PG2-only edits.

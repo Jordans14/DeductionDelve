@@ -1,0 +1,5 @@
+gate=G5 Ecology and DelveMind Gate
+timestamp=2026-03-21T05:58:33.8524306-07:00
+run_tests_ps1=green
+run_tests_exit_code=0
+notes=PG5 milestone suite passed after localized attractor and lifecycle summary fixes

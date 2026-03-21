@@ -1,0 +1,6 @@
+G2 Provenance and Resolution Gate
+run_tests.ps1: PASS
+run_headless_proof.ps1: PASS
+Proof seed: 1337
+RUN_VERIFY ok=true
+REPORT_DIFF ok=true mismatches=0

@@ -1,0 +1,4 @@
+﻿Using Godot: D:\Godot\Godot_v4.6.1-stable_win64_console.exe
+GODOT_USER_HOME: D:\DeductionDelve\.godot_user
+Running headless test runner...
+

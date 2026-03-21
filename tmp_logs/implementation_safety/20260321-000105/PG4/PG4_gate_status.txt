@@ -1,0 +1,6 @@
+gate=G4
+status=passed
+run_tests_capture=run_tests_capture_pg4_final.txt
+headless_proof_capture=run_headless_proof_smoke_attempt3.txt
+proof_lane_ok=true
+report_diff_ok=true

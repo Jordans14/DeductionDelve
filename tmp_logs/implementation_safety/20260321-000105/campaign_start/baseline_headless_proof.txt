@@ -1,0 +1,15 @@
+﻿Using Godot: D:\Godot\Godot_v4.6.1-stable_win64_console.exe
+GODOT_USER_HOME: D:\DeductionDelve\.godot_user
+Trying proof seed: 1337 (attempt 1/3)
+Requested headless proof port: 45670
+Host chosen port: 45670
+=== HEADLESS PROOF PASS ===
+Proof seed: 1337
+RUN_VERIFY ok=true
+Host report: C:\Users\jorda\AppData\Roaming\Godot\app_userdata\DeductionDelve\reports\run_1337_extraction_objective_1_1.txt
+Client report: C:\Users\jorda\AppData\Roaming\Godot\app_userdata\DeductionDelve\reports\run_1337_extraction_objective_52006066_1.txt
+REPORT_DIFF ok=true mismatches=0
+Host log: D:\DeductionDelve\tmp_logs\headless_proof\host.out.log
+Client log: D:\DeductionDelve\tmp_logs\headless_proof\client.out.log
+Report dir: D:\DeductionDelve\.godot_user\reports
+

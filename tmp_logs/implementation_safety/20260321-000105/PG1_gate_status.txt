@@ -1,0 +1,4 @@
+﻿G1 Semantic Lock Gate: PASS
+run_tests.ps1 exit=0
+run_headless_proof.ps1 exit=0
+Registry validation, compile validation, normalize roundtrip, and semantic lock tests are covered by the headless test runner.
